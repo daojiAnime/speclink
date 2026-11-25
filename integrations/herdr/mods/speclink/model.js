@@ -176,6 +176,31 @@ export function buildBoard(list, plan, discussions, remaining = {}, facts = {}) 
   };
 }
 
+// 路线图视图数据：按 wave 升序分波次汇总活跃变更、反向计算下游解锁列表，并收集尚有未转出切片的讨论。
+export function buildRoadmap(board) {
+  if (!board) return { waves: [], unpromotedCuts: [] };
+  const allRows = Object.values(board.stages ?? {}).flat();
+  const unlocksMap = new Map();
+  for (const r of allRows) {
+    for (const dep of r.blockedBy ?? []) {
+      unlocksMap.set(dep, [...(unlocksMap.get(dep) ?? []), r.name]);
+    }
+  }
+  const byWave = new Map();
+  for (const r of allRows) {
+    const wave = Number.isFinite(Number(r.wave)) ? Number(r.wave) : 1;
+    const item = { ...r, unlocks: unlocksMap.get(r.name) ?? [] };
+    byWave.set(wave, [...(byWave.get(wave) ?? []), item]);
+  }
+  const waves = [...byWave.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([wave, changes]) => ({ wave, changes }));
+  const unpromotedCuts = (board.discussions ?? [])
+    .filter((d) => Array.isArray(d.cuts) && d.cuts.length > 0)
+    .flatMap((d) => d.cuts.map((label) => ({ slug: d.slug, topic: d.topic, label })));
+  return { waves, unpromotedCuts };
+}
+
 // 資料夾沒有 Speclink 專案時，CLI 所有動詞都回這句，而且不是 JSON。設定檔壞掉是另一句，要照常當錯誤。
 export const isUninitialized = (message) => message.includes("Not initialized");
 

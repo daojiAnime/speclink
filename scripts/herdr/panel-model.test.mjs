@@ -31,6 +31,7 @@ import {
   agentChange,
   batchPlan,
   buildBoard,
+  buildRoadmap,
   canOpenProject,
   changeActions,
   changeAgents,
@@ -1163,6 +1164,39 @@ test('lastOpenError：後一次沒有錯誤訊息時，保留前一次的訊息'
 test('lastOpenError：exec 拋例外算失敗，錯誤是例外的訊息', async () => {
   const { exec } = fakeExec(new Error('open: command not found'));
   assert.equal(await lastOpenError([BRING_UP], exec), 'open: command not found');
+});
+
+test('buildRoadmap：按波次分組、計算下游解鎖並收集尚未轉出的切片', () => {
+  assert.deepEqual(buildRoadmap(null), { waves: [], unpromotedCuts: [] });
+  const board = buildBoard(
+    {
+      changes: [
+        { name: 'wave2-feat', stage: 'proposed', completedTasks: 0, totalTasks: 3 },
+        { name: 'wave1-base', stage: 'in-progress', completedTasks: 1, totalTasks: 2 },
+      ],
+    },
+    {
+      changes: [
+        { name: 'wave2-feat', stage: 'proposed', wave: 2, blockedBy: ['wave1-base'] },
+        { name: 'wave1-base', stage: 'in-progress', wave: 1, blockedBy: [] },
+      ],
+      unpromotedCuts: [{ discussion: 'arch-cut', unpromoted: ['slice-a', 'slice-b'] }],
+    },
+    {
+      discussions: [{ slug: 'arch-cut', topic: 'Architecture split', status: 'promoted' }],
+    },
+  );
+  const roadmap = buildRoadmap(board);
+  assert.equal(roadmap.waves.length, 2);
+  assert.equal(roadmap.waves[0].wave, 1);
+  assert.deepEqual(roadmap.waves[0].changes.map((c) => c.name), ['wave1-base']);
+  assert.deepEqual(roadmap.waves[0].changes[0].unlocks, ['wave2-feat']);
+  assert.equal(roadmap.waves[1].wave, 2);
+  assert.deepEqual(roadmap.waves[1].changes[0].blockedBy, ['wave1-base']);
+  assert.deepEqual(roadmap.unpromotedCuts, [
+    { slug: 'arch-cut', topic: 'Architecture split', label: 'slice-a' },
+    { slug: 'arch-cut', topic: 'Architecture split', label: 'slice-b' },
+  ]);
 });
 
 // ---- 開工 ----

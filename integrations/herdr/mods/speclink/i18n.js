@@ -362,6 +362,22 @@ export const TO_EN = {
   "{0} 的 apply 尚未完成": "The apply of {0} is not finished",
   请勾选要开工的变更: "Check the changes to start",
   "主文件夹一次只能运行一个 apply，可改选 apply-with-worktree": "The main folder runs one apply at a time. You can use apply-with-worktree",
+  // 路线图视图
+  "第 {0} 波": "Wave {0}",
+  "共 {0} 个波次 · {1} 个变更 · {2} 项待转出切片": "{0} waves · {1} changes · {2} unpromoted cuts",
+  返回看板: "Back to board",
+  在桌面端打开: "Open in Desktop",
+  "刷新 Speclink 面板": "Refresh Speclink panel",
+  在路线图查看波次: "View waves in roadmap",
+  查看项目路线图: "View project roadmap",
+  "解锁：{0}": "Unlocks: {0}",
+  "依赖：{0}": "Blocked by: {0}",
+  待转出切片: "Unpromoted cuts",
+  暂无路线图条目: "No roadmap items yet",
+  "先发起讨论或创建变更后，波次、依赖与待转出切片会呈现在这里。": "Start a discussion or create a change to see waves, dependencies, and unpromoted cuts here.",
+  "来源：{0}": "From: {0}",
+  生成提案: "Propose",
+  复制提案指令: "Copy propose command",
 };
 
 // Herdr 内置界面中带变量的句子。需整句匹配，名称为用户自定。{n} 为第 n 个捕获组。

@@ -22,11 +22,15 @@ import {
   window,
 } from "herdr";
 import {
+  APP_ID,
   attachPlan,
   buildBoard,
+  buildRoadmap,
   canOpenProject,
   changeActions,
   changeAgents,
+  commandText,
+  defaultAgent,
   deliveryHint,
   discussionActions,
   discussionAgents,
@@ -35,6 +39,7 @@ import {
   joinAgents,
   lastOpenError,
   logoOpenAttempts,
+  newTabPlan,
   rowChoices,
   speclinkUrl,
   startChoices,
@@ -108,9 +113,12 @@ export default class SpeclinkPanel extends View {
     this.sending = new Set();
     this.starting = new Set();
     this.worktreePolicy = false;
+    this.viewMode = "board";
+    this.desktopApp = false;
     this.collapsed = new Set(JSON.parse(localStorage.getItem("collapsed") ?? "[]"));
     this.promotedOpen = localStorage.getItem("promotedOpen") === "true";
     if (!checking()) {
+      this.loadDesktopApp(cx);
       this.reload(cx);
       this.loadKnown(cx);
       // worktree 裡的任務進度不在主資料夾的監看範圍內，要靠計時重抓。
@@ -119,6 +127,29 @@ export default class SpeclinkPanel extends View {
         this.reload(cx);
       });
     }
+  }
+
+  // 静默检查本机是否安装了 Speclink 桌面应用，未安装时点击行/Logo/路线图不触发 -10814 错误弹窗。
+  loadDesktopApp(cx) {
+    if (checking()) return;
+    cx.spawn(async (cx) => {
+      const r = await exec("open", ["-Ra", APP_ID]).catch(() => ({ code: 1 }));
+      const hasApp = r?.code === 0;
+      if (hasApp !== this.desktopApp) {
+        this.desktopApp = hasApp;
+        cx.notify();
+      }
+    });
+  }
+
+  toggleRoadmap(cx) {
+    this.viewMode = this.viewMode === "roadmap" ? "board" : "roadmap";
+    cx.notify();
+  }
+
+  openRoadmapView(cx) {
+    this.viewMode = "roadmap";
+    cx.notify();
   }
 
   // 焦點或資料夾變了就改跟新的專案。render 會隨 Herdr 的即時資料重跑，所以平常立刻跟上；
@@ -205,7 +236,12 @@ export default class SpeclinkPanel extends View {
     this.watching = null;
     if (on) return;
     cx.spawn(async (cx) => {
-      const found = await exec("ls", ["-d", "speclink", "openspec"], { cwd: root }).catch(() => null);
+      const cfg = await exec("sh", ["-c", "sed -n 's/^spec_dir:[[:space:]]*//p' .speclink.yaml 2>/dev/null | head -n 1"], {
+        cwd: root,
+      }).catch(() => null);
+      const customDir = cfg?.stdout.trim().replace(/^["']|["']$/g, "");
+      const candidates = customDir ? [customDir] : ["speclink", "openspec"];
+      const found = await exec("ls", ["-d", ...candidates], { cwd: root }).catch(() => null);
       const dir = found?.stdout.trim().split("\n")[0];
       if (!dir) return;
       try {
@@ -593,9 +629,9 @@ export default class SpeclinkPanel extends View {
       .child(this.agentStatus(a.view, t));
   }
 
-  // 点行本身叫 Speclink 开详情。行上的按钮都会挡下点击。其他机器的项目路径在这台打不开。
+  // 点行本身叫 Speclink 开详情。行上的按钮都会挡下点击；未安装桌面应用或远程项目时不触发无效 URL。
   openOnClick(el, url, t) {
-    if (this.place.on) return el;
+    if (this.place.on || !this.desktopApp) return el;
     return el
       .cursor_pointer()
       .hover((s) => s.bg(t.hover))
@@ -603,24 +639,22 @@ export default class SpeclinkPanel extends View {
   }
 
   waveNumber(row, t) {
-    const number = div()
+    return div()
       .id(`wave-${row.name}`)
       .flex_none()
       .text_size(11)
       .font_semibold()
       .text_color(t.accent)
-      .child(String(row.wave));
-    if (this.place.on) return number;
-    return number
       .px(3)
       .rounded(3)
       .cursor_pointer()
       .hover((s) => s.bg(t.raised))
-      .tooltip(tr("在 Speclink 打开路线图"))
+      .tooltip(tr("在路线图查看波次"))
       .on_click((_e, cx) => {
         cx.stop_propagation();
-        this.openInApp([speclinkUrl("roadmap", this.root)], cx);
-      });
+        this.openRoadmapView(cx);
+      })
+      .child(String(row.wave));
   }
 
   // agent 正在跑的站会呼吸，和工单开着但没人在跑的站分得开。
@@ -925,6 +959,205 @@ export default class SpeclinkPanel extends View {
     return cards;
   }
 
+  roadmapChangeRow(row, ctx, t) {
+    const stageMeta = STAGES.find((s) => s.id === row.stage) ?? STAGES[0];
+    const actions = changeActions(row, ctx);
+    const start = startChoices(row, ctx);
+    const blocked = row.blockedBy.length > 0;
+    const percent = row.total > 0 ? Math.round((row.completed / row.total) * 100) : 0;
+    const working = changeAgents(row, ctx.agents);
+    const hintParts = [];
+    if (blocked) hintParts.push(tr("依赖：{0}", row.blockedBy.join(tr("、"))));
+    if (row.unlocks?.length > 0) hintParts.push(tr("解锁：{0}", row.unlocks.join(tr("、"))));
+    const depLine = hintParts.join(" · ");
+    const el = v_flex()
+      .id(`roadmap-change-${row.name}`)
+      .px(10)
+      .py(8)
+      .gap(5)
+      .when(working.some((a) => a.tab === ctx.focus.tab), (el) => this.markCurrent(el, t))
+      .child(
+        h_flex()
+          .gap(6)
+          .items_center()
+          .when(blocked, (el) => el.opacity(0.65))
+          .child(div().w(7).h(7).flex_none().rounded_full().bg(t[stageMeta.tone]))
+          .child(div().flex_1().min_w_0().truncate().child(row.name))
+          .child(
+            div()
+              .flex_none()
+              .px(5)
+              .py(1)
+              .rounded(4)
+              .bg(t.raised)
+              .text_size(10.5)
+              .text_color(t[stageMeta.tone])
+              .child(tr(stageMeta.label)),
+          )
+          .children(this.stationBadges(row, ctx, t))
+          .when(row.total > 0, (el) =>
+            el.child(div().flex_none().text_size(11).text_color(t.muted).child(`${row.completed}/${row.total}`)),
+          )
+          .child(this.copyButton(`roadmap-${row.name}`, row.name, tr("复制名称"), t)),
+      )
+      .when(row.total > 0, (el) =>
+        el.child(
+          div()
+            .h(4)
+            .rounded(2)
+            .bg(t.raised)
+            .overflow_hidden()
+            .when(blocked, (bar) => bar.opacity(0.65))
+            .child(div().h_full().rounded(2).w(`${percent}%`).bg(t[stageMeta.tone])),
+        ),
+      )
+      .when(Boolean(depLine), (el) =>
+        el.child(div().text_size(11).text_color(blocked ? t.blocked : t.muted).child(depLine)),
+      )
+      .children(working.map((a) => this.agentChip(`roadmap-${row.name}`, a, a.tab === ctx.focus.tab, t)))
+      .child(this.skillRow({ id: `roadmap-${row.name}`, actions, start, target: row.name, hint: "" }, t));
+    return this.openOnClick(el, speclinkUrl("change", this.root, row.name), t);
+  }
+
+  roadmapCutRow(cut, ctx, t) {
+    const key = defaultAgent(ctx) ?? "claude";
+    const args = `--from-discussion ${cut.slug} ${cut.label}`;
+    const cmd = commandText(key, "propose", args);
+    const plan = newTabPlan({
+      ...ctx,
+      skill: "propose",
+      target: { kind: "discussion", name: cut.slug, args },
+      note: "",
+    });
+    const ready = plan.kind === "tab";
+    return v_flex()
+      .id(`roadmap-cut-${cut.slug}-${cut.label}`)
+      .px(10)
+      .py(8)
+      .gap(4)
+      .child(
+        h_flex()
+          .gap(6)
+          .items_center()
+          .child(div().flex_1().min_w_0().truncate().font_medium().child(cut.label))
+          .child(
+            this.chip(
+              {
+                id: `propose-cut-${cut.slug}-${cut.label}`,
+                label: tr("生成提案"),
+                ready,
+                primary: ready,
+                tip: ready ? tr("在当前工作区新建标签页并运行：{0}", plan.text) : plan.reason,
+                click: (cx) => this.startTabs([plan], cx),
+              },
+              t,
+            ),
+          )
+          .child(this.copyButton(`cut-${cut.slug}-${cut.label}`, cmd, tr("复制提案指令"), t)),
+      )
+      .child(div().truncate().text_size(11).text_color(t.muted).child(tr("来源：{0}", `${cut.slug}${cut.topic ? ` · ${cut.topic}` : ""}`)));
+  }
+
+  roadmapBody(ctx, t) {
+    const { waves, unpromotedCuts } = buildRoadmap(this.board);
+    const changeCount = waves.reduce((sum, w) => sum + w.changes.length, 0);
+    const wave = waveToStart(this.board.stages, ctx);
+    const items = [
+      h_flex()
+        .id("roadmap-summary")
+        .flex_none()
+        .gap(6)
+        .px(10)
+        .py(7)
+        .items_center()
+        .rounded(10)
+        .border_1()
+        .border_color(t.border)
+        .bg(t.surface)
+        .child(
+          div()
+            .flex_1()
+            .min_w_0()
+            .text_size(11.5)
+            .text_color(t.muted)
+            .child(tr("共 {0} 个波次 · {1} 个变更 · {2} 项待转出切片", waves.length, changeCount, unpromotedCuts.length)),
+        )
+        .when(this.desktopApp && canOpenProject(this.projectTarget()), (el) =>
+          el.child(
+            this.chip(
+              {
+                id: "roadmap-desktop",
+                label: tr("在桌面端打开"),
+                ready: true,
+                click: (cx) => this.openInApp([speclinkUrl("roadmap", this.root)], cx),
+              },
+              t,
+            ),
+          ),
+        )
+        .child(
+          this.chip(
+            {
+              id: "roadmap-back",
+              label: tr("返回看板"),
+              ready: true,
+              click: (cx) => {
+                this.viewMode = "board";
+                cx.notify();
+              },
+            },
+            t,
+          ),
+        ),
+    ];
+    if (wave) items.push(this.waveBar(wave, t));
+    if (waves.length === 0 && unpromotedCuts.length === 0) {
+      items.push(
+        v_flex()
+          .flex_none()
+          .px(10)
+          .py(10)
+          .gap(4)
+          .rounded(10)
+          .border_1()
+          .border_color(t.border)
+          .bg(t.surface)
+          .child(div().font_semibold().text_size(12).child(tr("暂无路线图条目")))
+          .child(div().text_size(11).text_color(t.muted).child(tr("先发起讨论或创建变更后，波次、依赖与待转出切片会呈现在这里。"))),
+      );
+      return items;
+    }
+    for (const w of waves) {
+      items.push(
+        this.card(
+          {
+            id: `roadmap-wave-${w.wave}`,
+            tone: w.wave === 1 ? t.ansi2 : t.accent,
+            label: tr("第 {0} 波", w.wave),
+            rows: w.changes.map((row) => this.roadmapChangeRow(row, ctx, t)),
+            open: !this.collapsed.has(`roadmap-wave-${w.wave}`),
+          },
+          t,
+        ),
+      );
+    }
+    if (unpromotedCuts.length > 0) {
+      items.push(
+        this.card(
+          {
+            id: "roadmap-cuts",
+            tone: t.ansi5,
+            label: "待转出切片",
+            rows: unpromotedCuts.map((cut) => this.roadmapCutRow(cut, ctx, t)),
+            open: !this.collapsed.has("roadmap-cuts"),
+          },
+          t,
+        ),
+      );
+    }
+    return items;
+  }
+
   headerButton(id, iconName, label, t, onClick) {
     return h_flex()
       .id(id)
@@ -944,8 +1177,7 @@ export default class SpeclinkPanel extends View {
       .child(label);
   }
 
-  // Logo 也是叫出 Speclink app 的鈕，讀得到這台機器上的專案時會切過去。別台機器的 space 和
-  // 沒初始化的專案也能按，只叫出 app。
+  // Logo：安装了 Speclink 桌面 app 时可切过去；仅使用 Herdr + CLI 时点击返回看板并刷新。
   logoButton(t) {
     const target = this.projectTarget();
     const attempts = logoOpenAttempts({ root: this.root, ...target });
@@ -956,9 +1188,23 @@ export default class SpeclinkPanel extends View {
       .rounded(5)
       .cursor_pointer()
       .hover((s) => s.bg(t.hover))
-      .tooltip(canOpenProject(target) ? tr("在 Speclink 应用中打开此项目") : tr("打开 Speclink 应用"))
+      .tooltip(
+        this.desktopApp
+          ? canOpenProject(target)
+            ? tr("在 Speclink 应用中打开此项目")
+            : tr("打开 Speclink 应用")
+          : tr("刷新 Speclink 面板"),
+      )
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => this.openFirstInApp(attempts, cx))
+      .on_click((_e, cx) => {
+        if (this.desktopApp) {
+          this.openFirstInApp(attempts, cx);
+        } else {
+          this.viewMode = "board";
+          this.reload(cx);
+          cx.notify();
+        }
+      })
       .child(image(`${ICONS}/logo.svg`).w(21).h(24));
   }
 
@@ -970,6 +1216,7 @@ export default class SpeclinkPanel extends View {
     if (window()?.visible !== false && this.stale) this.reload(cx);
     const ctx = this.context();
     const overlay = props()?.overlay;
+    const roadmapActive = this.viewMode === "roadmap";
     return v_flex()
       .id("speclink-panel")
       .size_full()
@@ -998,12 +1245,12 @@ export default class SpeclinkPanel extends View {
                   .child([tr("当前工作区"), this.place.branch].filter(Boolean).join(" · ")),
               ),
           )
-          // 读不到项目（文件夹没有 speclink）时不给按钮：网址会跳到桌面 app 的初始化确认框。
-          .when(canOpenProject(this.projectTarget()), (el) =>
+          // 读得到项目时显示「路线图」切换按钮，内置展示波次、依赖与待转出切片。
+          .when(Boolean(this.board), (el) =>
             el.child(
-              this.headerButton("roadmap", "roadmap", tr("路线图"), t, (cx) =>
-                this.openInApp([speclinkUrl("roadmap", this.root)], cx),
-              ),
+              this.headerButton("roadmap", "roadmap", tr("路线图"), t, (cx) => this.toggleRoadmap(cx))
+                .tooltip(roadmapActive ? tr("返回看板") : tr("查看项目路线图"))
+                .when(roadmapActive, (btn) => btn.border_2().border_color(t.accent).font_semibold()),
             ),
           )
           // 还没初始化时，自己装的技能还是能用。
@@ -1040,7 +1287,9 @@ export default class SpeclinkPanel extends View {
           .when(!this.board && !this.error && !this.uninitialized, (el) =>
             el.child(div().flex_none().px(4).text_size(11.5).text_color(t.dim).child(tr("加载中…"))),
           )
-          .when(Boolean(this.board), (el) => el.children(this.body(ctx, t))),
+          .when(Boolean(this.board), (el) =>
+            el.children(roadmapActive ? this.roadmapBody(ctx, t) : this.body(ctx, t)),
+          ),
       );
   }
 }
