@@ -5,77 +5,77 @@
 
 import { tr } from "./i18n.js";
 
-// 有 speclink 技能的 agent（program.key）與叫用技能的前綴。Pi 有自己的 .pi/skills，Cursor 有自己的 .cursor/skills。
-const SKILL_PREFIX = { claude: "/", copilot: "/", codex: "$", pi: "/skill:", cursor: "/" };
+// 有 speclink 技能的 agent（program.key）与叫用技能的前缀。Pi 有自己的 .pi/skills，Cursor 有自己的 .cursor/skills，Antigravity 与 Codex 共用 .agents/skills。
+const SKILL_PREFIX = { claude: "/", copilot: "/", codex: "$", pi: "/skill:", cursor: "/", antigravity: "/" };
 const PREFIX = Object.fromEntries(Object.entries(SKILL_PREFIX).map(([key, prefix]) => [key, `${prefix}speclink-`]));
-// speclink init --tools 的名稱。
-const SPECLINK_TOOL = { claude: "claude", copilot: "copilot", codex: "codex", pi: "pi", cursor: "cursor" };
-// sending：hc send 要等 agent 開工才回來（約兩秒），這段時間再按一次會重複送出。
-const BUSY = { working: "正在做事", blocked: "在等你回答", error: "出錯了", sending: "正在收指令" };
+// speclink init --tools 的名称。
+const SPECLINK_TOOL = { claude: "claude", copilot: "copilot", codex: "codex", pi: "pi", cursor: "cursor", antigravity: "agy" };
+// sending：hc send 要等 agent 开工才返回（约两秒），这段时间再点一次会重复发送。
+const BUSY = { working: "正在处理", blocked: "等待你回答", error: "出错了", sending: "正在接收指令" };
 
-// 這些技能要在主資料夾跑；其餘技能跟著變更走，有 worktree 就在 worktree 裡跑。
+// 这些技能要在主文件夹运行；其余技能跟着变更走，有 worktree 就在 worktree 中运行。
 const MAIN_FOLDER = new Set(["archive", "archive+commit", "worktree-merge", "apply-with-worktree"]);
 const CLAUDE_ONLY = new Set(["analyze"]);
 
-// 第一個是建議的下一步。這裡只放合理的選項，技能本身沒有階段限制的（ingest、drift、commit）每個階段都有。
+// 第一个是建议的下一步。这里只放合理的选项，技能本身没有阶段限制的（ingest、drift、commit）每个阶段都有。
 const STAGE_SKILLS = {
   proposed: ["apply", "analyze", "ingest", "drift", "commit"],
   "in-progress": ["apply", "ingest", "drift", "verify", "quality", "review", "analyze", "commit"],
   ready: ["quality", "review", "verify", "archive", "archive+commit", "ingest", "drift", "commit"],
 };
-// 這些技能要等程式任務都做完才能跑，手動任務（[M]）不算。沒做完時技能也會自己停下來。
+// 这些技能要等代码任务都做完才能运行，手动任务（[M]）不算。没做完时技能也会自己停下来。
 const NEEDS_CODE_DONE = new Set(["quality", "review"]);
-// 技能跳窗的技能。前四組依工作流程，pair 是可以搭配的東西；「專案」用在整個專案，不搭配。
+// 技能弹窗的技能。前四组按工作流，pair 是可以搭配的对象；「项目」用于整个项目，不搭配。
 export const PICKER_SKILLS = [
-  { skill: "discuss", group: "規劃", pair: "討論", about: "把模糊的需求談清楚" },
-  { skill: "propose", group: "規劃", pair: "討論", about: "建立變更與文件" },
-  { skill: "ingest", group: "規劃", pair: "變更", about: "把新需求併進變更" },
-  { skill: "apply", group: "實作", pair: "變更", about: "照任務清單實作" },
-  { skill: "apply-with-worktree", group: "實作", pair: "變更", about: "在獨立的 worktree 裡實作" },
-  { skill: "analyze", group: "實作", pair: "變更", about: "實作前交叉檢查文件" },
-  { skill: "drift", group: "實作", pair: "變更", about: "查程式碼離變更的假設多遠" },
-  { skill: "quality", group: "品質", pair: "變更", about: "跑 review 和 verify 兩站" },
-  { skill: "review", group: "品質", pair: "變更", about: "檢查實作的品質" },
-  { skill: "verify", group: "品質", pair: "變更", about: "對照文件檢查實作" },
-  { skill: "archive", group: "收尾", pair: "變更", about: "把變更併進規格並封存" },
-  { skill: "archive+commit", group: "收尾", pair: "變更", about: "封存後接著提交這個變更" },
-  { skill: "worktree-merge", group: "收尾", pair: "變更", about: "把 worktree 合回主分支" },
-  { skill: "commit", group: "收尾", pair: "變更", about: "只提交這個變更的檔案" },
-  { skill: "improve", group: "專案", pair: null, about: "掃描程式碼找改善點" },
-  { skill: "audit", group: "專案", pair: null, about: "找出程式碼的安全問題" },
-  { skill: "trace", group: "專案", pair: null, about: "查一項能力的來龍去脈" },
-  { skill: "manual", group: "專案", pair: null, about: "從規格產生操作手冊" },
-  { skill: "baseline", group: "專案", pair: null, about: "從現有程式碼產生初始規格" },
-  { skill: "config", group: "專案", pair: null, about: "整理專案說明與產出規則" },
+  { skill: "discuss", group: "规划", pair: "讨论", about: "把模糊的需求谈清楚" },
+  { skill: "propose", group: "规划", pair: "讨论", about: "创建变更与文档" },
+  { skill: "ingest", group: "规划", pair: "变更", about: "将新需求合入变更" },
+  { skill: "apply", group: "实现", pair: "变更", about: "按任务清单实现" },
+  { skill: "apply-with-worktree", group: "实现", pair: "变更", about: "在独立的 worktree 中实现" },
+  { skill: "analyze", group: "实现", pair: "变更", about: "实现前交叉检查文档" },
+  { skill: "drift", group: "实现", pair: "变更", about: "检查代码偏离变更假设的程度" },
+  { skill: "quality", group: "质量", pair: "变更", about: "运行 review 和 verify 两站" },
+  { skill: "review", group: "质量", pair: "变更", about: "检查实现的质量" },
+  { skill: "verify", group: "质量", pair: "变更", about: "对照文档检查实现" },
+  { skill: "archive", group: "收尾", pair: "变更", about: "将变更合入规范并归档" },
+  { skill: "archive+commit", group: "收尾", pair: "变更", about: "归档后接着提交此变更" },
+  { skill: "worktree-merge", group: "收尾", pair: "变更", about: "将 worktree 合并回主分支" },
+  { skill: "commit", group: "收尾", pair: "变更", about: "仅提交此变更的文件" },
+  { skill: "improve", group: "项目", pair: null, about: "扫描代码寻找改进点" },
+  { skill: "audit", group: "项目", pair: null, about: "找出代码中的安全问题" },
+  { skill: "trace", group: "项目", pair: null, about: "追溯某项能力的来龙去脉" },
+  { skill: "manual", group: "项目", pair: null, about: "从规范生成操作手册" },
+  { skill: "baseline", group: "项目", pair: null, about: "从现有代码生成初始规范" },
+  { skill: "config", group: "项目", pair: null, about: "整理项目说明与产出规则" },
 ];
 
-// 真正存在的技能。疊加的 archive+commit 是兩個技能。
+// 真正存在的技能。叠加的 archive+commit 是两个技能。
 export const ALL_SKILLS = new Set(PICKER_SKILLS.map((w) => w.skill).filter((skill) => !skill.includes("+")));
 
-// 跳窗清單裡合成一列的技能：同一件事的不同做法，選中後在右邊挑。第一個是預設，也是那一列的名字。
+// 弹窗列表里合成一行的技能：同一件事的不同方式，选中后在右边挑。第一个是默认，也是那一行的名字。
 export const PICKER_VARIANTS = {
   apply: [
-    { label: "主資料夾", skill: "apply" },
+    { label: "主文件夹", skill: "apply" },
     { label: "worktree", skill: "apply-with-worktree" },
   ],
   quality: [
-    { label: "兩站都跑", skill: "quality" },
+    { label: "两站都跑", skill: "quality" },
     { label: "只 review", skill: "review" },
     { label: "只 verify", skill: "verify" },
   ],
   archive: [
-    { label: "只封存", skill: "archive" },
-    { label: "封存後提交", skill: "archive+commit" },
+    { label: "只归档", skill: "archive" },
+    { label: "归档后提交", skill: "archive+commit" },
   ],
 };
 const MERGED = new Set(Object.values(PICKER_VARIANTS).flatMap((list) => list.slice(1).map((v) => v.skill)));
 export const PICKER_ROWS = PICKER_SKILLS.filter((w) => !MERGED.has(w.skill));
 const PICKER_GROUPS = [...new Set(PICKER_ROWS.map((w) => w.group))];
 
-// 左邊清單每一組怎麼顯示：closed 收合，open 只列現在能做的，all 全列。choices 是使用者點過的。
-// 沒有變更可以搭配的技能現在做不了，所以藏起來；discuss、propose 沒有討論也能打字開工；「專案」不常用，預設收合。
+// 左边列表每一组怎么显示：closed 收起，open 只列现在能做的，all 全列。choices 是用户点过的。
+// 没有变更可以搭配的技能现在做不了，所以隐藏起来；discuss、propose 没有讨论也能打字开工；「项目」不常用，默认收起。
 export function pickerGroups(countOf, choices = {}) {
-  const canDo = (w) => w.pair === "討論" || (w.pair === "變更" && countOf(w.skill) > 0);
+  const canDo = (w) => w.pair === "讨论" || (w.pair === "变更" && countOf(w.skill) > 0);
   return PICKER_GROUPS.map((group) => {
     const items = PICKER_ROWS.filter((w) => w.group === group);
     const state = choices[group] ?? (items.some(canDo) ? "open" : "closed");
@@ -227,17 +227,17 @@ const skillLabel = (skill) => `speclink.skill=speclink-${skill.split("+")[0]}`;
 export function skillLabels(skill, name) {
   const pair = PICKER_SKILLS.find((w) => w.skill === skill)?.pair;
   const labels = [skillLabel(skill)];
-  if (pair === "變更") return [...labels, ...(name ? [`speclink.change=${name}`] : []), "speclink.discussion="];
-  return [...labels, "speclink.change=", `speclink.discussion=${pair === "討論" && name ? name : ""}`];
+  if (pair === "变更") return [...labels, ...(name ? [`speclink.change=${name}`] : []), "speclink.discussion="];
+  return [...labels, "speclink.change=", `speclink.discussion=${pair === "讨论" && name ? name : ""}`];
 }
 
-// hook 用：送出的訊息是 speclink 技能指令時，回傳要貼的標籤，其他訊息回傳 null。名稱只認第一個參數。
-// 變更名稱只有英數，所以中文不算；討論的 slug 可能有中文。疊加的指令（/speclink-archive + /speclink-commit x）算第一個技能。
+// hook 用：发送的消息是 speclink 技能指令时，返回要贴的标签，其他消息返回 null。名称只认第一个参数。
+// 变更名称只有英数，所以中文不算；讨论的 slug 可能有中文。叠加的指令（/speclink-archive + /speclink-commit x）算第一个技能。
 export function promptLabels(prompt) {
   const match = prompt.trimStart().match(/^(?:\/skill:|\/|\$)speclink-([a-z-]+)(?:\s+\+\s+(?:\/skill:|\/|\$)speclink-[a-z-]+)?(?:\s+(?:--from-discussion\s+)?(\S+))?/);
   if (!match || !ALL_SKILLS.has(match[1])) return null;
   const [, skill, name] = match;
-  const isChange = PICKER_SKILLS.find((w) => w.skill === skill).pair === "變更";
+  const isChange = PICKER_SKILLS.find((w) => w.skill === skill).pair === "变更";
   return skillLabels(skill, isChange && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name ?? "") ? undefined : name);
 }
 
@@ -274,15 +274,32 @@ export function commandLabels(command) {
   return discussion ? ["speclink.change=", `speclink.discussion=${discussion}`] : null;
 }
 
-// Claude Code hook 收到的事件要貼哪些標籤，不用貼時是 null。
-// /clear 和 /resume 換了對話，舊的標籤不算數。模型自己叫用技能時，Skill 工具帶著技能和參數。
-export function hookLabels({ hook_event_name: event, source, prompt, tool_name: tool, tool_input: input }) {
-  if (event === "UserPromptSubmit") return promptLabels(prompt ?? "");
+// Claude Code / Pi (snake_case) 与 Antigravity (camelCase) hook 收到的事件要贴哪些标签，不用贴时是 null。
+// /clear 和 /resume 换了对话，旧的标签不算数。模型自己调用技能时，Skill 工具带着技能和参数。
+export function hookLabels(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const {
+    hook_event_name: snakeEvent,
+    hookEventName: camelEvent,
+    source,
+    prompt,
+    lastUserInput,
+    tool_name: snakeTool,
+    tool_input: snakeInput,
+    toolCall,
+  } = payload;
+  const event = snakeEvent ?? camelEvent;
   if (event === "SessionStart") {
     return source === "clear" || source === "resume" ? ["speclink.change=", "speclink.discussion=", "speclink.skill="] : null;
   }
+  const tool = snakeTool ?? toolCall?.name;
+  const input = snakeInput ?? toolCall?.args;
   if (tool === "Skill") return promptLabels(`/${input?.skill} ${input?.args ?? ""}`);
   if (tool === "Bash") return commandLabels(input?.command ?? "");
+  if (tool === "run_command") return commandLabels(input?.CommandLine ?? input?.commandLine ?? "");
+  if (!tool && (event === "UserPromptSubmit" || event === "PreInvocation")) {
+    return promptLabels(prompt ?? lastUserInput ?? "");
+  }
   return null;
 }
 
@@ -505,15 +522,16 @@ export function defaultAgent({ known, agents, focus, preferred }) {
   return [inputAgent(agents, focus)?.key, preferred].find((key) => keys.includes(key)) ?? keys[0] ?? null;
 }
 
-// hc --skill：Codex 要帶 --no-daemon，否則它的指令跑在 hc 之外。
-const agentArgv = (pick) => (pick.key === "codex" ? [...pick.run, "--no-daemon"] : pick.run);
+// hc --skill：Codex 要带 --no-daemon，否则它的指令跑在 hc 之外；Antigravity CLI 需要 -i 传入初始互动提示词。
+const agentArgv = (pick) =>
+  pick.key === "codex" ? [...pick.run, "--no-daemon"] : pick.key === "antigravity" ? [...pick.run, "-i"] : pick.run;
 
-// 新開一個 agent：選使用者選的那一個，沒有就選最常用的。
+// 新开一个 agent：选用户选的那一个，没有就选最常用的。
 function newAgent({ name, args, folder, change, discussion, known, preferred }) {
-  if (!known) return { kind: "none", where: "none", reason: tr("還在確認可用的 agent") };
+  if (!known) return { kind: "none", where: "none", reason: tr("正在确认可用的 agent") };
   const usable = usableAgents(known);
   const pick = usable.find((a) => a.key === preferred) ?? usable[0];
-  if (!pick) return { kind: "none", where: "none", reason: tr("找不到有 speclink 技能的 agent") };
+  if (!pick) return { kind: "none", where: "none", reason: tr("找不到带有 speclink 技能的 agent") };
   return {
     kind: "new",
     where: "new",
@@ -528,16 +546,16 @@ function newAgent({ name, args, folder, change, discussion, known, preferred }) 
   };
 }
 
-// 開工：開一個專門做這個變更的新 agent，開在目前的工作區。沒被擋、任務還沒做完、沒有 agent 在做才有這個鈕；
-// 討論重新定案的變更要先 ingest，不直接開工。回傳可以選的做法，沒有鈕時是 null。
-// 已有 worktree 就接續，沒開 worktree 流程就只能直接 apply，這兩種不用問；其他情況要問用 worktree 還是直接 apply。
+// 开工：开一个专门做这个变更的新 agent，开在当前工作区。没被挡、任务还没做完、没有 agent 在做才有这个按钮；
+// 讨论重新定案的变更要先 ingest，不直接开工。返回可以选的方式，没有按钮时是 null。
+// 已有 worktree 就接续，没开 worktree 流程就只能直接 apply，这两种不用问；其他情况要问用 worktree 还是直接 apply。
 export function startChoices(row, ctx) {
   if (!canStart(row) || ctx.starting?.has(row.name) || changeAgents(row, ctx.agents).length > 0) return null;
   const target = { kind: "change", name: row.name, args: row.name, row };
   const choice = (label, skill) => ({ label, plan: newTabPlan({ ...ctx, skill, target, note: "" }) });
-  if (row.worktree) return [choice("開工", "apply-with-worktree")];
-  if (!ctx.worktreePolicy) return [choice("開工", "apply")];
-  return [choice("用 worktree", "apply-with-worktree"), choice("直接 apply", "apply")];
+  if (row.worktree) return [choice("开工", "apply-with-worktree")];
+  if (!ctx.worktreePolicy) return [choice("开工", "apply")];
+  return [choice("使用 worktree", "apply-with-worktree"), choice("直接 apply", "apply")];
 }
 
 // 整波開工：最前面那一波能開工的變更。一律用 worktree，因為主資料夾一次只能跑一個 apply。
@@ -567,21 +585,21 @@ export function discussionActions(d, ctx) {
   return discussionSkills(d).map((s) => ({ ...s, delivery: planDelivery({ ...ctx, skill: s.skill, discussion: d, args: s.args }) }));
 }
 
-const WHERE = { change: "這個變更", discussion: "這場討論" };
-const SEND_TO = { change: "送給這個變更的 agent", discussion: "送給這場討論的 agent" };
+const WHERE = { change: "这个变更", discussion: "这场讨论" };
+const SEND_TO = { change: "发送给此变更的 agent", discussion: "发送给此讨论的 agent" };
 
-// 技能鈕旁邊的說明：會送去哪裡，或為什麼不能送。
+// 技能按钮旁边的说明：会发去哪里，或为什么不能发。
 export function deliveryHint(delivery) {
   if (delivery.kind === "busy") {
     const where = WHERE[delivery.where];
-    return where ? tr("{0}的 agent {1}", tr(where), tr(delivery.reason)) : tr("目前分頁的 agent {0}", tr(delivery.reason));
+    return where ? tr("{0}的 agent {1}", tr(where), tr(delivery.reason)) : tr("当前标签页的 agent {0}", tr(delivery.reason));
   }
   if (delivery.kind === "none") return delivery.reason;
-  if (delivery.kind === "new") return tr("開新分頁");
-  return tr(SEND_TO[delivery.where] ?? "送給目前分頁的 agent");
+  if (delivery.kind === "new") return tr("新建标签页");
+  return tr(SEND_TO[delivery.where] ?? "发送给当前标签页的 agent");
 }
 
-// 技能跳窗可以搭配的變更與討論。哪個階段能用哪個技能，規則和面板的技能鈕相同。
+// 技能弹窗可以搭配的变更与讨论。哪个阶段能用哪个技能，规则和面板的技能按钮相同。
 export function skillTargets(skill, board) {
   const name = skill === "apply-with-worktree" ? "apply" : skill;
   const changes = Object.values(board.stages)
@@ -599,26 +617,26 @@ export function skillTargets(skill, board) {
 const none = (reason, ...args) => ({ kind: "none", reason: tr(reason, ...args) });
 export const onlyClaude = (skill, key) => CLAUDE_ONLY.has(skill) && key !== "claude";
 const joinArgs = (target, note) => [target?.args, note].filter(Boolean).join(" ");
-// 控制字元會被終端機當成按鍵（換行就送出了），一律換成空白。
+// 控制字符会被终端当成按键（换行就发送了），一律换成空格。
 const pasteable = (text) => text.replace(/[\u0000-\u001f\u007f]/g, " ");
 const codeLeft = (skill, change) => (NEEDS_CODE_DONE.has(skill) && change?.codeRemaining > 0 ? change.codeRemaining : 0);
 
-// 放進輸入框的對象：目前分頁的 agent，焦點所在的優先。
+// 放进输入框的对象：当前标签页的 agent，焦点所在的优先。
 function inputAgent(agents, focus) {
   const here = agents.filter((a) => a.tab === focus?.tab && Object.hasOwn(PREFIX, a.key));
   return here.find((a) => a.address === focus?.terminal) ?? here[0] ?? null;
 }
 
-// agent 在等回答時不放，貼上可能答掉對話框。在做事可以放，因為不會送出。
-const WAITING = "目前分頁的 agent 在等你回答";
+// agent 在等回答时不放，粘贴可能误确认对话框。在做事可以放，因为不会发送。
+const WAITING = "当前标签页的 agent 等待你回答";
 
-// 技能跳窗：把指令放到輸入框。
+// 技能弹窗：把指令放到输入框。
 export function placePlan({ skill, target, note, agents, focus, agentKey }) {
   const left = codeLeft(skill, target?.row);
-  if (left) return none("還有 {0} 個程式任務沒做完", left);
+  if (left) return none("还有 {0} 个代码任务未完成", left);
   const agent = placeTarget(agents, focus, agentKey);
   if (agent.kind === "none") return agent;
-  if (onlyClaude(skill, agent.key)) return none("{0} 只有 Claude Code 能用", skill);
+  if (onlyClaude(skill, agent.key)) return none("{0} 仅支持 Claude Code", skill);
   return {
     kind: "place",
     agent,
@@ -627,52 +645,52 @@ export function placePlan({ skill, target, note, agents, focus, agentKey }) {
   };
 }
 
-// 能放進輸入框的 agent。跳窗選了別的 agent 時不放：指令的寫法和技能都對不上。
+// 能放进输入框的 agent。弹窗选了别的 agent 时不放：指令的写法和技能都对不上。
 function placeTarget(agents, focus, agentKey) {
   const agent = inputAgent(agents, focus);
-  if (!agent) return none("目前分頁沒有 agent。可以改開新分頁");
+  if (!agent) return none("当前标签页没有 agent，可改用新建标签页");
   if (agent.status === "blocked") return none(WAITING);
-  if (agentKey && agent.key !== agentKey) return none("目前分頁是 {0}，要放到輸入框請選它", agent.program?.name ?? agent.key);
+  if (agentKey && agent.key !== agentKey) return none("当前标签页是 {0}，要放入输入框请选它", agent.program?.name ?? agent.key);
   return agent;
 }
 
-// 面板的附加鈕：把變更或討論的名稱接在輸入框現有的文字後面。讀不到輸入框，所以前後都留空白。
+// 面板的附加按钮：把变更或讨论的名称接在输入框现有的文字后面。读不到输入框，所以前后都留空格。
 export function attachPlan({ name, agents, focus }) {
   const agent = inputAgent(agents, focus);
-  if (!agent) return none("目前分頁沒有 agent");
+  if (!agent) return none("当前标签页没有 agent");
   if (agent.status === "blocked") return none(WAITING);
   return { kind: "place", agent, text: pasteable(` ${name} `) };
 }
 
-// 主資料夾哪個變更的 apply 還沒做完。標籤在分頁關掉前都留著，所以要看變更本身：
-// 任務做完或已經封存就不算，不管那個分頁還開著。查不到時是 null。
+// 主文件夹哪个变更的 apply 还没做完。标签在标签页关闭前都留着，所以要看变更本身：
+// 任务做完或已经归档就不算，不管那个标签页还开着。查不到时是 null。
 function unfinishedApply(agents, board) {
   const open = Object.values(board?.stages ?? {}).flat().filter((row) => row.stage !== "ready").map((row) => row.name);
   const applying = agents.filter((a) => a.labels["speclink.skill"] === "speclink-apply").map((a) => a.labels["speclink.change"]);
   return applying.find((name) => open.includes(name)) ?? null;
 }
 
-// 開新分頁：做法和檢查都跟 herdr-dispatch 技能相同。分頁開在目前的 space，畫面留在原地。
+// 新建标签页：做法和检查都跟 herdr-dispatch 技能相同。标签页开在当前的 space，画面留在原地。
 export function newTabPlan({ skill, target, note, root, agents, known, preferred, worktreePolicy, space, on, board }) {
   const change = target?.kind === "change" ? target.row : null;
   const applying = skill === "apply" || skill === "apply-with-worktree";
-  // 只擋正在忙的 agent。標籤在分頁關掉前都留著，做完停著的不算，例如 apply 做完後開新分頁 merge。
-  if (change && changeAgents(change, agents).some((a) => !sendable(a))) return none("已經有 agent 在做");
-  if (change && applying && change.blockedBy.length > 0) return none("要等 {0} 落地", change.blockedBy.join(tr("、")));
+  // 只挡正在忙的 agent。标签在标签页关闭前都留着，做完停着的不算，例如 apply 做完后新建标签页 merge。
+  if (change && changeAgents(change, agents).some((a) => !sendable(a))) return none("已有 agent 在处理");
+  if (change && applying && change.blockedBy.length > 0) return none("需等待 {0} 落地", change.blockedBy.join(tr("、")));
   const left = codeLeft(skill, change);
-  if (left) return none("還有 {0} 個程式任務沒做完", left);
-  // 有 worktree 的變更，apply 要從主資料夾接續 worktree。
+  if (left) return none("还有 {0} 个代码任务未完成", left);
+  // 有 worktree 的变更，apply 要从主文件夹接续 worktree。
   const name = skill === "apply" && change?.worktree ? "apply-with-worktree" : skill;
-  // 政策沒開時這個技能會自己停下來。
-  if (name === "apply-with-worktree" && !worktreePolicy) return none("這個專案沒開 worktree 流程");
-  // 主資料夾一次只能跑一個 apply，兩個一起跑會互相踩到檔案。
+  // 政策没开时这个技能会自己停下来。
+  if (name === "apply-with-worktree" && !worktreePolicy) return none("此项目未开启 worktree 流程");
+  // 主文件夹一次只能跑一个 apply，两个一起跑会互相踩到文件。
   const unfinished = name === "apply" ? unfinishedApply(agents, board) : null;
-  if (unfinished) return none("{0} 的 apply 還沒做完", unfinished);
+  if (unfinished) return none("{0} 的 apply 尚未完成", unfinished);
   const folder = change?.worktree && !MAIN_FOLDER.has(name) ? change.worktree.path : root;
   const discussion = target?.kind === "discussion" ? { slug: target.name } : null;
   const d = newAgent({ name, args: joinArgs(target, note), folder, change, discussion, known, preferred });
   if (d.kind === "none") return d;
-  if (onlyClaude(skill, d.key)) return none("{0} 只有 Claude Code 能用", skill);
+  if (onlyClaude(skill, d.key)) return none("{0} 仅支持 Claude Code", skill);
   return {
     ...d,
     kind: "tab",
@@ -686,7 +704,7 @@ export function newTabPlan({ skill, target, note, root, agents, known, preferred
       folder,
       "--label",
       `herdr.space=${space}`,
-      // 只有變更才取名。hc 的名稱不能重複（name_taken），已經被佔用時就不取名。
+      // 只有变更才取名。hc 的名称不能重复（name_taken），已经被占用时就不取名。
       ...(change
         ? [
             ...(agents.some((a) => a.name === change.name.slice(0, 32)) ? [] : ["--name", change.name.slice(0, 32)]),
@@ -703,22 +721,22 @@ export function newTabPlan({ skill, target, note, root, agents, known, preferred
   };
 }
 
-// 一次開多個分頁，一個變更一個分頁。不能開的變更略過，兩個都要在主資料夾跑的 apply 整批擋下。
+// 一次开多个标签页，一个变更一个标签页。不能开的变更略过，两个都要在主文件夹跑的 apply 整批挡下。
 export function batchPlan({ skill, targets, ...context }) {
   const plans = targets.map((target) => newTabPlan({ ...context, skill, target, note: "" })).filter((p) => p.kind === "tab");
-  if (plans.length === 0) return none("勾選要開工的變更");
+  if (plans.length === 0) return none("请勾选要开工的变更");
   if (plans.filter((p) => p.skill === "apply").length > 1) {
-    return none("主資料夾一次只能跑一個 apply。可以改選 apply-with-worktree");
+    return none("主文件夹一次只能运行一个 apply，可改选 apply-with-worktree");
   }
   if (plans.filter((p) => p.skill === "archive+commit").length > 1) {
-    return none("一次只能跑一個 archive+commit，同時提交會互相影響");
+    return none("一次只能运行一个 archive+commit，同时提交会互相影响");
   }
   return { kind: "tabs", plans, text: plans.map((p) => p.text).join("　") };
 }
 
-// 這個專案沒有這個 agent 用的 Speclink 技能時，技能鈕送出去也沒有用。
+// 这个项目没有这个 agent 用的 Speclink 技能时，技能按钮发出去也没有用。
 export const missingSkillsPlan = (agentName, key) =>
-  none("這個專案沒有 {0} 的 Speclink 技能。先執行 speclink init --tools {1}", agentName, SPECLINK_TOOL[key]);
+  none("此项目没有 {0} 的 Speclink 技能。请先运行 speclink init --tools {1}", agentName, SPECLINK_TOOL[key]);
 
 // 我的技能：使用者自己裝的技能。Speclink 的在另一頁；內建的不是檔案，也不會掃到。
 
@@ -750,6 +768,12 @@ const SKILL_FOLDERS = {
     ["personal", "~/.claude/skills"],
     ["personal", "~/.codex/skills"],
   ],
+  antigravity: [
+    ["project", ".agents/skills"],
+    ["project", "_agents/skills"],
+    ["personal", "~/.gemini/config/skills"],
+    ["personal", "~/.agents/skills"],
+  ],
 };
 export const skillFolders = (key) => (SKILL_FOLDERS[key] ?? []).map(([source, dir]) => ({ source, prefix: "", dir }));
 
@@ -777,13 +801,13 @@ const SKILL_USES = [
 ];
 export const skillUse = (name) => SKILL_USES.find(([, pattern]) => pattern.test(name))?.[0] ?? "other";
 export const SKILL_GROUPS = [
-  { id: "dev", label: "開發", tone: "ansi4" },
-  { id: "design", label: "設計", tone: "ansi5" },
-  { id: "ship", label: "提交與發版", tone: "ansi2" },
-  { id: "video", label: "影片", tone: "ansi1" },
-  { id: "anim", label: "動畫", tone: "ansi3" },
+  { id: "dev", label: "开发", tone: "ansi4" },
+  { id: "design", label: "设计", tone: "ansi5" },
+  { id: "ship", label: "提交与发布", tone: "ansi2" },
+  { id: "video", label: "视频", tone: "ansi1" },
+  { id: "anim", label: "动画", tone: "ansi3" },
   { id: "3d", label: "3D", tone: "ansi6" },
-  { id: "content", label: "內容", tone: "foreground" },
+  { id: "content", label: "内容", tone: "foreground" },
   { id: "tool", label: "工具", tone: "dim" },
   { id: "other", label: "其他", tone: "dim" },
 ];
@@ -866,10 +890,10 @@ export function customPlacePlan({ name, note, agents, focus, agentKey }) {
 }
 
 export function customTabPlan({ name, note, root, known, agentKey, space, on }) {
-  if (!known || !root) return none("還在確認可用的 agent");
+  if (!known || !root) return none("正在确认可用的 agent");
   const usable = usableAgents(known);
   const pick = usable.find((a) => a.key === agentKey) ?? usable[0];
-  if (!pick) return none("找不到有 speclink 技能的 agent");
+  if (!pick) return none("找不到带有 speclink 技能的 agent");
   const text = customCommand(pick.key, name, note);
   return {
     kind: "tab",

@@ -149,8 +149,8 @@ impl ToolDescriptor {
                 "tool descriptor: name '{name}' must be kebab-case (2-50 chars of [a-z0-9-])"
             ));
         }
-        // "agents" is Tool::parse's alias for codex, so it is reserved alongside the
-        // canonical built-in names.
+        // "agents" is Tool::parse's alias for codex and "antigravity" for agy,
+        // so both are reserved alongside the canonical built-in names.
         if crate::skills::Tool::parse(name).is_some() {
             return Err(format!(
                 "tool descriptor: name '{name}' conflicts with a built-in tool name ({})",

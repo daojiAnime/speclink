@@ -204,7 +204,7 @@ Claude Code、GitHub Copilot 與 Cursor 送 `/speclink-<技能>`，Codex 送 `$s
 
 **我的技能頁：** 列出你自己裝的技能，選中的列展開完整說明。這些技能不搭配變更，所以只有一個「補充說明」，會接在指令後面。
 
-- **列哪些**：Claude Code 是專案的 `.claude/skills`、`~/.claude/skills` 和已啟用外掛的技能；Codex 是專案的 `.agents/skills`、`~/.agents/skills`、`~/.codex/skills`；Pi 是專案的 `.pi/skills`、`.agents/skills`、`~/.pi/agent/skills`、`~/.agents/skills`；Cursor 是專案的 `.cursor/skills`、`.agents/skills`、`.claude/skills`、`.codex/skills`、`~/.cursor/skills`、`~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`。
+- **列哪些**：Claude Code 是專案的 `.claude/skills`、`~/.claude/skills` 和已啟用外掛的技能；Codex 是專案的 `.agents/skills`、`~/.agents/skills`、`~/.codex/skills`；Pi 是專案的 `.pi/skills`、`.agents/skills`、`~/.pi/agent/skills`、`~/.agents/skills`；Cursor 是專案的 `.cursor/skills`、`.agents/skills`、`.claude/skills`、`.codex/skills`、`~/.cursor/skills`、`~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`；Antigravity（`agy`）是專案的 `.agents/skills`、`_agents/skills`、`~/.gemini/config/skills`、`~/.agents/skills`。
 - **不列哪些**：`speclink-*`（在另一頁）、agent 內建的技能、Anthropic 同步來的 `~/.claude/skills/synced`、`~/.codex/skills/.system`、標記 `user-invocable: false` 的技能。
 - **分組**：依名稱猜用途，分成開發、設計、提交與發版、影片、動畫、3D、內容、工具、其他，每組有自己的顏色。每一列右邊標來源（專案、個人、外掛）。
 - **系列**：同一組裡三個以上開頭相同的技能收成一列，例如 `gsap`，點開才列出來。一組超過 12 列時，整組預設收合。

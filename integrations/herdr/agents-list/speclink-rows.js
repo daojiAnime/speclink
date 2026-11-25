@@ -3,15 +3,15 @@
 // 放進去並接上。比對用面板的規則，兩邊才不會說法不同。
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { agents, panes, terminals } from "herdr";
+import { agents, checking, panes, terminals } from "herdr";
 import { tr } from "./i18n.js";
 import { agentChange, buildBoard, joinAgents } from "./model.js";
 import { projectRoot, speclinkJson } from "./shared.js";
 
 const STAGE = {
   proposed: { label: "提案中", tone: "ansi3" },
-  "in-progress": { label: "進行中", tone: "ansi4" },
-  ready: { label: "已就緒", tone: "ansi2" },
+  "in-progress": { label: "进行中", tone: "ansi4" },
+  ready: { label: "已就绪", tone: "ansi2" },
 };
 
 // 別台機器的 agent，位址會帶機器名稱（vps/t7）。
@@ -41,6 +41,7 @@ async function look(cx) {
 }
 
 export function watchPlans(cx) {
+  if (checking()) return;
   cx.timer.after(1000, (cx) => look(cx));
   cx.timer.every(30000, (cx) => look(cx));
 }

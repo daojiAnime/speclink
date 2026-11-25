@@ -12,7 +12,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const NAME = 'speclink';
+const NAME = process.argv[2] || process.env.HERDR_LAYOUT_NAME || 'speclink';
 // 寬度和 main 內建的 Files／Changes 那一欄相同。
 const PANEL = {
   id: 'speclink',
@@ -128,7 +128,7 @@ const CHANGES_EDITS = [
 const integration = (file) => fileURLToPath(new URL(`../../integrations/herdr/${file}`, import.meta.url));
 // 版面裡的區塊換成哪個複製版。files 是複製版裡的檔名對應 repo 裡的檔案。
 const I18N = { 'i18n.js': 'mods/speclink/i18n.js' };
-const UNPROTECTED = '名稱剛好和介面文字相同時會被翻。';
+const UNPROTECTED = '名称刚好和界面文字相同时会被翻译。';
 const CLONES = [
   {
     mod: 'spaces',

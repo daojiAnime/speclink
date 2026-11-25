@@ -500,6 +500,7 @@ fn a_neutral_skill_reference_is_the_skill_name_and_a_verb_stays_a_verb() {
             "/speclink-apply <name>",
             "/skill:speclink-apply <name>",
             "/speclink-apply <name>",
+            "/speclink-apply <name>",
         ]
     );
 }

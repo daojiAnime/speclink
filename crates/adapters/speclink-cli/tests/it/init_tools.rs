@@ -129,7 +129,7 @@ fn assert_rejected_with_zero_writes(env: &TempEnv, out: &Output, before: &[(Stri
 fn fs_init_explicit_tools_generate_exactly_the_selection() {
     // 每種顯式選法逐一：只有被選取的工具留下 Skills（沒選的工具連目錄都不留）；指令檔一律
     // 不生成；Generated files 行依記錄順序列出選集。
-    let cases: [(&str, &[&str]); 11] = [
+    let cases: [(&str, &[&str]); 16] = [
         ("claude", &["claude"]),
         ("codex", &["codex"]),
         ("claude,codex", &["claude", "codex"]),
@@ -140,10 +140,15 @@ fn fs_init_explicit_tools_generate_exactly_the_selection() {
         ("cursor", &["cursor"]),
         ("CURSOR", &["cursor"]),
         ("cursor,cursor", &["cursor"]),
+        ("agy", &["agy"]),
+        ("AGY", &["agy"]),
+        ("antigravity", &["agy"]),
+        ("codex,agy", &["codex", "agy"]),
         (
-            "claude,codex,copilot,pi,cursor",
-            &["claude", "codex", "copilot", "pi", "cursor"],
+            "claude,codex,copilot,pi,cursor,agy",
+            &["claude", "codex", "copilot", "pi", "cursor", "agy"],
         ),
+        ("agy,codex", &["agy", "codex"]),
     ];
     for (spec, want) in cases {
         let env = TempEnv::new(&format!("fs-explicit-{}", spec.replace(',', "-")));
@@ -169,15 +174,15 @@ fn fs_init_explicit_tools_generate_exactly_the_selection() {
             "--tools {spec}"
         );
         // spec Scenario「filesystem init 顯式選擇 Copilot／Pi／Cursor」：每個工具的技能在自己
-        // 的 skills 目錄，沒選的工具連目錄都不留。
-        for (tool, top, skill) in [
-            ("claude", ".claude", ".claude/skills/speclink-propose/SKILL.md"),
-            ("codex", ".agents", ".agents/skills/speclink-propose/SKILL.md"),
-            ("copilot", ".github", ".github/skills/speclink-propose/SKILL.md"),
-            ("pi", ".pi", ".pi/skills/speclink-propose/SKILL.md"),
-            ("cursor", ".cursor", ".cursor/skills/speclink-propose/SKILL.md"),
+        // 的 skills 目錄，沒選的工具連目錄都不留（Codex 與 Agy 共用 `.agents/skills`）。
+        for (tools, top, skill) in [
+            (&["claude"][..], ".claude", ".claude/skills/speclink-propose/SKILL.md"),
+            (&["codex", "agy"][..], ".agents", ".agents/skills/speclink-propose/SKILL.md"),
+            (&["copilot"][..], ".github", ".github/skills/speclink-propose/SKILL.md"),
+            (&["pi"][..], ".pi", ".pi/skills/speclink-propose/SKILL.md"),
+            (&["cursor"][..], ".cursor", ".cursor/skills/speclink-propose/SKILL.md"),
         ] {
-            let selected = want.contains(&tool);
+            let selected = tools.iter().any(|t| want.contains(t));
             assert_eq!(env.exists(skill), selected, "--tools {spec}: {skill}");
             assert_eq!(env.exists(top), selected, "--tools {spec}: {top}/");
             if selected {
@@ -263,7 +268,7 @@ fn init_workflow_config_template_documents_every_policy_key() {
 // --- 非互動缺少 --tools（spec Scenario「非互動 init 缺少 tools 零寫入失敗」） ---
 
 /// 缺選集的單行訊息：`pi` 是 `copilot` 的子字串，逐 token 比對測不到漏列，故比全文。
-const FIVE_TOOLS_HINT: &str = "no AI tool selected — pass --tools with one or more of claude, codex, copilot, pi, cursor (comma-separated, e.g. --tools claude,cursor)";
+const ALL_TOOLS_HINT: &str = "no AI tool selected — pass --tools with one or more of claude, codex, copilot, pi, cursor, agy (comma-separated, e.g. --tools claude,agy)";
 
 #[test]
 fn fs_init_without_tools_on_a_pipe_fails_with_zero_writes() {
@@ -273,7 +278,7 @@ fn fs_init_without_tools_on_a_pipe_fails_with_zero_writes() {
     let out = env.run(&["init"]);
 
     assert_rejected_with_zero_writes(&env, &out, &before);
-    assert_eq!(stderr_of(&out).trim_end(), format!("Error: {FIVE_TOOLS_HINT}"));
+    assert_eq!(stderr_of(&out).trim_end(), format!("Error: {ALL_TOOLS_HINT}"));
 }
 
 /// spec Scenario「Remote init 非互動缺少 tools 被拒」。
@@ -285,7 +290,7 @@ fn remote_init_without_tools_on_a_pipe_fails_with_zero_writes() {
     let out = env.run(&["init", "--store", "remote", "--url", URL, "--repo", "backend"]);
 
     assert_rejected_with_zero_writes(&env, &out, &before);
-    assert_eq!(stderr_of(&out).trim_end(), format!("Error: {FIVE_TOOLS_HINT}"));
+    assert_eq!(stderr_of(&out).trim_end(), format!("Error: {ALL_TOOLS_HINT}"));
 }
 
 // --- 空／未知的顯式值（spec Scenario「空或未知的顯式 tools 被拒」） ---
@@ -328,7 +333,7 @@ fn explicit_tool_aliases_are_rejected_listing_the_supported_tools() {
         assert_rejected_with_zero_writes(&env, &out, &before);
         assert_eq!(
             stderr_of(&out).trim_end(),
-            format!("Error: unknown tool: {unknown} (supported: claude, codex, copilot, pi, cursor)")
+            format!("Error: unknown tool: {unknown} (supported: claude, codex, copilot, pi, cursor, agy)")
         );
     }
 }

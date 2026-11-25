@@ -22,6 +22,7 @@ serde_yaml.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 clap_complete = "4"
+crossterm = "0.29"
 # The skill version notice is told once a local calendar day.
 chrono.workspace = true
 

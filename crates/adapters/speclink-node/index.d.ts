@@ -890,7 +890,7 @@ export function runStoreConformance(harness: ConformanceHarness): Promise<Confor
  * limits (`skills`, `checkout`, `gitHistory`).
  */
 export interface RenderOptions {
-  target: 'claude' | 'codex' | 'copilot' | 'pi' | 'cursor' | 'neutral'
+  target: 'claude' | 'codex' | 'copilot' | 'pi' | 'cursor' | 'agy' | 'neutral'
   /** How the harness executes speclink verbs. Default: `'cli'`. */
   invocation?: 'cli' | 'tool-call'
   /**

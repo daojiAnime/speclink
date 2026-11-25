@@ -1,6 +1,6 @@
 //! Golden tests for skill rendering.
 //!
-//! Render targets: the built-in tools (claude, codex, copilot, pi, cursor) and custom descriptors
+//! Render targets: the built-in tools (claude, codex, copilot, pi, cursor, agy) and custom descriptors
 //! (neutral body, wording decided by `invocation`). The built-in snapshots lock their
 //! output BIT-FOR-BIT — the neutral work must not drift them. The neutral snapshots pin
 //! the cli and tool-call wordings. Two more snapshots pin what a project gets when the
@@ -133,6 +133,13 @@ fn cursor_rendering_is_bit_identical_to_golden() {
     let root = TempRoot::new("cursor");
     init::init(&root.dir, &[Tool::Cursor], true, "speclink").unwrap();
     assert_matches_golden("cursor.snapshot.md", &snapshot(&root.dir, ".cursor/skills"));
+}
+
+#[test]
+fn agy_rendering_is_bit_identical_to_golden() {
+    let root = TempRoot::new("agy");
+    init::init(&root.dir, &[Tool::Agy], true, "speclink").unwrap();
+    assert_matches_golden("agy.snapshot.md", &snapshot(&root.dir, ".agents/skills"));
 }
 
 /// The second policy dimension. The snapshots above lock the DEFAULT generation set

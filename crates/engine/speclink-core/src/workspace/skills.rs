@@ -14,7 +14,7 @@ pub enum RenderTarget<'a> {
 }
 
 /// A tool target for generated skills. Speclink deliberately scopes the tool matrix to
-/// claude, codex, copilot, pi and cursor.
+/// claude, codex, copilot, pi, cursor and agy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
     Claude,
@@ -22,6 +22,7 @@ pub enum Tool {
     Copilot,
     Pi,
     Cursor,
+    Agy,
 }
 
 impl Tool {
@@ -29,9 +30,9 @@ impl Tool {
     /// walks it for generation, deselection, the reserved descriptor names and
     /// directories, the asset lock and its error messages; the adapters (CLI hint, Node
     /// SDK, desktop) spell the set out in their own wording, pinned by their tests.
-    pub const ALL: [Tool; 5] = [Tool::Claude, Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor];
+    pub const ALL: [Tool; 6] = [Tool::Claude, Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy];
 
-    /// The built-in names as error messages list them: `claude, codex, copilot, pi, cursor`.
+    /// The built-in names as error messages list them: `claude, codex, copilot, pi, cursor, agy`.
     pub fn supported_names() -> String {
         Tool::ALL.map(|t| t.name()).join(", ")
     }
@@ -43,6 +44,7 @@ impl Tool {
             "copilot" => Some(Tool::Copilot),
             "pi" => Some(Tool::Pi),
             "cursor" => Some(Tool::Cursor),
+            "agy" | "antigravity" => Some(Tool::Agy),
             _ => None,
         }
     }
@@ -53,6 +55,7 @@ impl Tool {
             Tool::Copilot => "copilot",
             Tool::Pi => "pi",
             Tool::Cursor => "cursor",
+            Tool::Agy => "agy",
         }
     }
     /// Directory (relative to project root) that holds generated skill files.
@@ -63,19 +66,20 @@ impl Tool {
             Tool::Copilot => ".github/skills",
             Tool::Pi => ".pi/skills",
             Tool::Cursor => ".cursor/skills",
+            Tool::Agy => ".agents/skills",
         }
     }
     /// Where the tool keeps plan-mode files ({{PLAN_DIR}}); empty when the tool has none.
     fn plan_dir(&self) -> &'static str {
         match self {
             Tool::Claude => "~/.claude/plans/",
-            Tool::Codex | Tool::Copilot | Tool::Pi | Tool::Cursor => "",
+            Tool::Codex | Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy => "",
         }
     }
     /// The prefix that `/speclink:` becomes for this tool.
     fn slash_replacement(&self) -> &'static str {
         match self {
-            Tool::Claude | Tool::Copilot | Tool::Cursor => "/speclink-",
+            Tool::Claude | Tool::Copilot | Tool::Cursor | Tool::Agy => "/speclink-",
             Tool::Codex => "$speclink-",
             Tool::Pi => "/skill:speclink-",
         }
@@ -716,7 +720,7 @@ mod tests {
     }
 
     /// spec skill-authoring「技能原稿的跨模型寫法規範」Example「同一個引用在六種渲染
-    /// 目標」的內建五列：原稿的 `/speclink:<名稱>` 依工具換成各自的叫用寫法。
+    /// 目標」的內建列：原稿的 `/speclink:<名稱>` 依工具換成各自的叫用寫法。
     #[test]
     fn a_skill_reference_renders_per_builtin_tool() {
         let rendered = Tool::ALL.map(|tool| substitute("/speclink:ingest", RenderTarget::Builtin(tool), "speclink", SpecLocation::InCheckout));
@@ -727,6 +731,7 @@ mod tests {
                 "$speclink-ingest",
                 "/speclink-ingest",
                 "/skill:speclink-ingest",
+                "/speclink-ingest",
                 "/speclink-ingest",
             ]
         );

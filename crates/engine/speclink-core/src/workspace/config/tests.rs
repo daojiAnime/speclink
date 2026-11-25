@@ -494,13 +494,13 @@ fn descriptor_validation_accepts_a_directory_next_to_the_copilot_one() {
 #[test]
 fn descriptor_validation_reserves_the_pi_and_cursor_names() {
     // Scenario「名為 pi、cursor 或指向其目錄的既有描述子升級後被拒」的名稱分支：
-    // 訊息列出五個內建名。
-    for (name, skills_dir) in [("pi", ".pi-skills"), ("cursor", ".my-cursor/skills")] {
+    // 訊息列出所有內建名。
+    for (name, skills_dir) in [("pi", ".pi-skills"), ("cursor", ".my-cursor/skills"), ("agy", ".agy-skills")] {
         let err = descriptor(name, skills_dir, "XYZ.md").validate().unwrap_err();
         assert!(err.contains(&format!("name '{name}'")), "must name the field: {err}");
         assert!(
-            err.contains("(claude, codex, copilot, pi, cursor)"),
-            "must list the five built-ins: {err}"
+            err.contains("(claude, codex, copilot, pi, cursor, agy)"),
+            "must list all built-ins: {err}"
         );
         assert!(!err.contains('\n'), "single line: {err:?}");
     }

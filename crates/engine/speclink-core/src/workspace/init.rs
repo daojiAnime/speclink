@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 /// 產物層的唯一版號：技能檔 frontmatter 的 version 同源於此，也是過期探測與
 /// 降級守門的比對基準。僅在內嵌資產（assets/skills）的 render 內容變動時遞增——
 /// 與 app／CLI 的發版號無關；`assets.lock` 鎖定測試把這條紀律變成紅燈。
-pub const ASSET_VERSION: &str = "v1.61.0";
+pub const ASSET_VERSION: &str = "v1.62.0";
 
 const APP_CONFIG_TEMPLATE: &str = concat!(
     "# Speclink application config
@@ -523,6 +523,12 @@ impl SyncPlan {
         let mut targets = Vec::new();
         for tool in Tool::ALL {
             if selection.builtins.contains(&tool) {
+                // Codex and Antigravity (agy) both read `.agents/skills`: emit one writer
+                // target per directory so co-selection neither trips shared-dir checks nor
+                // produces conflicting expectations in differing_files / probes.
+                if targets.iter().any(|t: &SyncTarget| t.skills_dir == tool.skills_dir()) {
+                    continue;
+                }
                 targets.push(SyncTarget {
                     label: tool.name().to_string(),
                     skills_dir: tool.skills_dir().to_string(),
@@ -594,10 +600,12 @@ impl SyncPlan {
         let written: Vec<SharedDirEntry> =
             self.targets.iter().map(|t| entry(&t.skills_dir, &t.label)).collect();
         // A deselected built-in behind a link is never pruned (prune_tool), so it cannot
-        // take a selected tool's files with it.
+        // take a selected tool's files with it. Likewise skip a deselected co-owner of a
+        // selected built-in's native skills directory (e.g. codex vs agy in `.agents/skills`).
         let pruned: Vec<SharedDirEntry> = self
             .deselected_builtins
             .iter()
+            .filter(|t| !self.selection.builtins.iter().any(|s| s.skills_dir() == t.skills_dir()))
             .map(|t| entry(t.skills_dir(), t.name()))
             .filter(|e| !e.linked)
             .collect();
@@ -701,6 +709,11 @@ impl SyncPlan {
         }
 
         for tool in &self.deselected_builtins {
+            // Never prune a directory owned by a selected built-in (including unserved
+            // remote tools whose files stay as-is — Codex and Antigravity share `.agents/skills`).
+            if self.selection.builtins.iter().any(|s| s.skills_dir() == tool.skills_dir()) {
+                continue;
+            }
             if prune_tool(root, *tool)? {
                 out.pruned.push(tool.name().to_string());
             }
@@ -1587,18 +1600,18 @@ fn managed_skill_dirs(skills_root: &Path) -> Vec<String> {
     dirs
 }
 
-/// 內建工具曾被注入 marker 的指令檔路徑（專案根相對）。copilot、pi、cursor 從未有
+/// 內建工具曾被注入 marker 的指令檔路徑（專案根相對）。copilot、pi、cursor、agy 從未有
 /// 指令檔，沒有遺留區塊要剝除。
 fn instructions_path(tool: Tool) -> Option<&'static str> {
     match tool {
         Tool::Claude => Some("CLAUDE.md"),
         Tool::Codex => Some("AGENTS.md"),
-        Tool::Copilot | Tool::Pi | Tool::Cursor => None,
+        Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy => None,
     }
 }
 
 /// Validate a comma-separated `--tools` value into a tool list. Speclink deliberately scopes
-/// the supported tools to claude, codex, copilot, pi and cursor.
+/// the supported tools to claude, codex, copilot, pi, cursor and agy.
 pub fn parse_tools(spec: &str) -> Result<Vec<Tool>> {
     parse_tool_names(&spec.split(',').collect::<Vec<&str>>())
 }

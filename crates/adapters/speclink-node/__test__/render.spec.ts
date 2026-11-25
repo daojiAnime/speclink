@@ -13,6 +13,7 @@ const normalize = (s: string) => s.replace(/\r\n/g, '\n')
 let initedProject: string
 let copilotProject: string
 let piCursorProject: string
+let agyProject: string
 
 beforeAll(() => {
   if (!existsSync(cliBin)) {
@@ -24,12 +25,15 @@ beforeAll(() => {
   execFileSync(cliBin, ['init', '.', '--tools', 'copilot'], { cwd: copilotProject })
   piCursorProject = mkdtempSync(join(tmpdir(), 'speclink-node-init-pi-cursor-'))
   execFileSync(cliBin, ['init', '.', '--tools', 'pi,cursor'], { cwd: piCursorProject })
+  agyProject = mkdtempSync(join(tmpdir(), 'speclink-node-init-agy-'))
+  execFileSync(cliBin, ['init', '.', '--tools', 'agy'], { cwd: agyProject })
 }, 600_000)
 
 afterAll(() => {
   if (initedProject) rmSync(initedProject, { recursive: true, force: true })
   if (copilotProject) rmSync(copilotProject, { recursive: true, force: true })
   if (piCursorProject) rmSync(piCursorProject, { recursive: true, force: true })
+  if (agyProject) rmSync(agyProject, { recursive: true, force: true })
 })
 
 /** The golden snapshot of the remote neutral tool-call skill files, by file path. */
@@ -119,6 +123,18 @@ describe('skills.render — render matrix', () => {
     expect(rendered).not.toContain('$speclink-')
   })
 
+  it('agy × cli matches the SKILL.md the CLI init generates under .agents/skills', () => {
+    const generated = readFileSync(
+      join(agyProject, '.agents', 'skills', 'speclink-apply', 'SKILL.md'),
+      'utf8',
+    )
+    const rendered = skills.render('apply', { target: 'agy' })
+    expect(normalize(rendered)).toBe(normalize(generated))
+    expect(rendered).toContain('/speclink-')
+    expect(rendered).toContain('--agent agy')
+    expect(rendered).not.toContain('$speclink-')
+  })
+
   // spec node-sdk「渲染 API」：specInCheckout（規格資料夾是否在使用這份技能的 checkout）。
   it('specInCheckout false renders no spec-folder path and names hand-offs as skills', () => {
     const s = skills.render('archive', {
@@ -169,7 +185,7 @@ describe('skills.render — render matrix', () => {
 
   it('unknown target fails loud, listing every valid target', () => {
     expect(() => skills.render('apply', { target: 'github-copilot' as never })).toThrow(
-      /'github-copilot' must be 'claude', 'codex', 'copilot', 'pi', 'cursor', or 'neutral'/,
+      /'github-copilot' must be 'claude', 'codex', 'copilot', 'pi', 'cursor', 'agy', or 'neutral'/,
     )
   })
 

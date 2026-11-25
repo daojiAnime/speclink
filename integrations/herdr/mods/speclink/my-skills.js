@@ -7,7 +7,7 @@ import { customPlacePlan, customTabPlan, joinAgents, skillRows } from "./model.j
 import { tr } from "./i18n.js";
 import { readSkills } from "./shared.js";
 
-const SOURCE_TAG = { project: "專案", personal: "個人", plugin: "外掛" };
+const SOURCE_TAG = { project: "项目", personal: "个人", plugin: "插件" };
 const NAME_WIDTH = 190;
 const NESTED_INDENT = 14;
 
@@ -20,7 +20,7 @@ export default class MySkillsPage {
     this.familyOpen = {};
     this.inNote = false;
     this.scroll = VirtualListScrollHandle.new();
-    this.search = InputState.new({ placeholder: tr("找技能：名稱或說明") });
+    this.search = InputState.new({ placeholder: tr("搜索技能：名称或说明") });
     this.note = InputState.new();
     // 有輸入框時 Enter 由輸入框的 submit 處理。
     const submit = (e, cx) => this.submit(e, cx);
@@ -108,14 +108,14 @@ export default class MySkillsPage {
 
   tabPlan() {
     const picked = this.selection();
-    if (!picked) return { kind: "none", reason: tr("選一個技能") };
+    if (!picked) return { kind: "none", reason: tr("选择一个技能") };
     const { root, known, agentKey, on } = this.host;
     return customTabPlan({ ...picked, root, known, agentKey, on, space: focused()?.space });
   }
 
   inputPlan() {
     const picked = this.selection();
-    if (!picked) return { kind: "none", reason: tr("選一個技能") };
+    if (!picked) return { kind: "none", reason: tr("选择一个技能") };
     const f = focused();
     return customPlacePlan({
       ...picked,
@@ -160,7 +160,7 @@ export default class MySkillsPage {
           .items_center()
           .child(this.host.chevron(row.open, t))
           .child(div().text_size(12).when(selected, (el) => el.font_medium()).child(row.name))
-          .child(div().text_size(11).text_color(t.dim).child(tr("{0} 個", row.count))),
+          .child(div().text_size(11).text_color(t.dim).child(tr("{0} 个", row.count))),
       )
       .child(div().flex_1().min_w_0().truncate().text_size(11.5).text_color(t.dim).child(row.hint));
   }
@@ -185,7 +185,7 @@ export default class MySkillsPage {
         .hover((s) => s.bg(t.hover))
         .child(line.child(div().flex_1().min_w_0().truncate().text_size(11.5).text_color(t.muted).child(skill.about)).child(tag));
     }
-    const where = skill.source === "plugin" ? tr("外掛 {0}", skill.path) : skill.path;
+    const where = skill.source === "plugin" ? tr("插件 {0}", skill.path) : skill.path;
     return v_flex()
       .mx(6)
       .px(8)
@@ -199,10 +199,10 @@ export default class MySkillsPage {
   }
 
   emptyText(found) {
-    if (!found) return tr("載入中…");
+    if (!found) return tr("加载中…");
     if (found.error) return found.error;
-    if (found.skills.length === 0) return tr("{0} 目前沒有 Speclink 以外的技能", this.host.agentName());
-    return tr("找不到符合的技能");
+    if (found.skills.length === 0) return tr("{0} 当前没有 Speclink 以外的技能", this.host.agentName());
+    return tr("找不到匹配的技能");
   }
 
   render(t) {
@@ -263,7 +263,7 @@ export default class MySkillsPage {
           .items_center()
           .border_t_1()
           .border_color(t.border)
-          .child(div().flex_none().text_size(11).text_color(t.dim).child(tr("補充說明（可留空）")))
+          .child(div().flex_none().text_size(11).text_color(t.dim).child(tr("补充说明（可留空）")))
           .child(
             Input.new(this.note)
               .flex_1()

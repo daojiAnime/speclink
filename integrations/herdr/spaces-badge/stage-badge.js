@@ -2,13 +2,13 @@
 // Herdr 內建的 spaces mod 沒有擴充點，所以 dock-panel.mjs 複製一份，把這個檔放進去並接上。
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { exec } from "herdr";
+import { checking, exec } from "herdr";
 import { tr } from "./i18n.js";
 
 const STAGES = [
   { id: "proposed", label: "提案中", tone: "ansi3" },
-  { id: "in-progress", label: "進行中", tone: "ansi4" },
-  { id: "ready", label: "已就緒", tone: "ansi2" },
+  { id: "in-progress", label: "进行中", tone: "ansi4" },
+  { id: "ready", label: "已就绪", tone: "ansi2" },
 ];
 
 // repo 對應各階段的數量。內建 spaces 的 git 資訊裡，repo 是 JSON.stringify([機器, .git 資料夾])。
@@ -30,6 +30,7 @@ async function look(view, cx) {
 }
 
 export function watchStages(view, cx) {
+  if (checking()) return;
   // 內建 spaces 剛啟動時還在問 git，稍等才有 repo 可以看。
   cx.timer.after(2000, (cx) => look(view, cx));
   cx.timer.every(30000, (cx) => look(view, cx));

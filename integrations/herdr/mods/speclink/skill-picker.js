@@ -4,7 +4,7 @@
 // 由 speclink-new 的 mod.json 開啟，main.js 看到 props 的 view 就把畫面交給這裡。
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { agents, closeOverlay, focused, knownAgents, panes, props, setShared, shared, terminals, theme } from "herdr";
+import { agents, checking, closeOverlay, focused, knownAgents, panes, props, setShared, shared, terminals, theme } from "herdr";
 import {
   PICKER_ROWS,
   PICKER_SKILLS,
@@ -27,13 +27,13 @@ import { tr } from "./i18n.js";
 import MySkillsPage from "./my-skills.js";
 import { codeRemaining, location, openTabs, placeInInput, projectRoot, sendError, speclinkJson } from "./shared.js";
 
-const STAGE_LABEL = { proposed: "提案中", "in-progress": "進行中", ready: "已就緒" };
-// 顏色和 Claude Code 的技能列對應。
-const GROUP_TONE = { 規劃: "ansi5", 實作: "ansi4", 品質: "ansi3", 收尾: "ansi2", 專案: "dim" };
-// 勾選框連同可以點的邊。不能勾的列留同樣的空位，名稱才對得齊。
+const STAGE_LABEL = { proposed: "提案中", "in-progress": "进行中", ready: "已就绪" };
+// 颜色和 Claude Code 的技能栏对应。
+const GROUP_TONE = { 规划: "ansi5", 实现: "ansi4", 质量: "ansi3", 收尾: "ansi2", 项目: "dim" };
+// 勾选框连同可点击边距。不能勾选的行保留同等占位，名称才能对齐。
 const TICK_SIZE = 18;
-const PAIR_LABEL = { 討論: "搭配的討論", 變更: "搭配的變更" };
-const PAIR_EMPTY = { 討論: "目前沒有可以搭配的討論", 變更: "目前沒有可以搭配的變更" };
+const PAIR_LABEL = { 讨论: "搭配的讨论", 变更: "搭配的变更" };
+const PAIR_EMPTY = { 讨论: "当前没有可搭配的讨论", 变更: "当前没有可搭配的变更" };
 
 export default class SkillPicker {
   init(cx) {
@@ -57,10 +57,12 @@ export default class SkillPicker {
     // ⌘Enter 在輸入框裡是 secondary 的 submit。
     this.note.on("submit", (e, cx) => (e.secondary ? this.startTabs(cx) : this.putInInput(cx)));
     this.mine = new MySkillsPage(this);
-    this.focusKeys();
-    // 和 Herdr 內建的跳窗相同：剛開的前幾個畫面可能還拿不到焦點。
-    cx.timer.after(600, () => this.focusKeys());
-    this.load(cx);
+    if (!checking()) {
+      this.focusKeys();
+      // 和 Herdr 內建的跳窗相同：剛開的前幾個畫面可能還拿不到焦點。
+      cx.timer.after(600, () => this.focusKeys());
+      this.load(cx);
+    }
   }
 
   groups() {
@@ -90,14 +92,14 @@ export default class SkillPicker {
     this.mine.load(key, cx);
   }
 
-  // 搭配變更的技能指令就是全部，要補字可以放到輸入框後再打。其他技能才在跳窗裡打字。
+  // 搭配变更的技能指令就是全部，要补字可以放到输入框后再打。其他技能才在弹窗里打字。
   hasNote() {
-    return !this.uninitialized && this.skill().pair !== "變更";
+    return !this.uninitialized && this.skill().pair !== "变更";
   }
 
-  // 只有變更能勾：討論一次接續一場，專案的技能不搭配東西。
+  // 只有变更能勾选：讨论一次接续一场，项目级技能不搭配对象。
   canTick() {
-    return this.skill().pair === "變更";
+    return this.skill().pair === "变更";
   }
 
   // 沒有輸入框時由跳窗本身接按鍵。
@@ -210,7 +212,7 @@ export default class SkillPicker {
     if (this.page === "mine") return this.mine.inputPlan();
     const missing = this.missingSkills();
     if (missing) return missing;
-    if (this.ticked().length > 1) return { kind: "none", reason: tr("輸入框一次只能放一個。勾兩個以上請開新分頁") };
+    if (this.ticked().length > 1) return { kind: "none", reason: tr("输入框一次只能放一个。勾选两个以上请新建标签页") };
     const f = focused();
     return placePlan({
       skill: this.skill().skill,
@@ -342,8 +344,8 @@ export default class SkillPicker {
             .rounded(5)
             .text_size(12)
             .cursor_pointer()
-            // discuss、propose 沒有討論也能打字開工，只有搭配變更的技能才真的用不了。
-            .when((count === 0 && w.pair === "變更") || onlyClaude(w.skill, this.agentKey), (el) => el.text_color(t.dim))
+            // discuss、propose 没有讨论也能打字开工，只有搭配变更的技能才真的不可用。
+            .when((count === 0 && w.pair === "变更") || onlyClaude(w.skill, this.agentKey), (el) => el.text_color(t.dim))
             .when(w.skill === current, (el) => el.bg(t.selected).font_medium())
             .when(w.skill !== current, (el) => el.hover((s) => s.bg(t.hover)))
             .on_click((_e, cx) => {
@@ -497,7 +499,7 @@ export default class SkillPicker {
       .child(div().flex_none().mx(8).mb(5).text_size(12).text_color(t.muted).child(tr(w.about)))
       .when(Boolean(PICKER_VARIANTS[this.row().skill]), (el) => el.child(this.variantChips(t)))
       .when(this.hasNote(), (el) =>
-        el.child(label(tr(w.skill === "discuss" ? "主題" : "補充說明（可留空）"))).child(
+        el.child(label(tr(w.skill === "discuss" ? "主题" : "补充说明（可留空）"))).child(
           div()
             .flex_none()
             .mx(8)
@@ -516,7 +518,7 @@ export default class SkillPicker {
             ),
         ),
       )
-      .when(!w.pair, (el) => el.child(label(tr("這個技能用在整個專案，不用搭配"))))
+      .when(!w.pair, (el) => el.child(label(tr("此技能作用于整个项目，无需搭配"))))
       .when(Boolean(w.pair) && targets.length === 0, (el) => el.child(label(tr(PAIR_EMPTY[w.pair]))))
       .when(targets.length > 0, (el) =>
         el
@@ -538,7 +540,7 @@ export default class SkillPicker {
                       this.focusKeys();
                       cx.notify();
                     })
-                    .child(tr("全選 ⌘A")),
+                    .child(tr("全选 ⌘A")),
                 ),
               ),
           )
@@ -575,11 +577,11 @@ export default class SkillPicker {
   }
 
   hints() {
-    if (this.page === "mine") return tr("↑↓ 移動　→ 補充說明　Tab 換頁");
+    if (this.page === "mine") return tr("↑↓ 移动　→ 补充说明　Tab 切页");
     const hints = [tr("↑↓ 技能"), tr("←→ 搭配")];
-    if (this.canTick()) hints.push(tr("Space 勾選"));
-    if (PICKER_VARIANTS[this.row().skill]) hints.push(tr("⇧←→ 做法"));
-    return [...hints, tr("Tab 換頁")].join("　");
+    if (this.canTick()) hints.push(tr("Space 勾选"));
+    if (PICKER_VARIANTS[this.row().skill]) hints.push(tr("⇧←→ 方式"));
+    return [...hints, tr("Tab 切页")].join("　");
   }
 
   footer(t) {
@@ -587,9 +589,9 @@ export default class SkillPicker {
     const many = count > 1;
     const tabs = this.tabPlan();
     const input = this.inputPlan();
-    // 勾兩個以上時只有開新分頁能用，所以寫它會開什麼。
+    // 勾两个以上时只有新建标签页可用，所以显示它会新建什么。
     const shown = many ? tabs : input;
-    const message = this.sending ? tr("處理中…") : this.error ?? (shown.kind === "none" ? shown.reason : shown.text);
+    const message = this.sending ? tr("处理中…") : this.error ?? (shown.kind === "none" ? shown.reason : shown.text);
     return v_flex()
       .flex_none()
       .px(12)
@@ -613,10 +615,10 @@ export default class SkillPicker {
             this.goButton(
               {
                 id: "skill-go-tab",
-                label: many ? tr("開 {0} 個分頁並開工 ⌘⏎", count) : tr("開新分頁並開工 ⌘⏎"),
+                label: many ? tr("新建 {0} 个标签页并开工 ⌘⏎", count) : tr("新建标签页并开工 ⌘⏎"),
                 ready: tabs.kind !== "none" && !this.sending,
                 strong: many,
-                tip: tabs.kind === "none" ? tabs.reason : tr("在目前的工作區開新分頁並執行：{0}", tabs.text),
+                tip: tabs.kind === "none" ? tabs.reason : tr("在当前工作区新建标签页并运行：{0}", tabs.text),
                 click: (cx) => this.startTabs(cx),
               },
               t,
@@ -626,7 +628,7 @@ export default class SkillPicker {
             this.goButton(
               {
                 id: "skill-go",
-                label: tr("放到輸入框 ⏎"),
+                label: tr("放入输入框 ⏎"),
                 ready: input.kind !== "none" && !this.sending,
                 strong: !many,
                 tip: input.kind === "none" ? input.reason : null,
@@ -719,10 +721,10 @@ export default class SkillPicker {
       .child(page("speclink", "Speclink"))
       .child(page("mine", tr("我的技能"), this.mine.found()?.skills.length))
       .child(div().flex_1())
-      // 只有一個 agent 時沒得選。
+      // 只有一个 agent 时没得选。
       .when(usable.length > 1, (el) =>
         el
-          .child(div().flex_none().mr(2).text_size(11).text_color(t.dim).child(tr("給")))
+          .child(div().flex_none().mr(2).text_size(11).text_color(t.dim).child(tr("给")))
           .children(
             usable.map((a) =>
               this.headerChip(
@@ -748,7 +750,7 @@ export default class SkillPicker {
 
   speclinkPage(t) {
     if (this.uninitialized) {
-      return div().flex_1().p(12).text_color(t.muted).child(tr("這個專案還沒有 Speclink。到面板按「初始化」後再用。"));
+      return div().flex_1().p(12).text_color(t.muted).child(tr("此项目尚未初始化 Speclink。请先在面板点击「初始化」。"));
     }
     return h_flex().flex_1().min_h(0).items_start().child(this.skillList(t)).child(this.targetList(t));
   }

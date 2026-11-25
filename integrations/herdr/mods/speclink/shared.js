@@ -35,10 +35,10 @@ export function spaceFor(folder) {
   return all.find((s) => s.active && holds(s)) ?? all.find(holds);
 }
 
-// 跑 speclink 動詞並讀它的 JSON。失敗時丟出 CLI 的第一行訊息。
+// 跑 speclink 动词并读取其 JSON。失败时抛出 CLI 的第一行信息。
 export async function speclinkJson(verb, cwd, on) {
   const r = await exec("speclink", [...verb, "--json"], { cwd, on });
-  if (r.code !== 0) throw new Error(firstLine(r.stderr) || tr("speclink {0} 結束碼 {1}", verb.join(" "), r.code));
+  if (r.code !== 0) throw new Error(firstLine(r.stderr) || tr("speclink {0} 退出码 {1}", verb.join(" "), r.code));
   return JSON.parse(r.stdout);
 }
 
@@ -132,8 +132,8 @@ export async function placeInInput(plan) {
   if (got.code !== 0) return got;
   const { rows, cols } = JSON.parse(got.stdout);
   const r = await exec("sh", ["-c", PASTE, "sh", address, String(rows), String(cols), plan.text]);
-  if (r.code !== 0) return { ...r, stderr: tr("貼不進 {0}（結束碼 {1}）", address, r.code) };
-  // 附加名稱不算開始做，所以只有技能指令帶標籤。
+  if (r.code !== 0) return { ...r, stderr: tr("无法粘贴到 {0}（退出码 {1}）", address, r.code) };
+  // 附加名称不算开始做，所以只有技能指令带标签。
   if (plan.labels) await hc(["label", address, ...plan.labels]);
   run("pane.focus", { terminal: address });
   return null;
@@ -143,7 +143,7 @@ export function sendError(result) {
   try {
     return JSON.parse(result.stderr).error.message;
   } catch {
-    return firstLine(result.stderr) || tr("hc 結束碼 {0}", result.code);
+    return firstLine(result.stderr) || tr("hc 退出码 {0}", result.code);
   }
 }
 
@@ -191,7 +191,7 @@ export async function readSkills(key, root, on) {
   }
   const specs = folders.map(({ source, prefix, dir }) => `${source}\t${prefix}\t${dir}`);
   const r = await exec("perl", ["-MJSON::PP", "-e", READ_SKILLS, "--", ...specs], options);
-  if (r.code !== 0) throw new Error(firstLine(r.stderr) || tr("perl 結束碼 {0}", r.code));
+  if (r.code !== 0) throw new Error(firstLine(r.stderr) || tr("perl 退出码 {0}", r.code));
   const found = JSON.parse(r.stdout);
   return { skills: skillEntries(found), hasSpeclink: hasSpeclinkSkills(found) };
 }

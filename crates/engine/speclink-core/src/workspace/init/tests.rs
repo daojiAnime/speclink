@@ -140,7 +140,7 @@ fn user_text(tool: Tool) -> &'static str {
     match tool {
         Tool::Claude => CLAUDE_USER_TEXT,
         Tool::Codex => CODEX_USER_TEXT,
-        Tool::Copilot | Tool::Pi | Tool::Cursor => unreachable!("{} 沒有指令檔", tool.name()),
+        Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy => unreachable!("{} 沒有指令檔", tool.name()),
     }
 }
 
@@ -217,7 +217,7 @@ fn walk_snapshot(root: &TempRoot, skip_git: bool) -> Vec<(String, Vec<u8>)> {
 /// custom descriptor／未知頂層鍵／remote 原值保留，marker 不重複，使用者文字不動。
 #[test]
 fn reconcile_converts_builtin_selection_row_by_row() {
-    let rows: [(&[Tool], &[Tool]); 10] = [
+    let rows: [(&[Tool], &[Tool]); 14] = [
         (&[Tool::Claude], &[Tool::Codex]),
         (&[Tool::Claude, Tool::Codex], &[Tool::Claude]),
         (&[Tool::Codex], &[Tool::Claude, Tool::Codex]),
@@ -228,6 +228,10 @@ fn reconcile_converts_builtin_selection_row_by_row() {
         (&[Tool::Codex, Tool::Pi], &[Tool::Codex]),
         (&[Tool::Claude], &[Tool::Claude, Tool::Cursor]),
         (&[Tool::Claude, Tool::Cursor], &[Tool::Claude]),
+        (&[Tool::Claude], &[Tool::Claude, Tool::Agy]),
+        (&[Tool::Claude, Tool::Agy], &[Tool::Claude]),
+        (&[Tool::Claude], &[Tool::Agy]),
+        (&[Tool::Agy], &[Tool::Codex]),
     ];
     for (i, (from, to)) in rows.iter().enumerate() {
         let root = TempRoot::new(&format!("reconcile-row-{i}"));
@@ -263,7 +267,7 @@ fn reconcile_converts_builtin_selection_row_by_row() {
 
         for tool in Tool::ALL {
             let skill = propose_skill(tool);
-            if to.contains(&tool) {
+            if to.iter().any(|selected| selected.skills_dir() == tool.skills_dir()) {
                 assert!(root.exists(&skill), "row {i}: {skill} 應被補齊");
             } else {
                 assert!(!root.exists(&skill), "row {i}: {skill} 應被清理");
@@ -1715,7 +1719,7 @@ fn tool_selection_notes_an_unknown_builtin_name() {
     assert_eq!(
         sel.notes,
         vec![
-            "unknown tool 'windsurf' in .speclink.yaml tools list (supported: claude, codex, copilot, pi, cursor)"
+            "unknown tool 'windsurf' in .speclink.yaml tools list (supported: claude, codex, copilot, pi, cursor, agy)"
                 .to_string()
         ]
     );
@@ -1820,7 +1824,7 @@ fn sync_plan_builds_one_target_per_selected_tool() {
     assert_eq!(plan.targets[0].skills_root, root.at(".agents/skills"));
     assert_eq!(
         plan.deselected_builtins,
-        vec![Tool::Claude, Tool::Copilot, Tool::Pi, Tool::Cursor]
+        vec![Tool::Claude, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy]
     );
 }
 
@@ -1851,7 +1855,7 @@ fn sync_plan_adds_a_target_for_each_descriptor() {
     assert_eq!(plan.targets[1].skills_root, root.at(".xyz/skills"));
     assert_eq!(
         plan.deselected_builtins,
-        vec![Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor]
+        vec![Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy]
     );
 }
 
@@ -1997,7 +2001,7 @@ fn copilot_skill_has_neutral_frontmatter_and_slash_references() {
 /// 測試自帶一份：拿來比對的期望值不從被測的程式取。
 fn invocation_prefix(tool: Tool) -> &'static str {
     match tool {
-        Tool::Claude | Tool::Copilot | Tool::Cursor => "/speclink-",
+        Tool::Claude | Tool::Copilot | Tool::Cursor | Tool::Agy => "/speclink-",
         Tool::Codex => "$speclink-",
         Tool::Pi => "/skill:speclink-",
     }
@@ -2361,12 +2365,13 @@ fn pi_and_cursor_skills_differ_from_codex_only_by_prefix_and_tool_name() {
 fn builtin_render_differences_match_the_spec_table() {
     // Example「內建工具的渲染差異」逐列：skills 目錄、技能引用寫法、--agent 值、
     // Claude 專用 frontmatter、是否含 analyze。
-    let rows: [(Tool, &str, &str, &str, bool); 5] = [
+    let rows: [(Tool, &str, &str, &str, bool); 6] = [
         (Tool::Claude, ".claude/skills", "/speclink-apply", "claude", true),
         (Tool::Codex, ".agents/skills", "$speclink-apply", "codex", false),
         (Tool::Copilot, ".github/skills", "/speclink-apply", "copilot", false),
         (Tool::Pi, ".pi/skills", "/skill:speclink-apply", "pi", false),
         (Tool::Cursor, ".cursor/skills", "/speclink-apply", "cursor", false),
+        (Tool::Agy, ".agents/skills", "/speclink-apply", "agy", false),
     ];
     assert_eq!(Tool::ALL.to_vec(), rows.map(|r| r.0).to_vec(), "內建工具的固定順序");
     for (tool, dir, reference, agent, claude) in rows {
@@ -2382,6 +2387,43 @@ fn builtin_render_differences_match_the_spec_table() {
         assert_eq!(drift.contains("context: fork\nagent: Explore\n"), claude, "{agent}: fork 欄位");
         assert_eq!(drift.contains("disallowedTools"), claude, "{agent}: 唯讀欄位");
     }
+}
+
+#[test]
+fn agy_shares_agents_skills_dir_cleanly_alone_and_with_codex() {
+    // 1. agy alone: renders `/speclink-*` & `--agent agy` under `.agents/skills`, writes no instruction file,
+    //    and update/reconcile do not prune `.agents/skills` on behalf of deselected codex.
+    let alone = TempRoot::new("agy-alone");
+    init(&alone.dir, &[Tool::Agy], false, "openspec").unwrap();
+    assert_eq!(Tool::Agy.skills_dir(), ".agents/skills");
+    assert_eq!(instructions_path(Tool::Agy), None);
+    for file in ["AGENTS.md", "CLAUDE.md"] {
+        assert!(!alone.exists(file), "agy must not write {file}");
+    }
+    let propose = alone.read(&propose_skill(Tool::Agy));
+    assert!(propose.contains("/speclink-apply"));
+    assert!(propose.contains("--agent agy"));
+    assert!(!propose.contains("$speclink-"));
+    let updated = update(&alone.dir, false).expect("update with agy alone succeeds");
+    assert!(!updated.pruned.iter().any(|p| p == "codex"), "codex must not prune agy: {updated:?}");
+    assert!(alone.exists(&propose_skill(Tool::Agy)));
+    let probe = probe_assets(&alone.dir);
+    assert_eq!(probe.status, AssetStatus::Current, "{probe:?}");
+    assert!(probe.differing_files.is_empty(), "{probe:?}");
+
+    // Switching [agy] -> [claude] prunes the shared `.agents/skills/speclink-*` cleanly.
+    reconcile_builtin_tools(&alone.dir, &[Tool::Claude]).expect("reconcile to claude succeeds");
+    assert!(!alone.exists(".agents/skills"), "empty .agents/skills pruned when neither codex nor agy selected");
+
+    // 2. codex + agy co-selected: both share `.agents/skills`, init/update/probe succeed without conflict or stale diff.
+    let both = TempRoot::new("codex-and-agy");
+    init(&both.dir, &[Tool::Codex, Tool::Agy], false, "openspec").expect("co-selection succeeds");
+    assert!(both.read(".speclink.yaml").contains("tools: [codex, agy]"));
+    let again = update(&both.dir, false).expect("update co-selection succeeds");
+    assert!(!again.pruned.iter().any(|p| p == "codex" || p == "agy"), "{again:?}");
+    let probe_both = probe_assets(&both.dir);
+    assert_eq!(probe_both.status, AssetStatus::Current, "{probe_both:?}");
+    assert!(probe_both.differing_files.is_empty(), "{probe_both:?}");
 }
 
 #[test]
