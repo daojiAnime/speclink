@@ -1,19 +1,19 @@
-# 工作指引
+# Working Guidelines
 
-## 專案慣例
+## Project Conventions
 
-- **Commit 用 `conventional-commit` 技能**：description 與 body 寫繁體中文。例：`feat(auth): 新增 GitHub OAuth 登入`、`fix(collab): 修正 Y.js 同步衝突`。
-- **查資料順序**：專案內既有規格與程式碼（搭配對應 Skills）→ 目前已接上的文件類 MCP → 最後才網路搜尋。不要憑印象猜 API 簽名。
+- **Use the `conventional-commit` skill for commits**: write the description and body in Traditional Chinese (e.g., `feat(auth): <summary>`, `fix(collab): <summary>`).
+- **Information lookup order**: existing specs and code in the project (with corresponding Skills) → currently connected documentation MCP servers → web search last. Never guess API signatures from memory.
 
-## 程式碼取捨
+## Code Trade-offs
 
-- 不為一次性使用的程式碼建立抽象層；不加沒被要求的「彈性」或「可配置性」。
-- 錯誤處理只在系統邊界驗證（使用者輸入、外部 API），內部程式碼當成可信；不為不可能發生的情境寫防護。
-- 寫了 200 行但 50 行能搞定就重寫。判準：資深工程師會不會覺得這太複雜？
-- 死碼不對稱處理：清掉「因為這次改動」而孤兒化的 imports／變數／函式；原本就存在的死碼提一句就好，不要刪。
-- 有更簡單的做法直接說出來，並講清楚你的假設。
+- Do not create abstraction layers for one-off code; do not add unrequested "flexibility" or "configurability".
+- Validate errors only at system boundaries (user input, external APIs); treat internal code as trusted, and do not write guards for impossible scenarios.
+- If you wrote 200 lines when 50 would do, rewrite it. Criterion: would a senior engineer find this overly complex?
+- Handle dead code asymmetrically: remove imports, variables, or functions orphaned by your current change; mention pre-existing dead code briefly instead of deleting it.
+- If there is a simpler approach, state it directly and make your assumptions explicit.
 
-## 表達習慣
+## Communication Style
 
-- 回覆用白話：先講結論，再用日常用語說明，像在跟沒看過這段程式的同事解釋。
-- 請不要過多的術語，若有術語請附上說明。
+- Reply in plain language: lead with the conclusion, then explain in everyday terms as if walking a colleague who has not seen this code through it.
+- Avoid excessive jargon; when jargon is necessary, include a brief explanation.

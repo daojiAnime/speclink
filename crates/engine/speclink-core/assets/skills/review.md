@@ -81,7 +81,7 @@
    **Project review rules** — when any of step 2's three `review` lists is non-empty, the Standards brief carries the rules verbatim, grouped by severity — one group per list. They bind the axis as follows:
 
    - A rule's list decides the severity of its violation: `critical` → CRITICAL, `warning` → WARNING, `suggestion` → SUGGESTION. Neither the sub-agent nor the main thread raises or lowers it.
-   - The finding description quotes the violated rule verbatim; the rest of the description follows the locale binding above. For example, with an English locale: `- [WARNING] src/api.rs — Standards: violates project review rule "New public APIs need a matching test": add_user has no test`; with a Traditional Chinese locale: `- [WARNING] src/api.rs — Standards: 違反專案審查規則「新增的公開 API 要有對應的測試」：add_user 沒有測試`.
+   - The finding description quotes the violated rule verbatim; the rest of the description follows the locale binding above. For example, with an English locale: `- [WARNING] src/api.rs — Standards: violates project review rule "New public APIs need a matching test": add_user has no test`; with a non-English locale, keep the severity label, path, and axis prefix in English, quote the rule verbatim, and write the rest of the description in the resolved `locale`.
    - Where a project rule and a repo document disagree, the project rule wins — it is the list the project wrote down for this station.
 
    The Correctness brief never carries the project rules.

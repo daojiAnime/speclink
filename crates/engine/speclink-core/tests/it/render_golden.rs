@@ -361,28 +361,30 @@ fn commit_skill_attributes_files_from_the_change_directory_record() {
 fn archive_skill_lists_plan_candidates_and_hands_off_the_next_ready_change() {
     for (rel, content) in skill_for_both_tools("archive-plan-handoff", "archive") {
         for needle in [
-            // 第 1 步：候選依 plan 順序、標 archiveAfter（空「可封存」）與未封存前置、
+            // 第 1 步：候選依 plan 順序、標 archiveAfter（空 Ready to archive）與未封存前置、
             // plan 失敗退回 list
             "list the candidates from its `changes` array",
             "Label each candidate with its `archiveAfter`",
-            "「可封存」",
-            "「等 <archiveAfter 的名稱> 封存」",
-            "「前置 <blockedBy 的名稱> 未封存」",
+            "Ready to archive",
+            "Waiting on archive of <archiveAfter names>",
+            "Prerequisite <blockedBy names> not yet archived",
+            "Broken metadata",
             "fall back to `speclink list --json`",
             // 3b：先封存 archiveAfter、重讀同名 requirement 對照正式規格重寫；衝突（都帶進或
             // 都拿走）先改掉其中一邊；不以 drift 當補救；記下排在本 change 之後的 change
-            "plan 建議先封存 <archiveAfter 的名稱>",
-            "對照正式規格重寫",
-            "或都移除（或改名掉）它",
-            "先改掉其中一邊",
-            "宣告前置 <blockedBy 的名稱> 尚未封存",
+            "Plan suggests archiving <archiveAfter names> first",
+            "rewrite them against the canonical specs",
+            "or both remove (or rename away)",
+            "change one side first",
+            "Declared prerequisite <blockedBy names> is not yet archived.",
             "Do not offer `speclink drift` as the remedy",
             "keep the list for it",
             "even when none of the hints above applies",
             // 封存後：提醒排在後面的 change 先對照正式規格重寫再封存
-            "<那些 change 的名稱> 要在 <name> 之後封存",
+            "<those change names> must be archived after <name>",
             // 尾段：下一個可開工、worktree 政策開時列可並行名單、僅提醒
-            "plan 的下一個可開工：<next>",
+            "Next ready to start from plan: <next>",
+            "Wave 1 parallel-safe:",
             "apply <next>",
             "apply-with-worktree <name>",
             // 分岔表第 3–5 列：政策關只提 next、next 為 null 或成環不提
@@ -417,7 +419,7 @@ fn archive_skill_lists_plan_candidates_and_hands_off_the_next_ready_change() {
 fn commit_skill_archive_sub_flow_carries_the_order_hint_and_the_hand_off() {
     for (rel, content) in skill_for_both_tools("commit-plan-handoff", "commit") {
         let hint = content
-            .find("plan 建議先封存")
+            .find("Plan suggests archiving")
             .unwrap_or_else(|| panic!("{rel}: missing the pre-archive order hint"));
         let archive = content
             .find("**7a-iii. Archive execution")
@@ -430,15 +432,16 @@ fn commit_skill_archive_sub_flow_carries_the_order_hint_and_the_hand_off() {
             // 三種提示：先封存 archiveAfter 並對照正式規格重寫、衝突先改掉其中一邊、宣告前置
             // 未封存；三者皆空、目標不在 plan、plan 失敗都靜默進封存；封存後提醒排在後面的
             // change 重寫
-            "plan 建議先封存 <archiveAfter 的名稱>",
-            "對照正式規格重寫",
-            "先改掉其中一邊",
+            "Plan suggests archiving <archiveAfter names> first",
+            "rewrite them against the canonical specs",
+            "change one side first",
             "keep the list for it",
-            "<那些 change 的名稱> 要在 <name> 之後封存",
-            "宣告前置 <blockedBy 的名稱> 尚未封存",
+            "<those change names> must be archived after <name>",
+            "Declared prerequisite <blockedBy names> is not yet archived.",
             "say nothing about ordering and continue",
             "manual/` directory",
-            "plan 的下一個可開工：<next>",
+            "Next ready to start from plan: <next>",
+            "Wave 1 parallel-safe:",
             "apply <next>",
             "never run apply yourself",
         ] {
@@ -1125,7 +1128,7 @@ fn propose_skill_chooses_schema() {
             "speclink new change \"<name>\" --schema <chosen>",
             "no Capabilities section",
             "list the canonical specs you checked",
-            "「不改規格（no-spec-change）」",
+            "no-spec-change (no spec changes)",
         ] {
             assert!(content.contains(needle), "{rel}: missing {needle:?}");
         }
@@ -1505,7 +1508,7 @@ fn apply_with_worktree_states_the_policy_gate_and_the_creation_convention() {
             "{rel}: artifacts must be committed before the worktree is created"
         );
         assert!(
-            content.contains("本專案未啟用 worktree 流程"),
+            content.contains("This project has not enabled the worktree workflow"),
             "{rel}: must state the refusal in the user's terms"
         );
         assert!(
@@ -1545,7 +1548,7 @@ fn apply_with_worktree_refuses_more_than_one_change() {
             "{rel}: silent sequential batching must be forbidden"
         );
         assert!(
-            content.contains("一個 change 一個 session"),
+            content.contains("one change per session"),
             "{rel}: must print the multi-session recipe in the user's terms"
         );
         // 多名字先以 plan 分組：blockedBy 空者可並行，非空者等前置落地再開；
@@ -1554,7 +1557,7 @@ fn apply_with_worktree_refuses_more_than_one_change() {
         for needle in [
             "speclink plan --json",
             "blockedBy",
-            "落地再開",
+            "must wait until",
             "from the parallel-ready names only",
             "confirm running that change here",
             "report the waiting and unavailable names",
@@ -1603,7 +1606,7 @@ fn apply_with_worktree_selects_and_guards_with_plan() {
         }
         // 存在性檢查已併入 plan 步驟；只看前置段，本體與收尾段不在此列。
         let body = content
-            .find("以下為 apply 本體流程")
+            .find("The apply workflow follows below; execute it inside the worktree directory above.")
             .unwrap_or_else(|| panic!("{rel}: missing the hand-over to the apply body"));
         // 前置段唯一一次用到 list，是在建立 worktree 之前留下閒置判斷要的兩個欄位。
         let preamble = &content[..body];
@@ -1632,7 +1635,7 @@ fn apply_with_worktree_treats_the_body_plan_as_a_recheck() {
             .find("Work inside the worktree from here on")
             .unwrap_or_else(|| panic!("{rel}: missing the work-inside-the-worktree step"));
         let to = content
-            .find("以下為 apply 本體流程")
+            .find("The apply workflow follows below; execute it inside the worktree directory above.")
             .unwrap_or_else(|| panic!("{rel}: missing the hand-over to the apply body"));
         assert!(from < to, "{rel}: the worktree step must precede the apply body");
         let p6 = &content[from..to];
@@ -1693,10 +1696,10 @@ fn apply_with_worktree_detects_progress_parted_from_code() {
         );
         // Dirty: stop, and lead with the route that actually fixes it.
         let commit_route = content
-            .find("先收程式碼再開 worktree")
+            .find("**Commit code first, then open worktree**")
             .unwrap_or_else(|| panic!("{rel}: missing the recommended commit route"));
-        let carry_on = content.find("照樣繼續").expect("carry-on option");
-        let stop = content.find("停止").expect("stop option");
+        let carry_on = content.find("**Continue anyway**").expect("carry-on option");
+        let stop = content.find("**Stop**").expect("stop option");
         assert!(
             commit_route < carry_on && carry_on < stop,
             "{rel}: the three options must be offered in recommendation order"
@@ -1888,7 +1891,7 @@ fn propose_skill_ranks_a_small_urgent_change_and_notes_the_archive_order() {
             "speclink change rank <change-name> --before <that change>",
             "already has a board rank",
             "Never add `--force`",
-            "「封存時 <change> 要在 <archiveAfter 的名稱> 之後」",
+            "When archiving, <change> must come after <archiveAfter names>.",
         ] {
             assert!(step.contains(needle), "{rel}: the landscape check is missing {needle:?}");
         }
@@ -3015,6 +3018,34 @@ fn skills_render_effective_spec_dir() {
         let text = std::fs::read_to_string(&path).unwrap();
         for needle in ["openspec/", ".openspec.yaml"] {
             assert!(!text.contains(needle), "{} still names {needle}", path.display());
+        }
+    }
+}
+
+/// Spec manual-pages「內文慣例」「必產的首頁與來源頁」+ manual-skill「動線由引數選擇」
+/// 「生成模式的輸出與報告」「導覽模式的行為」「remote 模式的限制敘述」: lock the
+/// English contract literals and the multilingual tour trigger so future golden refreshes
+/// cannot silently drop or drift them.
+#[test]
+fn manual_skill_carries_english_contract_literals_and_multilingual_tour_trigger() {
+    for (rel, content) in skill_for_both_tools("manual-english-contract", "manual") {
+        for needle in [
+            "contain `tour` (or its equivalent in the user's language)",
+            "Manual generation is not yet supported in remote mode (tour mode still works:",
+            "**Sources**:",
+            "About this manual",
+            "None found",
+            "No user-facing capabilities yet",
+            "## Manual Generation Summary",
+            "No manual yet — touring directly from the specs",
+        ] {
+            assert!(
+                content.contains(needle),
+                "{rel}: missing manual contract literal {needle:?}"
+            );
+        }
+        for gone in ["**出處**：", "本手冊的來源", "手冊生成摘要", "尚無手冊"] {
+            assert!(!content.contains(gone), "{rel}: stale Chinese manual literal {gone:?}");
         }
     }
 }

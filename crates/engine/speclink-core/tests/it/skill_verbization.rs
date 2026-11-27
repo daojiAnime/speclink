@@ -862,8 +862,8 @@ fn committing_a_stamp_is_a_step_for_a_checkout_with_the_spec_folder() {
         ("verify", &["commit the stamp's meta changes first"], &["the stamp is on the Server"]),
         (
             "apply-with-worktree",
-            &["記得補一次提交", "commit the stamps, then", "### P3. Get the change's artifacts into HEAD", "stamps land in that copy"],
-            &["章在 Server 上，不用補提交", "the stamps are on the Server", "### P3. Nothing to commit for the artifacts", "stamps go to the Server"],
+            &["remember to make one more commit", "commit the stamps, then", "### P3. Get the change's artifacts into HEAD", "stamps land in that copy"],
+            &["stamps live on the Server, so no extra commit is needed", "the stamps are on the Server", "### P3. Nothing to commit for the artifacts", "stamps go to the Server"],
         ),
     ];
     for (skill, folder_steps, server_steps) in cases {

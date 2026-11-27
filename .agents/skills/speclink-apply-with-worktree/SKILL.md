@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.61.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -40,7 +40,7 @@ Find each name in `changes`:
 - **`blockedBy` is empty** — the change is parallel-ready.
 - **`blockedBy` is non-empty** — the change waits for its prerequisites. Name it with them, in these terms:
 
-  > <change-name> 要等 <prerequisites> 落地再開。
+  > <change-name> must wait until <prerequisites> lands before starting.
 
 - **Not in `changes`** (archived, misspelled, or listed under `skipped`) — name it as not available.
 
@@ -48,7 +48,7 @@ Then act on how many names are parallel-ready:
 
 - **Two or more** — use the **AskUserQuestion tool** to have the user pick the one to run here, from the parallel-ready names only. Print the recipe for the other parallel-ready names, naming them:
 
-  > 平行做法是一個 change 一個 session：另外開視窗，各自執行 `$speclink-apply-with-worktree <change-name>`。主資料夾的看板會同時顯示每個 worktree 的進度。
+  > The parallel workflow is one change per session: open separate windows and run `$speclink-apply-with-worktree <change-name>` in each. The main checkout board displays progress for every worktree at once.
 
 - **Exactly one** — there is nothing to pick and no recipe to print: use the **AskUserQuestion tool** to confirm running that change here, with stopping as the other option.
 - **None** — report the waiting and unavailable names and STOP.
@@ -73,7 +73,7 @@ Read the EFFECTIVE value, the same way the CLI resolves it — the env layer win
 - **effective value `true`** — continue to P2.
 - **anything else (`false` or absent)** — STOP. Tell the user, in these terms:
 
-  > 本專案未啟用 worktree 流程。要啟用請執行：`speclink workflow-config set worktree true`
+  > This project has not enabled the worktree workflow. To enable it, run: `speclink workflow-config set worktree true`
 
   Do **NOT** fall back to running the apply flow in the main folder. Enabling the policy is the user's decision, not yours — offer to run `speclink workflow-config set worktree true` and wait for their answer.
 
@@ -132,9 +132,9 @@ git status --porcelain -- <each path in that output's `files`>
 - **`files` is empty** (no record, or no touched files) — nothing was implemented here yet. Continue to P4 silently.
 - **Every listed path is clean** — the code is already in HEAD and travels with the worktree. Continue to P4 silently.
 - **Any listed path is dirty** — STOP and show the user the dirty paths, then use the **AskUserQuestion tool**:
-  - **先收程式碼再開 worktree**（recommended） — run `$speclink-commit <change-name>` to get this change's source into HEAD, then come back and re-run this skill.
-  - **照樣繼續** — create the worktree knowing it will not contain those edits; the tasks they belong to will read as done with nothing behind them.
-  - **停止** — end the run and leave everything as it is.
+  - **Commit code first, then open worktree** (recommended) — run `$speclink-commit <change-name>` to get this change's source into HEAD, then come back and re-run this skill.
+  - **Continue anyway** — create the worktree knowing it will not contain those edits; the tasks they belong to will read as done with nothing behind them.
+  - **Stop** — end the run and leave everything as it is.
 
 Do NOT create the worktree before the user has chosen.
 
@@ -173,7 +173,7 @@ If `git worktree add` fails, report the error verbatim and STOP.
 
 Print a short note before starting work:
 
-> worktree 是一份完整的原始碼副本。相依套件與建置產物不會跟著複製過去——第一次在裡面跑測試或建置，要自己重新安裝相依並重新建置，會花上一段時間。
+> A worktree is a full copy of the source code. Dependencies and build artifacts are not copied over — the first test or build run inside it will need to install dependencies and rebuild, which can take a while.
 
 ### P6. Work inside the worktree from here on
 
@@ -189,7 +189,7 @@ The apply body's own step 1 (**Select the change with plan**) is only a re-check
 
 ---
 
-以下為 apply 本體流程，於上述 worktree 資料夾內執行。
+The apply workflow follows below; execute it inside the worktree directory above.
 
 ---
 
@@ -596,17 +596,17 @@ Pick the path by the change's state: unchecked `[M]` manual tasks show in `specl
 
 - **No unchecked `[M]` task** — tell the user, plainly:
 
-  > 這個 change 已在 worktree 內完成並提交，尚未合併回主分支。
+  > This change is finished and committed inside the worktree, and has not been merged back into the main branch yet.
   >
-  > 建議在這個 worktree 內跑品質關卡——`$speclink-review`（工藝品質）∥ `$speclink-verify`（規格符合度），或 `$speclink-quality`（兩站合跑），是否要跑由你決定。蓋章會寫進 change 的 meta，記得補一次提交，再執行 `$speclink-worktree-merge <change-name>` 收尾。
+  > Suggested next step: run the quality stations in this worktree — `$speclink-review` (craft quality) ∥ `$speclink-verify` (spec compliance), or `$speclink-quality` (both stations together); whether to run them is your call. Stamping writes to the change's metadata, so remember to make one more commit, then run `$speclink-worktree-merge <change-name>` to wrap up.
   >
-  > 想在蓋章前先看到 CI 結果的話，改走另一條路：先執行 `$speclink-worktree-merge <change-name>` 合併，再到主 checkout 跑品質關卡——worktree 分支只在本機、從不 push，CI 看不到它；合併時品質關卡的起點會一起承接到主 checkout。
+  > If you want to see CI results before stamping, take the other route: run `$speclink-worktree-merge <change-name>` to merge first, then run the quality stations in the main checkout — worktree branches stay local and are never pushed, so CI cannot see them; merging carries the quality stations' starting point over to the main checkout.
 
 - **Unchecked `[M]` tasks remain** — tell the user, plainly:
 
-  > 這個 change 已在 worktree 內完成並提交，尚未合併回主分支，還有手動任務沒做。
+  > This change is finished and committed inside the worktree, has not been merged back into the main branch yet, and still has unchecked manual tasks.
   >
-  > 建議先執行 `$speclink-worktree-merge <change-name>`——它會檢查主樹是否乾淨、把分支合併回去、把品質關卡的起點承接到主 checkout，成功後移除 worktree 並刪掉分支。之後在主 checkout 跑品質關卡——`$speclink-review`（工藝品質）∥ `$speclink-verify`（規格符合度），或 `$speclink-quality`（兩站合跑），是否要跑由你決定——做完手動任務再封存。
+  > Suggested next step: run `$speclink-worktree-merge <change-name>` first — it checks that the main tree is clean, merges the branch back, carries the quality stations' starting point over to the main checkout, and removes the worktree and branch on success. After that, run the quality stations in the main checkout — `$speclink-review` (craft quality) ∥ `$speclink-verify` (spec compliance), or `$speclink-quality` (both stations together); whether to run them is your call — then finish the manual tasks and archive.
 
 Report alongside it: the worktree path, the branch name, the tasks completed this session, and whether W2 rebased or why it skipped.
 

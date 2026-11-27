@@ -1,15 +1,19 @@
 //! Mechanical guards for the skill sources under `assets/skills/` (skill-authoring
-//! spec「寫法規範的機械守門」). Six checks run on every `.md` source: line count,
-//! the emphasis-word cap, no history in prose, a fallback for tool-dependent
-//! capabilities, no hard-coded skill references or `--agent` values (those must
-//! go through the render markers so every tool gets its own spelling), and spec-folder
-//! paths only inside the block that is rendered when the spec folder is in the checkout.
+//! spec「寫法規範的機械守門」and「技能原稿以英文撰寫」). Seven checks run on every `.md`
+//! source: line count, the emphasis-word cap, no history in prose, a fallback for
+//! tool-dependent capabilities, no hard-coded skill references or `--agent` values
+//! (those must go through the render markers so every tool gets its own spelling),
+//! spec-folder paths only inside the block that is rendered when the spec folder is
+//! in the checkout, and English-only authoring (no Unicode Han characters).
 
 use regex::Regex;
 use speclink_core::skills::{self, SpecLocation};
 
-/// The spec every failure message points the reader to.
+/// The spec every authoring-style failure message points the reader to.
 const SPEC_REF: &str = "skill-authoring 規格『技能原稿的跨模型寫法規範』";
+
+/// The spec every English-only authoring failure message points the reader to.
+const SPEC_REF_ENGLISH: &str = "skill-authoring 規格『技能原稿以英文撰寫』";
 
 /// Emphasis-word cap per source. A new source must be registered here; raising a
 /// cap is a deliberate edit to this table.
@@ -177,7 +181,19 @@ fn hardcoded_references(text: &str) -> Vec<String> {
     hits
 }
 
-/// Every violation of one source, each message naming the file, the check and [`SPEC_REF`].
+/// Lines containing any Unicode Han character (`\p{Han}`), returned as 1-based
+/// `(line_number, trimmed_line)`. `str::lines()` strips both LF and CRLF so the
+/// result is identical across line endings.
+fn han_hits(text: &str) -> Vec<(usize, String)> {
+    let han = Regex::new(r"\p{Han}").unwrap();
+    text.lines()
+        .enumerate()
+        .filter(|(_, line)| han.is_match(line))
+        .map(|(idx, line)| (idx + 1, line.trim().to_string()))
+        .collect()
+}
+
+/// Every violation of one source, each message naming the file, the check and its spec ref.
 /// `exempt` is the sixth check's table ([`spec_path_exempt`] in the real scan).
 fn violations(name: &str, text: &str, caps: &[(&str, usize)], exempt: &[(String, &str)]) -> Vec<String> {
     let mut found = Vec::new();
@@ -225,6 +241,11 @@ fn violations(name: &str, text: &str, caps: &[(&str, usize)], exempt: &[(String,
                 "{name}：規格路徑只在條件區塊裡，`{word}` 在 {{{{#SPEC_IN_CHECKOUT}}}} 區塊之外：`{line}`；讀寫改用動詞，git 步驟與顯示路徑的句子放進區塊（{SPEC_REF}）"
             ));
         }
+    }
+    for (line_no, snippet) in han_hits(text) {
+        found.push(format!(
+            "{name}：英文撰寫，第 {line_no} 行含漢字 `{snippet}`（{SPEC_REF_ENGLISH}）"
+        ));
     }
     found
 }
@@ -504,6 +525,39 @@ fn a_hardcoded_spec_folder_path_fails() {
     }
     let found = violations("x.md", "Read `speclink/changes/<name>/tasks.md`.\n", &[("x.md", 0)], &[]);
     assert!(found.iter().any(|v| v.contains("寫死的 `speclink/changes`")), "{found:?}");
+}
+
+/// Spec skill-authoring「技能原稿以英文撰寫」: English-only sources pass; any Unicode
+/// Han character fails with file name, check label, line number, snippet and spec ref.
+#[test]
+fn english_only_source_passes_and_han_fails_with_location() {
+    let clean = "Run `speclink plan --json` and report the result.\n";
+    assert!(han_hits(clean).is_empty());
+    assert!(violations("clean.md", clean, &[("clean.md", 0)], &[]).is_empty());
+
+    let mixed = "Step 1\n> 本專案未啟用 worktree 流程\nStep 3\n";
+    let found = violations("apply-worktree-pre.md", mixed, &[("apply-worktree-pre.md", 0)], &[]);
+    assert!(
+        found.iter().any(|v| v.contains("apply-worktree-pre.md")
+            && v.contains("英文撰寫")
+            && v.contains("第 2 行")
+            && v.contains("本專案未啟用 worktree 流程")
+            && v.contains(SPEC_REF_ENGLISH)),
+        "{found:?}"
+    );
+}
+
+/// Scenario「LF 與 CRLF 原稿檢查結果一致」: the English-only check reports the exact
+/// same line numbers and violation messages for LF and CRLF line endings.
+#[test]
+fn han_check_is_the_same_for_lf_and_crlf() {
+    let lf = "line one\n> 本專案未啟用 worktree 流程\nline three\n";
+    let crlf = "line one\r\n> 本專案未啟用 worktree 流程\r\nline three\r\n";
+    assert_eq!(han_hits(lf), han_hits(crlf));
+    assert_eq!(
+        violations("wt.md", lf, &[("wt.md", 0)], &[]),
+        violations("wt.md", crlf, &[("wt.md", 0)], &[]),
+    );
 }
 
 /// The real scan: every source under assets/skills/, in file-name order.

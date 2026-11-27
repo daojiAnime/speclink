@@ -29,7 +29,7 @@ If there are no changes, report "No changes to audit" and stop.
 
 Launch 3 agents in parallel (one message, 3 tool calls). Each agent receives the full diff and analyzes it through one adversary lens. If you cannot spawn sub-agents, run the three lenses yourself one after another, and keep each lens's findings separate until Phase 3.
 
-**Agent 1 — The Scoundrel (壞蛋)**
+**Agent 1 — The Scoundrel**
 
 A malicious developer or attacker deliberately manipulating configuration.
 
@@ -41,7 +41,7 @@ Search the diff for:
 - Dangerous config combinations (e.g., `auth_required: true` + `bypass_auth_for_health: true` + `health_check_path: "/"`)
 - String concatenation in security-critical paths (permissions, queries, paths)
 
-**Agent 2 — The Lazy Developer (懶惰的開發者)**
+**Agent 2 — The Lazy Developer**
 
 A developer who copy-pastes examples and skips documentation.
 
@@ -53,7 +53,7 @@ Search the diff for:
 - The "first example found" test: is the most obvious usage secure?
 - Path of least resistance: does the simplest way to use this API produce secure results?
 
-**Agent 3 — The Confused Developer (搞混的開發者)**
+**Agent 3 — The Confused Developer**
 
 A developer who misunderstands API usage.
 

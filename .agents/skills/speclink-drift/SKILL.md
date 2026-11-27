@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.61.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -46,7 +46,7 @@ Detect drift between a Speclink change and the current codebase state. Reports t
 
 3. **Present the report**
 
-   **Report language**: run `speclink instructions apply --change "<name>" --json` and use its `locale` field (e.g., "Traditional Chinese (繁體中文)") — write the report in that language, prose, headings, and table labels included. Keep severity labels (light/medium/heavy), command lines, and code references in English. If the field is absent or the call fails, write in English.
+   **Report language**: run `speclink instructions apply --change "<name>" --json` and use its `locale` field (e.g., "Traditional Chinese") — write the report in that language, prose, headings, and table labels included. Keep severity labels (light/medium/heavy), command lines, and code references in English. If the field is absent or the call fails, write in English.
 
    Use a user-readable, conclusion-first format. The first substantive paragraph after the title is a plain-language conclusion that says what to do next before showing score tables, broken anchors, task collisions, or severity labels.
 

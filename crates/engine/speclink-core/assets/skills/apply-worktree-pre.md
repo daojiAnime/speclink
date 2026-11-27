@@ -27,7 +27,7 @@ Find each name in `changes`:
 - **`blockedBy` is empty** — the change is parallel-ready.
 - **`blockedBy` is non-empty** — the change waits for its prerequisites. Name it with them, in these terms:
 
-  > <change-name> 要等 <prerequisites> 落地再開。
+  > <change-name> must wait until <prerequisites> lands before starting.
 
 - **Not in `changes`** (archived, misspelled, or listed under `skipped`) — name it as not available.
 
@@ -35,7 +35,7 @@ Then act on how many names are parallel-ready:
 
 - **Two or more** — use the **AskUserQuestion tool** to have the user pick the one to run here, from the parallel-ready names only. Print the recipe for the other parallel-ready names, naming them:
 
-  > 平行做法是一個 change 一個 session：另外開視窗，各自執行 `/speclink:apply-with-worktree <change-name>`。主資料夾的看板會同時顯示每個 worktree 的進度。
+  > The parallel workflow is one change per session: open separate windows and run `/speclink:apply-with-worktree <change-name>` in each. The main checkout board displays progress for every worktree at once.
 
 - **Exactly one** — there is nothing to pick and no recipe to print: use the **AskUserQuestion tool** to confirm running that change here, with stopping as the other option.
 - **None** — report the waiting and unavailable names and STOP.
@@ -60,7 +60,7 @@ Read the EFFECTIVE value, the same way the CLI resolves it — the env layer win
 - **effective value `true`** — continue to P2.
 - **anything else (`false` or absent)** — STOP. Tell the user, in these terms:
 
-  > 本專案未啟用 worktree 流程。要啟用請執行：`speclink workflow-config set worktree true`
+  > This project has not enabled the worktree workflow. To enable it, run: `speclink workflow-config set worktree true`
 
   Do **NOT** fall back to running the apply flow in the main folder. Enabling the policy is the user's decision, not yours — offer to run `speclink workflow-config set worktree true` and wait for their answer.
 
@@ -131,9 +131,9 @@ git status --porcelain -- <each path in that output's `files`>
 - **`files` is empty** (no record, or no touched files) — nothing was implemented here yet. Continue to P4 silently.
 - **Every listed path is clean** — the code is already in HEAD and travels with the worktree. Continue to P4 silently.
 - **Any listed path is dirty** — STOP and show the user the dirty paths, then use the **AskUserQuestion tool**:
-  - **先收程式碼再開 worktree**（recommended） — run `/speclink:commit <change-name>` to get this change's source into HEAD, then come back and re-run this skill.
-  - **照樣繼續** — create the worktree knowing it will not contain those edits; the tasks they belong to will read as done with nothing behind them.
-  - **停止** — end the run and leave everything as it is.
+  - **Commit code first, then open worktree** (recommended) — run `/speclink:commit <change-name>` to get this change's source into HEAD, then come back and re-run this skill.
+  - **Continue anyway** — create the worktree knowing it will not contain those edits; the tasks they belong to will read as done with nothing behind them.
+  - **Stop** — end the run and leave everything as it is.
 
 Do NOT create the worktree before the user has chosen.
 
@@ -172,7 +172,7 @@ If `git worktree add` fails, report the error verbatim and STOP.
 
 Print a short note before starting work:
 
-> worktree 是一份完整的原始碼副本。相依套件與建置產物不會跟著複製過去——第一次在裡面跑測試或建置，要自己重新安裝相依並重新建置，會花上一段時間。
+> A worktree is a full copy of the source code. Dependencies and build artifacts are not copied over — the first test or build run inside it will need to install dependencies and rebuild, which can take a while.
 
 ### P6. Work inside the worktree from here on
 
@@ -193,7 +193,7 @@ The apply body's own step 1 (**Select the change with plan**) is only a re-check
 
 ---
 
-以下為 apply 本體流程，於上述 worktree 資料夾內執行。
+The apply workflow follows below; execute it inside the worktree directory above.
 
 ---
 

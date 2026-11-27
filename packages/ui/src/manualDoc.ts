@@ -20,9 +20,10 @@ export function groupSections(pages: ManualPageItem[], otherLabel: string): Sect
   return sections;
 }
 
-// 頁尾出處行（manual-pages 契約）：最後一個非空段落以 `**出處**：` 開頭。出處名的
-// 單一真相是索引 frontmatter 的 sources（契約規定兩者一致），內文這行只剝掉、不重解。
-const SOURCES_LINE_RE = /^\*\*出處\*\*[：:]/;
+// 頁尾出處行（manual-pages 契約）：最後一個非空段落以 `**Sources**:`、`**出处**：` 或
+// `**出處**：`（支援半形與全形冒號）開頭。出處名的單一真相是索引 frontmatter 的 sources
+// （契約規定兩者一致），內文這行只剝掉、不重解。
+const SOURCES_LINE_RE = /^\*\*(?:Sources|出处|出處)\*\*[：:]/;
 
 /** 剝掉內文尾端的出處行；沒有該行時原樣回傳。 */
 export function stripSourcesLine(body: string): string {

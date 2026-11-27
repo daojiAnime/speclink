@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.61.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -105,7 +105,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
    **Remote mode**: when the workspace is connected to a remote store, `contextFiles` points into the read-only Context Projection (`.speclink/context/`) — a local snapshot of the remote canon. Read, search, and grep it freely, but never edit projection files: a direct edit is not a remote write and the next command will reject the projection as modified. Any spec or artifact change goes through speclink verbs. If a `STALE` marker file exists at the projection root or a command reports the projection as modified, re-run `speclink instructions apply` to refresh it.
 
-   The payload also carries `locale` — the resolved language for AI output (e.g., "Traditional Chinese (繁體中文)"). Remember it: the verification report is written in this language (see Output Format).
+   The payload also carries `locale` — the resolved language for AI output (e.g., "Traditional Chinese"). Remember it: the verification report is written in this language (see Output Format).
 
    Then read the sub-agent model:
 

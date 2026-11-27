@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.61.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -148,15 +148,15 @@ This is the wrap-up half of `$speclink-apply-with-worktree`. That skill stops ri
 
    - **The quality stations already ran in the worktree** (their stamps came along with the merge):
 
-     > 這個 change 已合併回主分支，品質關卡也已在 worktree 內跑完。下一步是在主 checkout `$speclink-archive` 封存。
+     > This change has been merged back into the main branch, and the quality stations already ran in the worktree. Next step: run `$speclink-archive` in the main checkout.
 
    - **The quality stations have not run, and no `[M]` task is open**:
 
-     > 這個 change 已合併回主分支，品質關卡的起點已承接到主 checkout。要跑的話直接在這裡執行 `$speclink-review`（工藝品質）∥ `$speclink-verify`（規格符合度），或 `$speclink-quality`（兩站合跑），是否要跑由你決定；之後 `$speclink-archive` 封存。
+     > This change has been merged back into the main branch, and the quality stations' starting point has been carried over to the main checkout. If you want to run them, run `$speclink-review` (craft quality) ∥ `$speclink-verify` (spec compliance), or `$speclink-quality` (both stations together) right here — whether to run them is your call; then run `$speclink-archive`.
 
    - **Unchecked `[M]` manual tasks remain**:
 
-     > 這個 change 已合併回主分支，品質關卡的起點已承接到主 checkout。在這裡執行 `$speclink-review` ∥ `$speclink-verify`，或 `$speclink-quality`，再把手動任務做完並勾選，之後 `$speclink-archive` 封存。
+     > This change has been merged back into the main branch, and the quality stations' starting point has been carried over to the main checkout. Run `$speclink-review` ∥ `$speclink-verify`, or `$speclink-quality` here, complete and check off the manual tasks, then run `$speclink-archive`.
 
 **Output On Success**
 
@@ -171,7 +171,7 @@ This is the wrap-up half of `$speclink-apply-with-worktree`. That skill stops ri
 **Worktree:** <path> (removed)
 **Branch deleted:** ✓
 
-接下來：<step 6 的交棒——品質關卡已跑完→主 checkout $speclink-archive；未跑→直接在主 checkout 跑品質關卡再封存；有未勾手動任務→主 checkout 跑品質關卡、完成手動任務後封存>
+Next: <step 6 hand-off — quality stations done → $speclink-archive in the main checkout; not run → run the quality stations directly in the main checkout, then archive; unchecked manual tasks remain → run the quality stations in the main checkout, finish manual tasks, then archive>
 ```
 
 **Output On Stop**

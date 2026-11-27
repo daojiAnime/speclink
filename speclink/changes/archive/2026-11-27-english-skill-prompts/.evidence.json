@@ -1,0 +1,250 @@
+{
+  "version": 2,
+  "change": "english-skill-prompts",
+  "touched": [
+    {
+      "task_id": "1",
+      "task_desc": "1.1 新增英文原稿機械守門測試：在 `crates/engine/speclink-core/tests/it/skill_authoring.rs` 實作 D3 的「技能原稿以英文撰寫」守門檢查（掃描全部技能原稿不得含 Unicode 漢字 `\\p{Han}`，並涵蓋 LF／CRLF 行尾一致的單元測試），使現行含繁體中文的 15 份原稿觸發失敗。驗證：執行 `cargo test -p speclink-core --test it skill_authoring::` 確認既有原稿報出英文撰寫違規並指出檔名、行號與規範出處",
+      "files": [
+        "apps/desktop/core/src/project.rs",
+        "apps/desktop/core/src/query.rs",
+        "apps/desktop/src-tauri/src/connections.rs",
+        "crates/adapters/speclink-cli/tests/it/worktree_overlay.rs",
+        "crates/engine/speclink-core/src/lifecycle/archive.rs",
+        "crates/engine/speclink-core/src/util.rs",
+        "crates/engine/speclink-core/src/workspace/migrate.rs",
+        "crates/engine/speclink-core/src/workspace/skills.rs",
+        "crates/engine/speclink-core/tests/golden/assets.lock",
+        "crates/engine/speclink-core/tests/golden/omp.snapshot.md",
+        "crates/engine/speclink-core/tests/it/skill_authoring.rs",
+        "crates/host/speclink-host/src/worktree.rs",
+        "integrations/herdr/mods/speclink/model.js",
+        "integrations/herdr/mods/speclink/my-skills.js",
+        "integrations/herdr/mods/speclink/shared.js",
+        "integrations/herdr/mods/speclink/skill-picker.js",
+        "scripts/herdr/panel-model.test.mjs"
+      ]
+    },
+    {
+      "task_id": "2",
+      "task_desc": "1.2 更新渲染斷言與補齊來源行相容測試：在 `crates/engine/speclink-core/tests/it/render_golden.rs` 將 `archive`、`commit`、`propose`、`apply-with-worktree` 的繁體中文話術斷言改為目標英文片語（D4），並在 `packages/ui/src/__tests__/manualPage.test.tsx` 新增 `stripSourcesLine` 對 `**Sources**:`、`**出处**：`、`**出處**：`（半形與全形冒號）與無來源行內文的單元測試（D2）。驗證：執行 `cargo test -p speclink-core --test it render_golden::` 與 `npm test -w @speclink/ui` 確認新斷言在實作改動前失敗",
+      "files": [
+        "crates/engine/speclink-core/tests/it/render_golden.rs",
+        "packages/ui/src/__tests__/manualPage.test.tsx"
+      ]
+    },
+    {
+      "task_id": "3",
+      "task_desc": "2.1 英文化 worktree 相關技能原稿：依 D1 與「apply-with-worktree 技能的前置指示」規格，將 `crates/engine/speclink-core/assets/skills/apply-worktree-pre.md`、`crates/engine/speclink-core/assets/skills/apply-worktree-post.md`、`crates/engine/speclink-core/assets/skills/worktree-merge.md` 內的繁體中文政策拒絕訊息、多變更等待與並行配方、髒工作樹三選項、建置成本提示、本體分隔句與交棒引文改寫為語意與結構等價的英文，保留所有條件區塊、佔位符與強調字上限。驗證：以 `rg '\\p{Han}'` 檢查上述三檔回傳零命中，且 `cargo test -p speclink-core --test it skill_authoring::` 對三檔零違規",
+      "files": [
+        "crates/engine/speclink-core/assets/skills/apply-worktree-post.md",
+        "crates/engine/speclink-core/assets/skills/apply-worktree-pre.md",
+        "crates/engine/speclink-core/assets/skills/worktree-merge.md"
+      ]
+    },
+    {
+      "task_id": "4",
+      "task_desc": "2.2 英文化 archive、commit 與 propose 技能原稿：依 D1 與「封存完成後的收尾提交提醒」「未指名時的候選清單依 plan 順序」「先封存子流程的順序提示與收尾提醒」「收尾盤點提案中變更的執行順序」「依是否改到正式規格選擇 schema」五項規格，將 `crates/engine/speclink-core/assets/skills/archive.md`、`crates/engine/speclink-core/assets/skills/commit.md`、`crates/engine/speclink-core/assets/skills/propose.md` 內的候選狀態標籤、封存前後提示引文、`no-spec-change` 摘要顯示字面與 `archiveAfter` 封存順序備註改寫為英文，維持 `archive.md` 與 `commit.md` 同義一致且流程結構不變。驗證：以 `rg '\\p{Han}'` 檢查上述三檔回傳零命中，且 `cargo test -p speclink-core --test it skill_authoring::` 對三檔零違規",
+      "files": [
+        "crates/engine/speclink-core/assets/skills/archive.md",
+        "crates/engine/speclink-core/assets/skills/commit.md",
+        "crates/engine/speclink-core/assets/skills/propose.md"
+      ]
+    },
+    {
+      "task_id": "5",
+      "task_desc": "2.3 英文化其餘八份內嵌技能原稿：依 D1 與「技能原稿以英文撰寫」規格，將 `crates/engine/speclink-core/assets/skills/analyze.md`、`crates/engine/speclink-core/assets/skills/audit.md`、`crates/engine/speclink-core/assets/skills/config.md`、`crates/engine/speclink-core/assets/skills/discuss.md`、`crates/engine/speclink-core/assets/skills/drift.md`、`crates/engine/speclink-core/assets/skills/ingest.md`、`crates/engine/speclink-core/assets/skills/review.md`、`crates/engine/speclink-core/assets/skills/verify.md` 內殘留的繁體中文角色括號譯名、狀態詞與多語系舉例改寫為純英文表述，保留所有步驟順序與強調字上限。驗證：以 `rg '\\p{Han}'` 檢查上述八檔回傳零命中，且 `cargo test -p speclink-core --test it skill_authoring::` 對八檔零違規",
+      "files": [
+        "crates/engine/speclink-core/assets/skills/analyze.md",
+        "crates/engine/speclink-core/assets/skills/audit.md",
+        "crates/engine/speclink-core/assets/skills/config.md",
+        "crates/engine/speclink-core/assets/skills/discuss.md",
+        "crates/engine/speclink-core/assets/skills/drift.md",
+        "crates/engine/speclink-core/assets/skills/ingest.md",
+        "crates/engine/speclink-core/assets/skills/review.md",
+        "crates/engine/speclink-core/assets/skills/verify.md"
+      ]
+    },
+    {
+      "task_id": "6",
+      "task_desc": "2.4 英文化 manual 技能原稿與手冊契約字面：依 D2 與「內文慣例」「必產的首頁與來源頁」「動線由引數選擇」「生成模式的輸出與報告」「導覽模式的行為」「remote 模式的限制敘述」六項規格，將 `crates/engine/speclink-core/assets/skills/manual.md` 全文改寫為英文，包含 `tour` 觸發詞、remote 限制提示、`**Sources**:` 來源行、`About this manual` 標題、`None found`、`No user-facing capabilities yet`、`## Manual Generation Summary` 摘要模板、無手冊導覽提示與英文 YAML／錨點範例。驗證：執行 `cargo test -p speclink-core --test it skill_authoring::` 與 `cargo test -p speclink-core --test it skill_verbization::` 全數通過",
+      "files": [
+        "crates/engine/speclink-core/assets/skills/manual.md",
+        "crates/engine/speclink-core/tests/it/skill_verbization.rs"
+      ]
+    },
+    {
+      "task_id": "7",
+      "task_desc": "3.1 擴充手冊來源行向後相容解析：依 D2 與「內文慣例」規格，更新 `packages/ui/src/manualDoc.ts` 的 `SOURCES_LINE_RE` 以同時匹配 `**Sources**:`、`**出处**：` 與 `**出處**：`（支援半形與全形冒號），確保新英文頁與既有繁體中文手冊頁皆能正確剝離尾端來源行且不更動其他內容。驗證：執行 `npm test -w @speclink/ui` 全數通過",
+      "files": [
+        "packages/ui/src/manualDoc.ts"
+      ]
+    },
+    {
+      "task_id": "8",
+      "task_desc": "3.2 遞增產物版號並更新 golden 與受管技能：依 D4 遞增 `crates/engine/speclink-core/src/workspace/init.rs` 的 `ASSET_VERSION`，以 `UPDATE_GOLDEN=1` 刻意更新 `crates/engine/speclink-core/tests/golden/assets.lock` 與全部 12 份技能 golden 快照（`agy`、`claude`、`claude-remote`、`claude-worktree`、`codex`、`copilot`、`cursor`、`omp`、`pi`、`neutral-cli`、`neutral-tool-call`、`neutral-tool-call-remote`），再以新版引擎執行 `speclink update` 同步本倉庫的 `.claude/skills/` 與 `.agents/skills/`。驗證：執行 `cargo test -p speclink-core` 與 `cargo test -p speclink-cli` 全數通過",
+      "files": [
+        "crates/engine/speclink-core/src/workspace/init.rs",
+        "crates/engine/speclink-core/tests/golden/agy.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/claude-remote.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/claude-worktree.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/claude.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/codex.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/copilot.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/cursor.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/neutral-cli.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/neutral-tool-call-remote.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/neutral-tool-call.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/pi.snapshot.md"
+      ]
+    },
+    {
+      "task_id": "10",
+      "task_desc": "4.2 英文化本倉庫代理指引文件：依 D5 將 `.claude/CLAUDE.md` 與 `AGENTS.md` 改寫為語意與章節結構完全等價的英文，保留所有專案慣例、查資料順序、程式碼取捨原則與回覆風格約定。驗證：以 `rg '\\p{Han}' .claude/CLAUDE.md AGENTS.md` 確認零殘留繁體中文，並對照原稿確認所有條目語意無遺漏",
+      "files": [
+        "AGENTS.md"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "taskId": "tsk_01M8E3QGMXBN5575QPRVWST2S1",
+      "taskDesc": "1.1 新增英文原稿機械守門測試：在 `crates/engine/speclink-core/tests/it/skill_authoring.rs` 實作 D3 的「技能原稿以英文撰寫」守門檢查（掃描全部技能原稿不得含 Unicode 漢字 `\\p{Han}`，並涵蓋 LF／CRLF 行尾一致的單元測試），使現行含繁體中文的 15 份原稿觸發失敗。驗證：執行 `cargo test -p speclink-core --test it skill_authoring::` 確認既有原稿報出英文撰寫違規並指出檔名、行號與規範出處",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "apps/desktop/core/src/project.rs",
+        "apps/desktop/core/src/query.rs",
+        "apps/desktop/src-tauri/src/connections.rs",
+        "crates/adapters/speclink-cli/tests/it/worktree_overlay.rs",
+        "crates/engine/speclink-core/src/lifecycle/archive.rs",
+        "crates/engine/speclink-core/src/util.rs",
+        "crates/engine/speclink-core/src/workspace/migrate.rs",
+        "crates/engine/speclink-core/src/workspace/skills.rs",
+        "crates/engine/speclink-core/tests/golden/assets.lock",
+        "crates/engine/speclink-core/tests/golden/omp.snapshot.md",
+        "crates/engine/speclink-core/tests/it/skill_authoring.rs",
+        "crates/host/speclink-host/src/worktree.rs",
+        "integrations/herdr/mods/speclink/model.js",
+        "integrations/herdr/mods/speclink/my-skills.js",
+        "integrations/herdr/mods/speclink/shared.js",
+        "integrations/herdr/mods/speclink/skill-picker.js",
+        "scripts/herdr/panel-model.test.mjs"
+      ],
+      "recordedAt": "2026-11-27T11:08:37Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMXQYJ0XAZZ8BNEVMN0",
+      "taskDesc": "1.2 更新渲染斷言與補齊來源行相容測試：在 `crates/engine/speclink-core/tests/it/render_golden.rs` 將 `archive`、`commit`、`propose`、`apply-with-worktree` 的繁體中文話術斷言改為目標英文片語（D4），並在 `packages/ui/src/__tests__/manualPage.test.tsx` 新增 `stripSourcesLine` 對 `**Sources**:`、`**出处**：`、`**出處**：`（半形與全形冒號）與無來源行內文的單元測試（D2）。驗證：執行 `cargo test -p speclink-core --test it render_golden::` 與 `npm test -w @speclink/ui` 確認新斷言在實作改動前失敗",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "crates/engine/speclink-core/tests/it/render_golden.rs",
+        "packages/ui/src/__tests__/manualPage.test.tsx"
+      ],
+      "recordedAt": "2026-11-27T11:09:41Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMXZRPNC97TPS9EJJAJ",
+      "taskDesc": "2.1 英文化 worktree 相關技能原稿：依 D1 與「apply-with-worktree 技能的前置指示」規格，將 `crates/engine/speclink-core/assets/skills/apply-worktree-pre.md`、`crates/engine/speclink-core/assets/skills/apply-worktree-post.md`、`crates/engine/speclink-core/assets/skills/worktree-merge.md` 內的繁體中文政策拒絕訊息、多變更等待與並行配方、髒工作樹三選項、建置成本提示、本體分隔句與交棒引文改寫為語意與結構等價的英文，保留所有條件區塊、佔位符與強調字上限。驗證：以 `rg '\\p{Han}'` 檢查上述三檔回傳零命中，且 `cargo test -p speclink-core --test it skill_authoring::` 對三檔零違規",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "crates/engine/speclink-core/assets/skills/apply-worktree-post.md",
+        "crates/engine/speclink-core/assets/skills/apply-worktree-pre.md",
+        "crates/engine/speclink-core/assets/skills/worktree-merge.md"
+      ],
+      "recordedAt": "2026-11-27T11:10:43Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMXSM1GCRNDQ293Y3MR",
+      "taskDesc": "2.2 英文化 archive、commit 與 propose 技能原稿：依 D1 與「封存完成後的收尾提交提醒」「未指名時的候選清單依 plan 順序」「先封存子流程的順序提示與收尾提醒」「收尾盤點提案中變更的執行順序」「依是否改到正式規格選擇 schema」五項規格，將 `crates/engine/speclink-core/assets/skills/archive.md`、`crates/engine/speclink-core/assets/skills/commit.md`、`crates/engine/speclink-core/assets/skills/propose.md` 內的候選狀態標籤、封存前後提示引文、`no-spec-change` 摘要顯示字面與 `archiveAfter` 封存順序備註改寫為英文，維持 `archive.md` 與 `commit.md` 同義一致且流程結構不變。驗證：以 `rg '\\p{Han}'` 檢查上述三檔回傳零命中，且 `cargo test -p speclink-core --test it skill_authoring::` 對三檔零違規",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "crates/engine/speclink-core/assets/skills/archive.md",
+        "crates/engine/speclink-core/assets/skills/commit.md",
+        "crates/engine/speclink-core/assets/skills/propose.md"
+      ],
+      "recordedAt": "2026-11-27T11:11:56Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMXWJQC10PE2E2J8A0K",
+      "taskDesc": "2.3 英文化其餘八份內嵌技能原稿：依 D1 與「技能原稿以英文撰寫」規格，將 `crates/engine/speclink-core/assets/skills/analyze.md`、`crates/engine/speclink-core/assets/skills/audit.md`、`crates/engine/speclink-core/assets/skills/config.md`、`crates/engine/speclink-core/assets/skills/discuss.md`、`crates/engine/speclink-core/assets/skills/drift.md`、`crates/engine/speclink-core/assets/skills/ingest.md`、`crates/engine/speclink-core/assets/skills/review.md`、`crates/engine/speclink-core/assets/skills/verify.md` 內殘留的繁體中文角色括號譯名、狀態詞與多語系舉例改寫為純英文表述，保留所有步驟順序與強調字上限。驗證：以 `rg '\\p{Han}'` 檢查上述八檔回傳零命中，且 `cargo test -p speclink-core --test it skill_authoring::` 對八檔零違規",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "crates/engine/speclink-core/assets/skills/analyze.md",
+        "crates/engine/speclink-core/assets/skills/audit.md",
+        "crates/engine/speclink-core/assets/skills/config.md",
+        "crates/engine/speclink-core/assets/skills/discuss.md",
+        "crates/engine/speclink-core/assets/skills/drift.md",
+        "crates/engine/speclink-core/assets/skills/ingest.md",
+        "crates/engine/speclink-core/assets/skills/review.md",
+        "crates/engine/speclink-core/assets/skills/verify.md"
+      ],
+      "recordedAt": "2026-11-27T11:13:02Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMXNSWG8KQJVT4BVXQW",
+      "taskDesc": "2.4 英文化 manual 技能原稿與手冊契約字面：依 D2 與「內文慣例」「必產的首頁與來源頁」「動線由引數選擇」「生成模式的輸出與報告」「導覽模式的行為」「remote 模式的限制敘述」六項規格，將 `crates/engine/speclink-core/assets/skills/manual.md` 全文改寫為英文，包含 `tour` 觸發詞、remote 限制提示、`**Sources**:` 來源行、`About this manual` 標題、`None found`、`No user-facing capabilities yet`、`## Manual Generation Summary` 摘要模板、無手冊導覽提示與英文 YAML／錨點範例。驗證：執行 `cargo test -p speclink-core --test it skill_authoring::` 與 `cargo test -p speclink-core --test it skill_verbization::` 全數通過",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "crates/engine/speclink-core/assets/skills/manual.md",
+        "crates/engine/speclink-core/tests/it/skill_verbization.rs"
+      ],
+      "recordedAt": "2026-11-27T11:15:16Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMXKJVHFFCY6J2MRR5V",
+      "taskDesc": "3.1 擴充手冊來源行向後相容解析：依 D2 與「內文慣例」規格，更新 `packages/ui/src/manualDoc.ts` 的 `SOURCES_LINE_RE` 以同時匹配 `**Sources**:`、`**出处**：` 與 `**出處**：`（支援半形與全形冒號），確保新英文頁與既有繁體中文手冊頁皆能正確剝離尾端來源行且不更動其他內容。驗證：執行 `npm test -w @speclink/ui` 全數通過",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "packages/ui/src/manualDoc.ts"
+      ],
+      "recordedAt": "2026-11-27T11:15:54Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMX3V5EG1TGWQ95QGYC",
+      "taskDesc": "3.2 遞增產物版號並更新 golden 與受管技能：依 D4 遞增 `crates/engine/speclink-core/src/workspace/init.rs` 的 `ASSET_VERSION`，以 `UPDATE_GOLDEN=1` 刻意更新 `crates/engine/speclink-core/tests/golden/assets.lock` 與全部 12 份技能 golden 快照（`agy`、`claude`、`claude-remote`、`claude-worktree`、`codex`、`copilot`、`cursor`、`omp`、`pi`、`neutral-cli`、`neutral-tool-call`、`neutral-tool-call-remote`），再以新版引擎執行 `speclink update` 同步本倉庫的 `.claude/skills/` 與 `.agents/skills/`。驗證：執行 `cargo test -p speclink-core` 與 `cargo test -p speclink-cli` 全數通過",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "crates/engine/speclink-core/src/workspace/init.rs",
+        "crates/engine/speclink-core/tests/golden/agy.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/claude-remote.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/claude-worktree.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/claude.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/codex.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/copilot.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/cursor.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/neutral-cli.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/neutral-tool-call-remote.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/neutral-tool-call.snapshot.md",
+        "crates/engine/speclink-core/tests/golden/pi.snapshot.md"
+      ],
+      "recordedAt": "2026-11-27T11:17:04Z"
+    },
+    {
+      "taskId": "tsk_01M8E3QGMX6JDT6F8JVGQZBSP8",
+      "taskDesc": "4.2 英文化本倉庫代理指引文件：依 D5 將 `.claude/CLAUDE.md` 與 `AGENTS.md` 改寫為語意與章節結構完全等價的英文，保留所有專案慣例、查資料順序、程式碼取捨原則與回覆風格約定。驗證：以 `rg '\\p{Han}' .claude/CLAUDE.md AGENTS.md` 確認零殘留繁體中文，並對照原稿確認所有條目語意無遺漏",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "AGENTS.md"
+      ],
+      "recordedAt": "2026-11-27T11:19:17Z"
+    }
+  ]
+}

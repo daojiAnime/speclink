@@ -125,7 +125,7 @@ If no argument is provided, the workflow extracts requirements from conversation
    speclink new change "<name>" --schema <chosen> --agent {{TOOL}} --from-discussion <slug>
    ```
 
-   **Is this the last cut the conclusion planned? Then add `--last`.** A discussion whose conclusion stages several cuts (cut A now, cut B once A lands, …) was concluded with `--hold`, and the engine has no way to tell the final cut from a middle one — you do. Before running the command, read the record's `## Conclusion` **Decision** for the list of planned cuts (刀一／刀二／…, cut A／cut B, or any similar enumeration) and the frontmatter's `promoted_to` for the cuts already spun out — both are in the `content` field of `speclink discuss show <slug> --json` — then decide:
+   **Is this the last cut the conclusion planned? Then add `--last`.** A discussion whose conclusion stages several cuts (cut A now, cut B once A lands, …) was concluded with `--hold`, and the engine has no way to tell the final cut from a middle one — you do. Before running the command, read the record's `## Conclusion` **Decision** for the list of planned cuts (cut 1 / cut 2 / ..., cut A / cut B, or any similar enumeration) and the frontmatter's `promoted_to` for the cuts already spun out — both are in the `content` field of `speclink discuss show <slug> --json` — then decide:
 
    - The change you are creating is the **final cut the conclusion planned** → pass `--last`:
 
@@ -148,7 +148,7 @@ If no argument is provided, the workflow extracts requirements from conversation
    - All file paths are written relative to the project root (e.g., `src/lib/foo.ts`, `src-tauri/crates/core/src/bar.rs`, `docs/specs/specs/auth/spec.md`).
    - Do not use relative fragments (e.g., `parser/mod.rs`, `core/mod.rs`) — preflight rejects them as non-anchored paths.
    - Do not wrap shell commands in backticks inside artifact text (e.g., `` `git mv a.rs b.rs` ``) — preflight's backtick extractor will otherwise mis-parse the command as a file reference.
-   - When referring to a file without naming its concrete path, use descriptive prose (e.g., "Parser 入口檔") rather than a backticked path fragment.
+   - When referring to a file without naming its concrete path, use descriptive prose (e.g., "the parser entry file") rather than a backticked path fragment.
 
    Get instructions:
 
@@ -294,7 +294,7 @@ If no argument is provided, the workflow extracts requirements from conversation
      - `instruction`: Schema-specific guidance
      - `outputPath`: where the engine stores the artifact — for display only; every write goes through `speclink new artifact`
      - `dependencies`: Completed artifacts to read for context
-     - `locale`: The language to write this artifact in (e.g., "Japanese (日本語)"). The engine resolves it per artifact — for the specs artifact it is the spec language, which can differ from the other artifacts' language. If present, write the artifact content in this language. Structural markers (`### Requirement:`, `#### Scenario:`, `- **WHEN**`/`- **THEN**`) and normative keywords (SHALL/MUST) always stay in English. For the specs artifact, the `instruction` also says which requirement and scenario names keep the canonical spec's wording — follow it.
+     - `locale`: The language to write this artifact in (e.g., "Japanese"). The engine resolves it per artifact — for the specs artifact it is the spec language, which can differ from the other artifacts' language. If present, write the artifact content in this language. Structural markers (`### Requirement:`, `#### Scenario:`, `- **WHEN**`/`- **THEN**`) and normative keywords (SHALL/MUST) always stay in English. For the specs artifact, the `instruction` also says which requirement and scenario names keep the canonical spec's wording — follow it.
    - Read each completed dependency for context via `speclink artifact cat <artifact-id> --change "<name>"` before you write the new artifact (never open artifact files by path — the documents may live in a remote store).
      The `specs` dependency is read one delta spec at a time: for each entry of `deltaSpecs` in `speclink show <name> --json` (listed as `<capability>/spec.md`), run `speclink artifact cat specs/<capability> --change "<name>"`.
    - Follow the `instruction` field and use `template` as the structure for your output file — fill in its sections
@@ -406,7 +406,7 @@ If no argument is provided, the workflow extracts requirements from conversation
 
     Show summary:
     - Change name and location
-    - The chosen schema — show `no-spec-change` as 「不改規格（no-spec-change）」
+    - The chosen schema — show `no-spec-change` as "no-spec-change (no spec changes)"
     - List of artifacts created
     - Validation result
 
@@ -450,7 +450,7 @@ Run this check after the summary, right before presenting the Next steps below.
    - **Policy on** → list wave 1 (`waves[0].changes`) as "parallel-safe — run each change in its own session via `/speclink:apply-with-worktree` (the multi-session recipe)", then each later wave in order as "after the wave before it lands". A change's `blockedBy` names what it waits for.
    - **Policy off** → one recommended order: the `changes` array in its given order, one at a time.
    - `next` is the first change that is ready to start; `skipped` lists changes whose metadata could not be parsed — name them so the user can repair them.
-   - For each change whose `archiveAfter` is non-empty, add one line: 「封存時 <change> 要在 <archiveAfter 的名稱> 之後」 — an archive-order note only; it never delays a start.
+   - For each change whose `archiveAfter` is non-empty, add one line: "When archiving, <change> must come after <archiveAfter names>." — an archive-order note only; it never delays a start.
 6. The check is suggestions only — report the waves or the order and stop; never invoke any skill automatically.
 
 ## Guardrails

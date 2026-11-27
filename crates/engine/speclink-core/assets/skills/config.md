@@ -98,7 +98,7 @@ A first run — a document with no policy field set yet — shows the same table
 
 Never infer any of these values from the repo, the test scope and the review rules mode included — a test directory does not mean `tdd: true`.
 
-**Locale fields take locale CODES, never display names.** `locale` accepts exactly `tw`, `ja`, `en`; `spec_locale` accepts `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — 「繁體中文」 → `tw`, 「日本語」 → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
+**Locale fields take locale CODES, never display names.** `locale` accepts exactly `tw`, `ja`, `en`; `spec_locale` accepts `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — "Traditional Chinese" → `tw`, "Japanese" → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
 
 **`worktree` also syncs the skill files, in local mode.** It lands like the other fields, through `speclink workflow-config set worktree <true|false>` and its `--dry-run` preview in Step 5. In local mode that write syncs the skill files: turning it on generates the worktree skills, and turning it off removes them. The CLI refuses to turn it off while a linked worktree is still active, and lists each one; relay the refusal to the user as it stands. The config stays as it was, and the refusal already says how to wrap those worktrees up — do not close or remove any worktree yourself. In remote mode the write changes only the server's config: it neither syncs the skill files nor checks for active worktrees, so tell the user that.
 
@@ -164,7 +164,7 @@ The `critical`, `warning` and `suggestion` lists hold rules the review station's
 - a violation is usually to be fixed, with an occasional legitimate exception → `warning`
 - the rule states a preference → `suggestion`
 
-The wording is a hint only, and never decides the list on its own: 「不得」「一律」「要」「宜」「偏好」, "never", "always", "must", "prefer". "Components always use design-token colors" reads as an absolute, but a chart palette legitimately needs raw color codes, so it is a `warning`.
+The wording is a hint only, and never decides the list on its own: "never", "always", "must", "prefer" (and their equivalents in other languages). "Components always use design-token colors" reads as an absolute, but a chart palette legitimately needs raw color codes, so it is a `warning`.
 
 **Checks for every review rule**, each existing one and each new one:
 

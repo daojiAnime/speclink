@@ -1,0 +1,165 @@
+schema: spec-driven
+created: 2026-11-27T16:51:10+08:00
+created_by: daoji <daoji.chang@gmail.com>
+created_with: claude
+depends_on: add-omp-tool
+started_at: 2026-11-27T19:05:11+08:00
+started_by: daoji <daoji.chang@gmail.com>
+branch: main
+ready_at: 2026-11-27T19:20:15+08:00
+reviewed_at: 2026-11-27T19:43:43+08:00
+reviewed_by: daoji <daoji.chang@gmail.com>
+reviewed_with: claude
+reviewed_tasks_total: 11
+reviewed_rounds: 2
+reviewed_commit: 557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab
+reviewed_scope:
+  - path: AGENTS.md
+    hash: bf7667fbeb3ce7ae6c49a02506dd0d76e85b0a660013dcddd2efee9e22196fa6
+  - path: crates/engine/speclink-core/assets/skills/analyze.md
+    hash: 823520853838b923ed396aa6ebb9e403cbc86f3fb2138869e4e5cded39f8eb59
+  - path: crates/engine/speclink-core/assets/skills/apply-worktree-post.md
+    hash: 50d95a13b9f2fcff26a8945bbc55fab680e9666b451e1e8b26c8d20bfd0b9f38
+  - path: crates/engine/speclink-core/assets/skills/apply-worktree-pre.md
+    hash: cbf4d584ea15bfd8270d2f15854ba8592002d1f1d7440c48d97196c0e81f097b
+  - path: crates/engine/speclink-core/assets/skills/archive.md
+    hash: 83f234fdeb787a5be1cfd9bd2c89f4442a61db3cc9639b0716a3b97f42cc66e9
+  - path: crates/engine/speclink-core/assets/skills/audit.md
+    hash: f5f12883aae212e898da1be71620ee99416554fbb17dccfddb47928c0bcd6b47
+  - path: crates/engine/speclink-core/assets/skills/commit.md
+    hash: 236ad91c510d3680eaf5045498be98aaea3bbe8ebcdadebac8afd81c8018e7e1
+  - path: crates/engine/speclink-core/assets/skills/config.md
+    hash: 092a04c865045904e8a334572b086018d2d5c3039aee1772f36ab477ff450af8
+  - path: crates/engine/speclink-core/assets/skills/discuss.md
+    hash: 1daeab870b5bb8ba31e271c2b2aec6f000746c5a6be569b201ac0ebfd688e33c
+  - path: crates/engine/speclink-core/assets/skills/drift.md
+    hash: e2e5c33f9f9b8f052ad9b728b951d701cdd2d4ba216add27c0000c1504c707de
+  - path: crates/engine/speclink-core/assets/skills/ingest.md
+    hash: c662ed1956177ae299b8005ae852b1f5a6a2a90d3334f539eb9008ff3862df56
+  - path: crates/engine/speclink-core/assets/skills/manual.md
+    hash: 6326ca4c4381850479a751367d0cab45939210619986ceec4a20f62566af5a37
+  - path: crates/engine/speclink-core/assets/skills/propose.md
+    hash: e9a7aa66faec87108e2a22f4c740199de64ae789e98d3fb66a9fa9b8dbc27d62
+  - path: crates/engine/speclink-core/assets/skills/review.md
+    hash: 6510e7287e7397bd00eeb7eee9835447cdbc9e417651b276685e44cdecbd6153
+  - path: crates/engine/speclink-core/assets/skills/verify.md
+    hash: dcf8fb0bda8de2b7ed05a79aa2f44e7e947b7e578302518ee56f0a2fe8c3e42c
+  - path: crates/engine/speclink-core/assets/skills/worktree-merge.md
+    hash: 3372bfd578753720394d73e29081026ba768d5c8e286570fcdc3ff73f1e39a48
+  - path: crates/engine/speclink-core/src/workspace/init.rs
+    hash: 057f8eaf93d19f0ccdbc34695c65da7043f36c129d43f733ba573e4e7b47e4fd
+  - path: crates/engine/speclink-core/tests/golden/agy.snapshot.md
+    hash: db5fd73e081bb2f97fd7dbd825dd1d1a72f14f97090579cd37eead1b7b46fe6d
+  - path: crates/engine/speclink-core/tests/golden/assets.lock
+    hash: b858bc38dc582941c4954f9d05bdc11cbaffe662a84c3aa4f8b5edc56f73422c
+  - path: crates/engine/speclink-core/tests/golden/claude-remote.snapshot.md
+    hash: 6324ce09f6681a6450c5b8dbaa50b686cadd626887d16c2c9f361db8ff4eb3ae
+  - path: crates/engine/speclink-core/tests/golden/claude-worktree.snapshot.md
+    hash: cf940ce099c8b7dea256bb39df1d756192ecf5420a6f5e0431f1bdfac598e5d2
+  - path: crates/engine/speclink-core/tests/golden/claude.snapshot.md
+    hash: 298e93df4e92a144df63f9ecfa85b8f0a5d7920e78c4fcebe6cf0950bc9acdd5
+  - path: crates/engine/speclink-core/tests/golden/codex.snapshot.md
+    hash: e069d23efad726b0908aecac6eb6d029011a9a7a62e1df1e974dfe0dad83c1f2
+  - path: crates/engine/speclink-core/tests/golden/copilot.snapshot.md
+    hash: 06b17277f3eb189fd355d8926aec1479c5557d8a2ed908811fc5abfe59f73caf
+  - path: crates/engine/speclink-core/tests/golden/cursor.snapshot.md
+    hash: fe3fac5c6be6c92a7243e47cbfe7f9ab2da3ea19bef87794f0a63d67712441a8
+  - path: crates/engine/speclink-core/tests/golden/neutral-cli.snapshot.md
+    hash: 7816a1ac3c7ed4b1608264edf8818a5ccc13aec2204ae7c76d6e5f6a779e6ed5
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call-remote.snapshot.md
+    hash: ba427c504fa54c345e460639f1a939df843e3f9204bbea4794a16274678b28a3
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call.snapshot.md
+    hash: 52ef4feeb3e77319ed32770771a5bfe2fc410e1d9d53ec9630a4a4780d08588e
+  - path: crates/engine/speclink-core/tests/golden/omp.snapshot.md
+    hash: e6fa418b2b24a9988d746cd40c74fc8e35f15553566493c170cf92bd5927cc05
+  - path: crates/engine/speclink-core/tests/golden/pi.snapshot.md
+    hash: 031ca27ab41f82abd19f1f13375a5b2c2be81e5c7a86241c65ff816f90967cc8
+  - path: crates/engine/speclink-core/tests/it/render_golden.rs
+    hash: 3450f511241d3ecff9f98afde8a22f82c39ac7e9d84cc060e585006b96369ba9
+  - path: crates/engine/speclink-core/tests/it/skill_authoring.rs
+    hash: 4d1df755bffa01812a0d151e2345aeb161a680145479192cd0c2d7716dff6ef0
+  - path: crates/engine/speclink-core/tests/it/skill_verbization.rs
+    hash: 97b2ad0b6fde6e1e3e91105c907b6afdd8ace7b0f1ad4c7775e3f6c3ee17e6ca
+  - path: packages/ui/src/__tests__/manualPage.test.tsx
+    hash: 69165b5e211bd14a9deb58bb3b576108a138170e51c72d0add0406ad84dc090a
+  - path: packages/ui/src/manualDoc.ts
+    hash: 66b2829a0821ed0f13f8e677de6bee10ffe6d2cef3d595557123bd9481afe708
+verified_at: 2026-11-27T19:43:43+08:00
+verified_by: daoji <daoji.chang@gmail.com>
+verified_with: claude
+verified_tasks_total: 11
+verified_rounds: 2
+verified_commit: 557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab
+verified_scope:
+  - path: AGENTS.md
+    hash: bf7667fbeb3ce7ae6c49a02506dd0d76e85b0a660013dcddd2efee9e22196fa6
+  - path: crates/engine/speclink-core/assets/skills/analyze.md
+    hash: 823520853838b923ed396aa6ebb9e403cbc86f3fb2138869e4e5cded39f8eb59
+  - path: crates/engine/speclink-core/assets/skills/apply-worktree-post.md
+    hash: 50d95a13b9f2fcff26a8945bbc55fab680e9666b451e1e8b26c8d20bfd0b9f38
+  - path: crates/engine/speclink-core/assets/skills/apply-worktree-pre.md
+    hash: cbf4d584ea15bfd8270d2f15854ba8592002d1f1d7440c48d97196c0e81f097b
+  - path: crates/engine/speclink-core/assets/skills/archive.md
+    hash: 83f234fdeb787a5be1cfd9bd2c89f4442a61db3cc9639b0716a3b97f42cc66e9
+  - path: crates/engine/speclink-core/assets/skills/audit.md
+    hash: f5f12883aae212e898da1be71620ee99416554fbb17dccfddb47928c0bcd6b47
+  - path: crates/engine/speclink-core/assets/skills/commit.md
+    hash: 236ad91c510d3680eaf5045498be98aaea3bbe8ebcdadebac8afd81c8018e7e1
+  - path: crates/engine/speclink-core/assets/skills/config.md
+    hash: 092a04c865045904e8a334572b086018d2d5c3039aee1772f36ab477ff450af8
+  - path: crates/engine/speclink-core/assets/skills/discuss.md
+    hash: 1daeab870b5bb8ba31e271c2b2aec6f000746c5a6be569b201ac0ebfd688e33c
+  - path: crates/engine/speclink-core/assets/skills/drift.md
+    hash: e2e5c33f9f9b8f052ad9b728b951d701cdd2d4ba216add27c0000c1504c707de
+  - path: crates/engine/speclink-core/assets/skills/ingest.md
+    hash: c662ed1956177ae299b8005ae852b1f5a6a2a90d3334f539eb9008ff3862df56
+  - path: crates/engine/speclink-core/assets/skills/manual.md
+    hash: 6326ca4c4381850479a751367d0cab45939210619986ceec4a20f62566af5a37
+  - path: crates/engine/speclink-core/assets/skills/propose.md
+    hash: e9a7aa66faec87108e2a22f4c740199de64ae789e98d3fb66a9fa9b8dbc27d62
+  - path: crates/engine/speclink-core/assets/skills/review.md
+    hash: 6510e7287e7397bd00eeb7eee9835447cdbc9e417651b276685e44cdecbd6153
+  - path: crates/engine/speclink-core/assets/skills/verify.md
+    hash: dcf8fb0bda8de2b7ed05a79aa2f44e7e947b7e578302518ee56f0a2fe8c3e42c
+  - path: crates/engine/speclink-core/assets/skills/worktree-merge.md
+    hash: 3372bfd578753720394d73e29081026ba768d5c8e286570fcdc3ff73f1e39a48
+  - path: crates/engine/speclink-core/src/workspace/init.rs
+    hash: 057f8eaf93d19f0ccdbc34695c65da7043f36c129d43f733ba573e4e7b47e4fd
+  - path: crates/engine/speclink-core/tests/golden/agy.snapshot.md
+    hash: db5fd73e081bb2f97fd7dbd825dd1d1a72f14f97090579cd37eead1b7b46fe6d
+  - path: crates/engine/speclink-core/tests/golden/assets.lock
+    hash: b858bc38dc582941c4954f9d05bdc11cbaffe662a84c3aa4f8b5edc56f73422c
+  - path: crates/engine/speclink-core/tests/golden/claude-remote.snapshot.md
+    hash: 6324ce09f6681a6450c5b8dbaa50b686cadd626887d16c2c9f361db8ff4eb3ae
+  - path: crates/engine/speclink-core/tests/golden/claude-worktree.snapshot.md
+    hash: cf940ce099c8b7dea256bb39df1d756192ecf5420a6f5e0431f1bdfac598e5d2
+  - path: crates/engine/speclink-core/tests/golden/claude.snapshot.md
+    hash: 298e93df4e92a144df63f9ecfa85b8f0a5d7920e78c4fcebe6cf0950bc9acdd5
+  - path: crates/engine/speclink-core/tests/golden/codex.snapshot.md
+    hash: e069d23efad726b0908aecac6eb6d029011a9a7a62e1df1e974dfe0dad83c1f2
+  - path: crates/engine/speclink-core/tests/golden/copilot.snapshot.md
+    hash: 06b17277f3eb189fd355d8926aec1479c5557d8a2ed908811fc5abfe59f73caf
+  - path: crates/engine/speclink-core/tests/golden/cursor.snapshot.md
+    hash: fe3fac5c6be6c92a7243e47cbfe7f9ab2da3ea19bef87794f0a63d67712441a8
+  - path: crates/engine/speclink-core/tests/golden/neutral-cli.snapshot.md
+    hash: 7816a1ac3c7ed4b1608264edf8818a5ccc13aec2204ae7c76d6e5f6a779e6ed5
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call-remote.snapshot.md
+    hash: ba427c504fa54c345e460639f1a939df843e3f9204bbea4794a16274678b28a3
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call.snapshot.md
+    hash: 52ef4feeb3e77319ed32770771a5bfe2fc410e1d9d53ec9630a4a4780d08588e
+  - path: crates/engine/speclink-core/tests/golden/omp.snapshot.md
+    hash: e6fa418b2b24a9988d746cd40c74fc8e35f15553566493c170cf92bd5927cc05
+  - path: crates/engine/speclink-core/tests/golden/pi.snapshot.md
+    hash: 031ca27ab41f82abd19f1f13375a5b2c2be81e5c7a86241c65ff816f90967cc8
+  - path: crates/engine/speclink-core/tests/it/render_golden.rs
+    hash: 3450f511241d3ecff9f98afde8a22f82c39ac7e9d84cc060e585006b96369ba9
+  - path: crates/engine/speclink-core/tests/it/skill_authoring.rs
+    hash: 4d1df755bffa01812a0d151e2345aeb161a680145479192cd0c2d7716dff6ef0
+  - path: crates/engine/speclink-core/tests/it/skill_verbization.rs
+    hash: 97b2ad0b6fde6e1e3e91105c907b6afdd8ace7b0f1ad4c7775e3f6c3ee17e6ca
+  - path: packages/ui/src/__tests__/manualPage.test.tsx
+    hash: 69165b5e211bd14a9deb58bb3b576108a138170e51c72d0add0406ad84dc090a
+  - path: packages/ui/src/manualDoc.ts
+    hash: 66b2829a0821ed0f13f8e677de6bee10ffe6d2cef3d595557123bd9481afe708
+archived_at: 2026-11-27T19:46:25+08:00
+archived_by: daoji <daoji.chang@gmail.com>

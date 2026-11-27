@@ -73,22 +73,22 @@ Pick the path by the change's state: unchecked `[M]` manual tasks show in `specl
 
 - **No unchecked `[M]` task** — tell the user, plainly:
 
-  > 這個 change 已在 worktree 內完成並提交，尚未合併回主分支。
+  > This change is finished and committed inside the worktree, and has not been merged back into the main branch yet.
   >
   {{#SPEC_IN_CHECKOUT}}
-  > 建議在這個 worktree 內跑品質關卡——`/speclink:review`（工藝品質）∥ `/speclink:verify`（規格符合度），或 `/speclink:quality`（兩站合跑），是否要跑由你決定。蓋章會寫進 change 的 meta，記得補一次提交，再執行 `/speclink:worktree-merge <change-name>` 收尾。
+  > Suggested next step: run the quality stations in this worktree — `/speclink:review` (craft quality) ∥ `/speclink:verify` (spec compliance), or `/speclink:quality` (both stations together); whether to run them is your call. Stamping writes to the change's metadata, so remember to make one more commit, then run `/speclink:worktree-merge <change-name>` to wrap up.
   {{/SPEC_IN_CHECKOUT}}
   {{^SPEC_IN_CHECKOUT}}
-  > 建議在這個 worktree 內跑品質關卡——`/speclink:review`（工藝品質）∥ `/speclink:verify`（規格符合度），或 `/speclink:quality`（兩站合跑），是否要跑由你決定。蓋完章後執行 `/speclink:worktree-merge <change-name>` 收尾（章在 Server 上，不用補提交）。
+  > Suggested next step: run the quality stations in this worktree — `/speclink:review` (craft quality) ∥ `/speclink:verify` (spec compliance), or `/speclink:quality` (both stations together); whether to run them is your call. Once stamped, run `/speclink:worktree-merge <change-name>` to wrap up (stamps live on the Server, so no extra commit is needed).
   {{/SPEC_IN_CHECKOUT}}
   >
-  > 想在蓋章前先看到 CI 結果的話，改走另一條路：先執行 `/speclink:worktree-merge <change-name>` 合併，再到主 checkout 跑品質關卡——worktree 分支只在本機、從不 push，CI 看不到它；合併時品質關卡的起點會一起承接到主 checkout。
+  > If you want to see CI results before stamping, take the other route: run `/speclink:worktree-merge <change-name>` to merge first, then run the quality stations in the main checkout — worktree branches stay local and are never pushed, so CI cannot see them; merging carries the quality stations' starting point over to the main checkout.
 
 - **Unchecked `[M]` tasks remain** — tell the user, plainly:
 
-  > 這個 change 已在 worktree 內完成並提交，尚未合併回主分支，還有手動任務沒做。
+  > This change is finished and committed inside the worktree, has not been merged back into the main branch yet, and still has unchecked manual tasks.
   >
-  > 建議先執行 `/speclink:worktree-merge <change-name>`——它會檢查主樹是否乾淨、把分支合併回去、把品質關卡的起點承接到主 checkout，成功後移除 worktree 並刪掉分支。之後在主 checkout 跑品質關卡——`/speclink:review`（工藝品質）∥ `/speclink:verify`（規格符合度），或 `/speclink:quality`（兩站合跑），是否要跑由你決定——做完手動任務再封存。
+  > Suggested next step: run `/speclink:worktree-merge <change-name>` first — it checks that the main tree is clean, merges the branch back, carries the quality stations' starting point over to the main checkout, and removes the worktree and branch on success. After that, run the quality stations in the main checkout — `/speclink:review` (craft quality) ∥ `/speclink:verify` (spec compliance), or `/speclink:quality` (both stations together); whether to run them is your call — then finish the manual tasks and archive.
 
 Report alongside it: the worktree path, the branch name, the tasks completed this session, and whether W2 rebased or why it skipped.
 

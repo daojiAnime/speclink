@@ -186,15 +186,15 @@ This is a **utility skill** (not a workflow step). It reads source file tracking
 
     - `archiveAfter` is non-empty:
 
-      > plan 建議先封存 <archiveAfter 的名稱>；它們封存後，重讀本 change 對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `/speclink:ingest`）再封存 <name>。重疊的 requirement：<requirementOverlap 裡對應那些 change 的 capability › requirement>。
+      > Plan suggests archiving <archiveAfter names> first; once they are archived, reread this change's MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `/speclink:ingest`), and then archive <name>. Overlapping requirements: <each matching capability › requirement from requirementOverlap>.
 
     - `requirementOverlap` holds an entry whose `conflict` is true:
 
-      > <name> 與 <change> 都新增（或改名成）同名的 requirement <requirement>，或都移除（或改名掉）它；後封存的那一個會封存失敗（名字重複，或名字已不存在），先改掉其中一邊。
+      > <name> and <change> both add (or rename to) the same requirement <requirement>, or both remove (or rename away) it; whichever archives second will fail (duplicate name, or target name already gone) — change one side first.
 
     - `blockedBy` is non-empty:
 
-      > 宣告前置 <blockedBy 的名稱> 尚未封存。
+      > Declared prerequisite <blockedBy names> is not yet archived.
 
     Do not offer `speclink drift` as the remedy for an overlap: drift only checks that the requirement names still exist, and cannot see content that an earlier archive overwrote.
 
@@ -267,6 +267,7 @@ This is a **utility skill** (not a workflow step). It reads source file tracking
     6. Close the sub-flow with the reminders below. Print them once, wherever the flow ends: after the step 10 result, or right where the user stops at the re-confirmation above — the archive has already run either way, and after a stop its file moves are still uncommitted, so also remind the user to commit them with a plain git commit:
 
        - When the workspace has a `{{SPEC_DIR}}manual/` directory, add one line: the manual may be stale now, and `/speclink:manual` will report which pages this archive's spec changes outdated. The condition is the directory's existence only — do not work out which specs this archive touched, and do not judge whether the manual is actually stale; that is the manual skill's report. This is a reminder only — never run `/speclink:manual` yourself.
+
     {{/SPEC_IN_CHECKOUT}}
     {{^SPEC_IN_CHECKOUT}}
     6. Close the sub-flow with the reminders below. Print them once, wherever the flow ends: after the step 10 result, or right where the user stops at the re-confirmation above — the archive has already run on the Server either way:
@@ -274,16 +275,16 @@ This is a **utility skill** (not a workflow step). It reads source file tracking
     {{/SPEC_IN_CHECKOUT}}
        - When the plan order hint noted changes that list `<name>` in their `archiveAfter`, add one more line:
 
-         > <那些 change 的名稱> 要在 <name> 之後封存，並動到同名的 requirement：先重讀它們對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `/speclink:ingest`），再封存它們。
+         > <those change names> must be archived after <name> and touch the same requirements: reread their MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `/speclink:ingest`), and then archive them.
 
          This too is a reminder only — never run the ingest yourself.
        - Run `speclink plan --json` and hand the user the next change to start. When `next` is non-null, add one more line:
 
-         > plan 的下一個可開工：<next>，執行 `/speclink:apply <next>`。
+         > Next ready to start from plan: <next> — run `/speclink:apply <next>`.
 
          When the effective worktree policy is on (`speclink workflow-config show --json` → `worktree`; a `SPECLINK_WORKTREE` env override wins) and `changes` holds two or more entries with `wave` 1 and `stage` `proposed` (wave 1 waits on nothing, so their `blockedBy` is empty), also list them as parallel-safe:
 
-         > 第 1 波可並行：<name-a>、<name-b>，各開一個 session 走 `/speclink:apply-with-worktree <name>`。
+         > Wave 1 parallel-safe: <name-a>, <name-b> — open one session per change and run `/speclink:apply-with-worktree <name>`.
 
          Policy off, or only one such change → name `next` alone. A null `next`, or a `plan` failure (a dependency cycle) → say nothing about ordering. This too is a reminder only — never run apply yourself.
 

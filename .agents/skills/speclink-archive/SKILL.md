@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.61.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -35,14 +35,14 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
 1. **If no change name provided, prompt for selection**
 
-   Run `speclink plan --json` and list the candidates from its `changes` array in the given order — the order that honors declared dependencies. Label each candidate with its `archiveAfter` (the changes to archive before it, because both touch the same requirement): an empty array reads as 「可封存」, a non-empty one as 「等 <archiveAfter 的名稱> 封存」. When its `blockedBy` is non-empty, add 「前置 <blockedBy 的名稱> 未封存」. Append the names in `skipped` (changes whose metadata the plan could not parse) at the end, marked 「metadata 壞掉」 — they stay selectable, as `list --json` would have shown them. Use the **AskUserQuestion tool** to let the user select.
+   Run `speclink plan --json` and list the candidates from its `changes` array in the given order — the order that honors declared dependencies. Label each candidate with its `archiveAfter` (the changes to archive before it, because both touch the same requirement): an empty array reads as "Ready to archive", a non-empty one as "Waiting on archive of <archiveAfter names>". When its `blockedBy` is non-empty, add "Prerequisite <blockedBy names> not yet archived". Append the names in `skipped` (changes whose metadata the plan could not parse) at the end, marked "Broken metadata" — they stay selectable, as `list --json` would have shown them. Use the **AskUserQuestion tool** to let the user select.
 
    If `plan` fails (a dependency cycle), fall back to `speclink list --json` and list the active changes in its order, with no blocking labels.
 
    Show only active changes (not already archived).
    Include the schema used for each change if available.
 
-   Do NOT guess or auto-select a change — always let the user choose, and wait for the answer; a candidate marked 「可封存」 is not picked for them either.
+   Do NOT guess or auto-select a change — always let the user choose, and wait for the answer; a candidate marked "Ready to archive" is not picked for them either.
 
 2. **Check artifact completion status**
 
@@ -74,15 +74,15 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
    - `archiveAfter` is non-empty:
 
-     > plan 建議先封存 <archiveAfter 的名稱>；它們封存後，重讀本 change 對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `$speclink-ingest`）再封存 <name>。重疊的 requirement：<requirementOverlap 裡對應那些 change 的 capability › requirement>。
+     > Plan suggests archiving <archiveAfter names> first; once they are archived, reread this change's MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `$speclink-ingest`), and then archive <name>. Overlapping requirements: <each matching capability › requirement from requirementOverlap>.
 
    - `requirementOverlap` holds an entry whose `conflict` is true:
 
-     > <name> 與 <change> 都新增（或改名成）同名的 requirement <requirement>，或都移除（或改名掉）它；後封存的那一個會封存失敗（名字重複，或名字已不存在），先改掉其中一邊。
+     > <name> and <change> both add (or rename to) the same requirement <requirement>, or both remove (or rename away) it; whichever archives second will fail (duplicate name, or target name already gone) — change one side first.
 
    - `blockedBy` is non-empty:
 
-     > 宣告前置 <blockedBy 的名稱> 尚未封存。
+     > Declared prerequisite <blockedBy names> is not yet archived.
 
    Do not offer `speclink drift` as the remedy for an overlap: drift only checks that the requirement names still exist, and cannot see content that an earlier archive overwrote.
 
@@ -331,21 +331,21 @@ never run `$speclink-manual` yourself.
 When the plan order hint noted changes that list `<name>` in their `archiveAfter`, add
 one more line:
 
-> <那些 change 的名稱> 要在 <name> 之後封存，並動到同名的 requirement：先重讀它們對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `$speclink-ingest`），再封存它們。
+> <those change names> must be archived after <name> and touch the same requirements: reread their MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `$speclink-ingest`), and then archive them.
 
 This too is a reminder only — never run the ingest yourself.
 
 Then run `speclink plan --json` and hand the user the next change to start. When `next`
 is non-null, add one more line:
 
-> plan 的下一個可開工：<next>，執行 `$speclink-apply <next>`。
+> Next ready to start from plan: <next> — run `$speclink-apply <next>`.
 
 When the effective worktree policy is on (`speclink workflow-config show --json` →
 `worktree`; a `SPECLINK_WORKTREE` env override wins) and `changes` holds two or more
 entries with `wave` 1 and `stage` `proposed` (wave 1 waits on nothing, so their
 `blockedBy` is empty), also list them as parallel-safe:
 
-> 第 1 波可並行：<name-a>、<name-b>，各開一個 session 走 `$speclink-apply-with-worktree <name>`。
+> Wave 1 parallel-safe: <name-a>, <name-b> — open one session per change and run `$speclink-apply-with-worktree <name>`.
 
 Policy off, or only one such change → name `next` alone. A null `next`, or a `plan`
 failure (a dependency cycle) → say nothing about ordering. This too is a reminder only —

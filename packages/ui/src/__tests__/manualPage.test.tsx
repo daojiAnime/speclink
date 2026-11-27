@@ -9,7 +9,7 @@ import type { ReactElement, ReactNode } from "react";
 import { I18nProvider } from "../i18n";
 import { ManualPage } from "../components/ManualPage";
 import { TREE_NODE_CLS } from "../components/ui/tabs";
-import { countHeadings } from "../manualDoc";
+import { countHeadings, stripSourcesLine } from "../manualDoc";
 import { SEMANTIC_SURFACE, SEMANTIC_TONE } from "../tone";
 import type { ManualIndex, ManualPageItem } from "../adapter";
 
@@ -395,6 +395,24 @@ describe("ManualPage 內頁渲染與出處", () => {
     expect(onOpenSpec).toHaveBeenCalledTimes(1);
   });
 
+  it("英文契約頁尾 `**Sources**:` 行同樣從 Markdown 內文剝離，並保留頁尾可點出處列", async () => {
+    const { onOpenSpec } = renderManual(
+      {},
+      loader({
+        "first-login": async () =>
+          "# First Login\n\nSign in with GitHub.\n\n**Sources**: `github-oauth`, `user-pending-blocked-pages`\n",
+      }),
+    );
+    await screen.findByText("歡迎。");
+    fireEvent.click(row("first-login"));
+    await screen.findByText("Sign in with GitHub.");
+    const sources = document.querySelector("[data-manual-sources]") as HTMLElement;
+    fireEvent.click(within(sources).getByRole("button", { name: "github-oauth" }));
+    expect(onOpenSpec).toHaveBeenCalledWith("github-oauth");
+    expect(sources.textContent).toContain("user-pending-blocked-pages");
+    expect(content().querySelector(".markdown code")).toBeNull();
+  });
+
   it("帶 Requirement 錨定的 sources：出處列只列井號前的 capability、去重且可點", async () => {
     // manual-pages「frontmatter 六欄」Scenario「帶 Requirement 錨定的 sources」：
     // `["desktop-app#看板與任務", "desktop-app#系統匣選單", policy-config]` → 出處只列 desktop-app 與 policy-config 各一次。
@@ -721,6 +739,27 @@ describe("countHeadings", () => {
 
   it("空內文為 0", () => {
     expect(countHeadings("")).toEqual({ h2: 0, h3: 0 });
+  });
+});
+
+describe("stripSourcesLine", () => {
+  // manual-pages「內文慣例」Scenario「讀取端向後相容新舊來源行」
+  it.each([
+    ["英文半形冒號", "# Title\n\nBody.\n\n**Sources**: `a`", "# Title\n\nBody.\n"],
+    ["英文全形冒號", "# Title\n\nBody.\n\n**Sources**：`a`", "# Title\n\nBody.\n"],
+    ["簡體全形冒號", "# 标题\n\n正文。\n\n**出处**：`a`", "# 标题\n\n正文。\n"],
+    ["簡體半形冒號", "# 标题\n\n正文。\n\n**出处**: `a`", "# 标题\n\n正文。\n"],
+    ["繁體全形冒號", "# 標題\n\n內文。\n\n**出處**：`a`", "# 標題\n\n內文。\n"],
+    ["繁體半形冒號", "# 標題\n\n內文。\n\n**出處**: `a`", "# 標題\n\n內文。\n"],
+    ["含尾端空行", "# Title\n\nBody.\n\n**Sources**: `a`, `b`\n\n", "# Title\n\nBody.\n"],
+  ])("剝離尾端來源行：%s", (_label, input, expected) => {
+    expect(stripSourcesLine(input)).toBe(expected);
+  });
+
+  it("不含來源行或空內文時原樣回傳", () => {
+    const plain = "# Title\n\nBody without source line.\n";
+    expect(stripSourcesLine(plain)).toBe(plain);
+    expect(stripSourcesLine("")).toBe("");
   });
 });
 

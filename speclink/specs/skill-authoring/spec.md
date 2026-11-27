@@ -45,10 +45,10 @@ crates/engine/speclink-core/assets/skills/ 下每一份技能原稿 SHALL 依下
 
 #### Scenario: 技能引用依工具渲染
 
-- **WHEN** 原稿寫著 `/speclink:ingest`，分別以 claude、codex、copilot、pi、cursor 與自訂描述子渲染
-- **THEN** 六份技能檔中的引用依序為 `/speclink-ingest`、`$speclink-ingest`、`/speclink-ingest`、`/skill:speclink-ingest`、`/speclink-ingest`、`speclink-ingest`（技能的名稱，和動詞的 `speclink <動詞>` 分得開）；Codex 與 pi 渲染的技能檔不含 `/speclink-` 形式的技能引用
+- **WHEN** 原稿寫著 `/speclink:ingest`，分別以 `claude`、`codex`、`copilot`、`pi`、`cursor`、`agy`、`omp` 與自訂描述子渲染
+- **THEN** 各渲染結果中的引用依序為 `/speclink-ingest`、`$speclink-ingest`、`/speclink-ingest`、`/skill:speclink-ingest`、`/speclink-ingest`、`/speclink-ingest`、`/skill:speclink-ingest`、`speclink-ingest`；Codex、pi 與 omp 渲染的技能檔不含 `/speclink-` 形式的技能引用
 
-##### Example: 同一個引用在六種渲染目標
+##### Example: 同一個引用在各渲染目標
 
 | 渲染目標 | 原稿 `/speclink:ingest` 的渲染結果 |
 | --- | --- |
@@ -57,6 +57,8 @@ crates/engine/speclink-core/assets/skills/ 下每一份技能原稿 SHALL 依下
 | copilot | `/speclink-ingest` |
 | pi | `/skill:speclink-ingest` |
 | cursor | `/speclink-ingest` |
+| agy | `/speclink-ingest` |
+| omp | `/skill:speclink-ingest` |
 | 自訂描述子 | `speclink-ingest` |
 
 #### Scenario: 判斷標準不濃縮
@@ -64,27 +66,29 @@ crates/engine/speclink-core/assets/skills/ 下每一份技能原稿 SHALL 依下
 - **WHEN** 改寫一份含判斷標準清單的技能（例如 improve 的摩擦訊號與刪除測試）
 - **THEN** 判斷標準的原文保留；篇幅的減少只來自刪除重複陳述、刪除歷史資訊與重整結構
 
+---
+
 
 <!-- @trace
-source: skills-verbs-second-wave
-updated: 2026-11-12T16:54:51+08:00
+source: add-omp-tool
+updated: 2026-11-27T19:03:43+08:00
 -->
 
 ---
 ### Requirement: 寫法規範的機械守門
 
-speclink-core 的整合測試（`cargo test -p speclink-core --test it`）SHALL 列出 crates/engine/speclink-core/assets/skills/ 下全部 `.md` 原稿，逐份檢查下列六項；任一項不符時測試 SHALL 失敗（非零 exit code），失敗訊息 SHALL 指名原稿檔名、違反的項目，以及規範出處「skill-authoring 規格『技能原稿的跨模型寫法規範』」：
+speclink-core 的整合測試（cargo test -p speclink-core --test it）SHALL 列出 crates/engine/speclink-core/assets/skills/ 下全部 `.md` 原稿，逐份檢查下列六項；任一項不符時測試 SHALL 失敗（非零 exit code），失敗訊息 SHALL 指名原稿檔名、違反的項目，以及規範出處「skill-authoring 規格『技能原稿的跨模型寫法規範』」：
 
 1. **行數**：原稿行數 SHALL NOT 超過 500。行數以行為單位計算，LF 與 CRLF 結尾 SHALL 得到相同結果。
 2. **強調字上限**：以大小寫敏感、字詞邊界比對 MUST、NEVER、SHALL、ALWAYS、IMPORTANT、CRITICAL、STOP、NOT 的出現次數，次數 SHALL NOT 超過測試內登記表為該原稿登記的上限。登記表 SHALL 涵蓋 assets/skills/ 下每一份原稿；出現未登記的原稿時測試 SHALL 失敗，並要求登記上限。上限只在修改登記表時改變。
 3. **不寫歷史**：移除 fenced code block 與行內程式碼之後，原稿 SHALL NOT 含 `YYYY-MM-DD` 形式的日期（前後不接數字即算，緊貼中文或後接時間的日期也算）；原稿全文 SHALL NOT 含 `design D` 加數字的決策編號，也 SHALL NOT 含「design 決策」字樣。
 4. **工具退路**：原稿含 `AskUserQuestion` 時，SHALL 含 `plain text`（不分大小寫）；原稿含 `sub-agent`、`subagent` 或 `Agent tool` 時，SHALL 含 `cannot spawn` 或 `can't spawn`（不分大小寫）。單獨的 `inline` 不算退路：無關的句子也常含這個字。
-5. **渲染記號**：原稿 SHALL NOT 含寫死的技能引用——前一個字元不是英數字、底線、`.`、`/` 或 `:` 的 `/speclink-` 加小寫字母（`.claude/skills/speclink-apply` 這類路徑不算）；原稿 SHALL NOT 含 `$speclink-`，也 SHALL NOT 含 `--agent claude`、`--agent codex`、`--agent copilot`、`--agent pi` 或 `--agent cursor`。
+5. **渲染記號**：原稿 SHALL NOT 含寫死的技能引用——前一個字元不是英數字、底線、`.`、`/` 或 `:` 的 `/speclink-` 加小寫字母（`.claude/skills/speclink-apply` 這類路徑不算）；原稿 SHALL NOT 含 `$speclink-`，也 SHALL NOT 含 `--agent claude`、`--agent codex`、`--agent copilot`、`--agent pi`、`--agent cursor`、`--agent agy` 或 `--agent omp`。
 6. **規格路徑只在條件區塊裡**：規格資料夾的佔位符（`{{SPEC_DIR}}`）與 `.evidence.json`、`.meta.yaml` 兩個檔名 SHALL 只出現在「規格資料夾在這個 checkout」的條件區塊內。原稿 SHALL NOT 把規格資料夾的名稱寫死（`speclink/` 或 `openspec/` 後面接 changes、specs、discussions、manual、LANGUAGE.md 或 config.yaml）；工作資料夾 `.speclink/`、`speclink/<變更名稱>` 的分支名稱與技能資料夾的路徑不算。豁免的原稿 SHALL 列在測試內的封閉登記表，每筆附理由；未登記的原稿一律受檢。另外，不論是否豁免，原稿的條件區塊寫壞時（渲染會回報錯誤的情況）測試 SHALL 失敗並帶出原稿與行號；提到 SPEC_IN_CHECKOUT 的行 SHALL 是三種區塊記號之一——多一個空白或寫成小寫的記號會被渲染當成一般文字，兩種情況的內容都會留下。
 
 #### Scenario: 強調字超過登記上限
 
-- **WHEN** 在 review.md 多加一個 MUST，使 review.md 的強調字次數比登記上限多 1，再執行 `cargo test -p speclink-core --test it`
+- **WHEN** 在 review.md 多加一個 MUST，使 review.md 的強調字次數比登記上限多 1，再執行整合測試
 - **THEN** 測試失敗，訊息含 review.md、「強調字上限」、登記上限與實際次數，以及規範出處
 
 #### Scenario: 強調字減少時通過
@@ -131,6 +135,11 @@ speclink-core 的整合測試（`cargo test -p speclink-core --test it`）SHALL 
 - **WHEN** 某份原稿寫著「speclink review stamp x --agent cursor」或「--agent pi」
 - **THEN** 測試失敗，訊息含該原稿檔名、「渲染記號」與命中的 `--agent cursor` 或 `--agent pi`
 
+#### Scenario: 寫死的 omp agent 值
+
+- **WHEN** 某份原稿寫著「speclink review stamp x --agent omp」
+- **THEN** 測試失敗，訊息含該原稿檔名、「渲染記號」與命中的 `--agent omp`
+
 #### Scenario: 技能目錄路徑不誤判
 
 - **WHEN** 某份原稿寫著 `.claude/skills/speclink-propose/SKILL.md`，沒有其他寫死的引用
@@ -168,8 +177,8 @@ speclink-core 的整合測試（`cargo test -p speclink-core --test it`）SHALL 
 
 
 <!-- @trace
-source: skills-verbs-second-wave
-updated: 2026-11-12T16:54:51+08:00
+source: add-omp-tool
+updated: 2026-11-27T19:03:43+08:00
 -->
 
 ---
@@ -327,4 +336,31 @@ updated: 2026-11-10T21:23:31+08:00
 <!-- @trace
 source: skills-verbs-second-wave
 updated: 2026-11-12T16:54:51+08:00
+-->
+
+---
+### Requirement: 技能原稿以英文撰寫
+
+crates/engine/speclink-core/assets/skills/ 下每一份技能原稿（含散文、提示引文、選項標籤、狀態標籤、分隔句、摘要範本與範例值）SHALL 全數以英文撰寫，SHALL NOT 含任何 Unicode 漢字（`\p{Han}`）；對使用者對話語言的適配由共用對話語言段落（`conversation-language.md`）與各步驟的 `locale` 綁定負責，而非於原稿內混寫非英文散文。此變更屬刻意更新渲染輸出：既有的英文技能語意、步驟順序、判斷條件、佔位符與強調字紀律維持不變，本機、遠端與內嵌宿主經單一渲染路徑取得相同英文原稿。
+
+speclink-core 的整合測試（`cargo test -p speclink-core --test it skill_authoring::`）SHALL 逐份掃描 crates/engine/speclink-core/assets/skills/ 下全部 `.md` 原稿：任一原稿含任一 Unicode 漢字時測試 SHALL 以非零 exit code 失敗，失敗訊息 SHALL 指名原稿檔名、違反項目「英文撰寫」、命中的行號與片段，以及規範出處「skill-authoring 規格『技能原稿以英文撰寫』」。LF 與 CRLF 結尾的原稿 SHALL 得到相同結果。
+
+#### Scenario: 全部技能原稿不含漢字時通過
+
+- **WHEN** crates/engine/speclink-core/assets/skills/ 下全部 `.md` 原稿皆僅以英文撰寫，執行 `cargo test -p speclink-core --test it skill_authoring::`
+- **THEN** 整合測試以 exit code 0 通過，不回報任何英文撰寫違規
+
+#### Scenario: 技能原稿混入繁體中文時守門失敗
+
+- **WHEN** 某份技能原稿含有一行繁體中文話術（例：`本專案未啟用 worktree 流程`），執行 `cargo test -p speclink-core --test it skill_authoring::`
+- **THEN** 整合測試以非零 exit code 失敗，錯誤訊息指名該原稿檔名、「英文撰寫」、命中行號與該段漢字，以及規範出處
+
+#### Scenario: LF 與 CRLF 原稿檢查結果一致
+
+- **WHEN** 同一份含漢字的原稿分別以 LF 與 CRLF 行尾送入英文撰寫檢查
+- **THEN** 兩者皆回報相同行號與相同的違規項目
+
+<!-- @trace
+source: english-skill-prompts
+updated: 2026-11-27T19:46:25+08:00
 -->

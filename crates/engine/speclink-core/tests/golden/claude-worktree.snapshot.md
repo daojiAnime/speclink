@@ -9,7 +9,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -50,7 +50,7 @@ Analyze artifact consistency for a change. Can be invoked directly or triggered 
 
 3. **Present results**
 
-   **Report language**: run `speclink instructions apply --change "<name>" --json` and use its `locale` field (e.g., "Traditional Chinese (繁體中文)") — write the report in that language, prose, headings, and table labels included. Keep severity labels (Critical/Warning/Suggestion), command lines, and code references in English. If the field is absent or the call fails, write in English.
+   **Report language**: run `speclink instructions apply --change "<name>" --json` and use its `locale` field (e.g., "Traditional Chinese") — write the report in that language, prose, headings, and table labels included. Keep severity labels (Critical/Warning/Suggestion), command lines, and code references in English. If the field is absent or the call fails, write in English.
 
    Format the JSON output as a readable summary:
 
@@ -102,7 +102,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -450,7 +450,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -485,7 +485,7 @@ Find each name in `changes`:
 - **`blockedBy` is empty** — the change is parallel-ready.
 - **`blockedBy` is non-empty** — the change waits for its prerequisites. Name it with them, in these terms:
 
-  > <change-name> 要等 <prerequisites> 落地再開。
+  > <change-name> must wait until <prerequisites> lands before starting.
 
 - **Not in `changes`** (archived, misspelled, or listed under `skipped`) — name it as not available.
 
@@ -493,7 +493,7 @@ Then act on how many names are parallel-ready:
 
 - **Two or more** — use the **AskUserQuestion tool** to have the user pick the one to run here, from the parallel-ready names only. Print the recipe for the other parallel-ready names, naming them:
 
-  > 平行做法是一個 change 一個 session：另外開視窗，各自執行 `/speclink-apply-with-worktree <change-name>`。主資料夾的看板會同時顯示每個 worktree 的進度。
+  > The parallel workflow is one change per session: open separate windows and run `/speclink-apply-with-worktree <change-name>` in each. The main checkout board displays progress for every worktree at once.
 
 - **Exactly one** — there is nothing to pick and no recipe to print: use the **AskUserQuestion tool** to confirm running that change here, with stopping as the other option.
 - **None** — report the waiting and unavailable names and STOP.
@@ -518,7 +518,7 @@ Read the EFFECTIVE value, the same way the CLI resolves it — the env layer win
 - **effective value `true`** — continue to P2.
 - **anything else (`false` or absent)** — STOP. Tell the user, in these terms:
 
-  > 本專案未啟用 worktree 流程。要啟用請執行：`speclink workflow-config set worktree true`
+  > This project has not enabled the worktree workflow. To enable it, run: `speclink workflow-config set worktree true`
 
   Do **NOT** fall back to running the apply flow in the main folder. Enabling the policy is the user's decision, not yours — offer to run `speclink workflow-config set worktree true` and wait for their answer.
 
@@ -577,9 +577,9 @@ git status --porcelain -- <each path in that output's `files`>
 - **`files` is empty** (no record, or no touched files) — nothing was implemented here yet. Continue to P4 silently.
 - **Every listed path is clean** — the code is already in HEAD and travels with the worktree. Continue to P4 silently.
 - **Any listed path is dirty** — STOP and show the user the dirty paths, then use the **AskUserQuestion tool**:
-  - **先收程式碼再開 worktree**（recommended） — run `/speclink-commit <change-name>` to get this change's source into HEAD, then come back and re-run this skill.
-  - **照樣繼續** — create the worktree knowing it will not contain those edits; the tasks they belong to will read as done with nothing behind them.
-  - **停止** — end the run and leave everything as it is.
+  - **Commit code first, then open worktree** (recommended) — run `/speclink-commit <change-name>` to get this change's source into HEAD, then come back and re-run this skill.
+  - **Continue anyway** — create the worktree knowing it will not contain those edits; the tasks they belong to will read as done with nothing behind them.
+  - **Stop** — end the run and leave everything as it is.
 
 Do NOT create the worktree before the user has chosen.
 
@@ -618,7 +618,7 @@ If `git worktree add` fails, report the error verbatim and STOP.
 
 Print a short note before starting work:
 
-> worktree 是一份完整的原始碼副本。相依套件與建置產物不會跟著複製過去——第一次在裡面跑測試或建置，要自己重新安裝相依並重新建置，會花上一段時間。
+> A worktree is a full copy of the source code. Dependencies and build artifacts are not copied over — the first test or build run inside it will need to install dependencies and rebuild, which can take a while.
 
 ### P6. Work inside the worktree from here on
 
@@ -634,7 +634,7 @@ The apply body's own step 1 (**Select the change with plan**) is only a re-check
 
 ---
 
-以下為 apply 本體流程，於上述 worktree 資料夾內執行。
+The apply workflow follows below; execute it inside the worktree directory above.
 
 ---
 
@@ -1041,17 +1041,17 @@ Pick the path by the change's state: unchecked `[M]` manual tasks show in `specl
 
 - **No unchecked `[M]` task** — tell the user, plainly:
 
-  > 這個 change 已在 worktree 內完成並提交，尚未合併回主分支。
+  > This change is finished and committed inside the worktree, and has not been merged back into the main branch yet.
   >
-  > 建議在這個 worktree 內跑品質關卡——`/speclink-review`（工藝品質）∥ `/speclink-verify`（規格符合度），或 `/speclink-quality`（兩站合跑），是否要跑由你決定。蓋章會寫進 change 的 meta，記得補一次提交，再執行 `/speclink-worktree-merge <change-name>` 收尾。
+  > Suggested next step: run the quality stations in this worktree — `/speclink-review` (craft quality) ∥ `/speclink-verify` (spec compliance), or `/speclink-quality` (both stations together); whether to run them is your call. Stamping writes to the change's metadata, so remember to make one more commit, then run `/speclink-worktree-merge <change-name>` to wrap up.
   >
-  > 想在蓋章前先看到 CI 結果的話，改走另一條路：先執行 `/speclink-worktree-merge <change-name>` 合併，再到主 checkout 跑品質關卡——worktree 分支只在本機、從不 push，CI 看不到它；合併時品質關卡的起點會一起承接到主 checkout。
+  > If you want to see CI results before stamping, take the other route: run `/speclink-worktree-merge <change-name>` to merge first, then run the quality stations in the main checkout — worktree branches stay local and are never pushed, so CI cannot see them; merging carries the quality stations' starting point over to the main checkout.
 
 - **Unchecked `[M]` tasks remain** — tell the user, plainly:
 
-  > 這個 change 已在 worktree 內完成並提交，尚未合併回主分支，還有手動任務沒做。
+  > This change is finished and committed inside the worktree, has not been merged back into the main branch yet, and still has unchecked manual tasks.
   >
-  > 建議先執行 `/speclink-worktree-merge <change-name>`——它會檢查主樹是否乾淨、把分支合併回去、把品質關卡的起點承接到主 checkout，成功後移除 worktree 並刪掉分支。之後在主 checkout 跑品質關卡——`/speclink-review`（工藝品質）∥ `/speclink-verify`（規格符合度），或 `/speclink-quality`（兩站合跑），是否要跑由你決定——做完手動任務再封存。
+  > Suggested next step: run `/speclink-worktree-merge <change-name>` first — it checks that the main tree is clean, merges the branch back, carries the quality stations' starting point over to the main checkout, and removes the worktree and branch on success. After that, run the quality stations in the main checkout — `/speclink-review` (craft quality) ∥ `/speclink-verify` (spec compliance), or `/speclink-quality` (both stations together); whether to run them is your call — then finish the manual tasks and archive.
 
 Report alongside it: the worktree path, the branch name, the tasks completed this session, and whether W2 rebased or why it skipped.
 
@@ -1080,7 +1080,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -1110,14 +1110,14 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
 1. **If no change name provided, prompt for selection**
 
-   Run `speclink plan --json` and list the candidates from its `changes` array in the given order — the order that honors declared dependencies. Label each candidate with its `archiveAfter` (the changes to archive before it, because both touch the same requirement): an empty array reads as 「可封存」, a non-empty one as 「等 <archiveAfter 的名稱> 封存」. When its `blockedBy` is non-empty, add 「前置 <blockedBy 的名稱> 未封存」. Append the names in `skipped` (changes whose metadata the plan could not parse) at the end, marked 「metadata 壞掉」 — they stay selectable, as `list --json` would have shown them. Use the **AskUserQuestion tool** to let the user select.
+   Run `speclink plan --json` and list the candidates from its `changes` array in the given order — the order that honors declared dependencies. Label each candidate with its `archiveAfter` (the changes to archive before it, because both touch the same requirement): an empty array reads as "Ready to archive", a non-empty one as "Waiting on archive of <archiveAfter names>". When its `blockedBy` is non-empty, add "Prerequisite <blockedBy names> not yet archived". Append the names in `skipped` (changes whose metadata the plan could not parse) at the end, marked "Broken metadata" — they stay selectable, as `list --json` would have shown them. Use the **AskUserQuestion tool** to let the user select.
 
    If `plan` fails (a dependency cycle), fall back to `speclink list --json` and list the active changes in its order, with no blocking labels.
 
    Show only active changes (not already archived).
    Include the schema used for each change if available.
 
-   Do NOT guess or auto-select a change — always let the user choose, and wait for the answer; a candidate marked 「可封存」 is not picked for them either.
+   Do NOT guess or auto-select a change — always let the user choose, and wait for the answer; a candidate marked "Ready to archive" is not picked for them either.
 
 2. **Check artifact completion status**
 
@@ -1149,15 +1149,15 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
    - `archiveAfter` is non-empty:
 
-     > plan 建議先封存 <archiveAfter 的名稱>；它們封存後，重讀本 change 對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `/speclink-ingest`）再封存 <name>。重疊的 requirement：<requirementOverlap 裡對應那些 change 的 capability › requirement>。
+     > Plan suggests archiving <archiveAfter names> first; once they are archived, reread this change's MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `/speclink-ingest`), and then archive <name>. Overlapping requirements: <each matching capability › requirement from requirementOverlap>.
 
    - `requirementOverlap` holds an entry whose `conflict` is true:
 
-     > <name> 與 <change> 都新增（或改名成）同名的 requirement <requirement>，或都移除（或改名掉）它；後封存的那一個會封存失敗（名字重複，或名字已不存在），先改掉其中一邊。
+     > <name> and <change> both add (or rename to) the same requirement <requirement>, or both remove (or rename away) it; whichever archives second will fail (duplicate name, or target name already gone) — change one side first.
 
    - `blockedBy` is non-empty:
 
-     > 宣告前置 <blockedBy 的名稱> 尚未封存。
+     > Declared prerequisite <blockedBy names> is not yet archived.
 
    Do not offer `speclink drift` as the remedy for an overlap: drift only checks that the requirement names still exist, and cannot see content that an earlier archive overwrote.
 
@@ -1406,21 +1406,21 @@ never run `/speclink-manual` yourself.
 When the plan order hint noted changes that list `<name>` in their `archiveAfter`, add
 one more line:
 
-> <那些 change 的名稱> 要在 <name> 之後封存，並動到同名的 requirement：先重讀它們對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `/speclink-ingest`），再封存它們。
+> <those change names> must be archived after <name> and touch the same requirements: reread their MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `/speclink-ingest`), and then archive them.
 
 This too is a reminder only — never run the ingest yourself.
 
 Then run `speclink plan --json` and hand the user the next change to start. When `next`
 is non-null, add one more line:
 
-> plan 的下一個可開工：<next>，執行 `/speclink-apply <next>`。
+> Next ready to start from plan: <next> — run `/speclink-apply <next>`.
 
 When the effective worktree policy is on (`speclink workflow-config show --json` →
 `worktree`; a `SPECLINK_WORKTREE` env override wins) and `changes` holds two or more
 entries with `wave` 1 and `stage` `proposed` (wave 1 waits on nothing, so their
 `blockedBy` is empty), also list them as parallel-safe:
 
-> 第 1 波可並行：<name-a>、<name-b>，各開一個 session 走 `/speclink-apply-with-worktree <name>`。
+> Wave 1 parallel-safe: <name-a>, <name-b> — open one session per change and run `/speclink-apply-with-worktree <name>`.
 
 Policy off, or only one such change → name `next` alone. A null `next`, or a `plan`
 failure (a dependency cycle) → say nothing about ordering. This too is a reminder only —
@@ -1435,7 +1435,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -1472,7 +1472,7 @@ If there are no changes, report "No changes to audit" and stop.
 
 Launch 3 agents in parallel (one message, 3 tool calls). Each agent receives the full diff and analyzes it through one adversary lens. If you cannot spawn sub-agents, run the three lenses yourself one after another, and keep each lens's findings separate until Phase 3.
 
-**Agent 1 — The Scoundrel (壞蛋)**
+**Agent 1 — The Scoundrel**
 
 A malicious developer or attacker deliberately manipulating configuration.
 
@@ -1484,7 +1484,7 @@ Search the diff for:
 - Dangerous config combinations (e.g., `auth_required: true` + `bypass_auth_for_health: true` + `health_check_path: "/"`)
 - String concatenation in security-critical paths (permissions, queries, paths)
 
-**Agent 2 — The Lazy Developer (懶惰的開發者)**
+**Agent 2 — The Lazy Developer**
 
 A developer who copy-pastes examples and skips documentation.
 
@@ -1496,7 +1496,7 @@ Search the diff for:
 - The "first example found" test: is the most obvious usage secure?
 - Path of least resistance: does the simplest way to use this API produce secure results?
 
-**Agent 3 — The Confused Developer (搞混的開發者)**
+**Agent 3 — The Confused Developer**
 
 A developer who misunderstands API usage.
 
@@ -1684,7 +1684,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -1810,7 +1810,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -1988,15 +1988,15 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
     - `archiveAfter` is non-empty:
 
-      > plan 建議先封存 <archiveAfter 的名稱>；它們封存後，重讀本 change 對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `/speclink-ingest`）再封存 <name>。重疊的 requirement：<requirementOverlap 裡對應那些 change 的 capability › requirement>。
+      > Plan suggests archiving <archiveAfter names> first; once they are archived, reread this change's MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `/speclink-ingest`), and then archive <name>. Overlapping requirements: <each matching capability › requirement from requirementOverlap>.
 
     - `requirementOverlap` holds an entry whose `conflict` is true:
 
-      > <name> 與 <change> 都新增（或改名成）同名的 requirement <requirement>，或都移除（或改名掉）它；後封存的那一個會封存失敗（名字重複，或名字已不存在），先改掉其中一邊。
+      > <name> and <change> both add (or rename to) the same requirement <requirement>, or both remove (or rename away) it; whichever archives second will fail (duplicate name, or target name already gone) — change one side first.
 
     - `blockedBy` is non-empty:
 
-      > 宣告前置 <blockedBy 的名稱> 尚未封存。
+      > Declared prerequisite <blockedBy names> is not yet archived.
 
     Do not offer `speclink drift` as the remedy for an overlap: drift only checks that the requirement names still exist, and cannot see content that an earlier archive overwrote.
 
@@ -2053,18 +2053,19 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
     6. Close the sub-flow with the reminders below. Print them once, wherever the flow ends: after the step 10 result, or right where the user stops at the re-confirmation above — the archive has already run either way, and after a stop its file moves are still uncommitted, so also remind the user to commit them with a plain git commit:
 
        - When the workspace has a `speclink/manual/` directory, add one line: the manual may be stale now, and `/speclink-manual` will report which pages this archive's spec changes outdated. The condition is the directory's existence only — do not work out which specs this archive touched, and do not judge whether the manual is actually stale; that is the manual skill's report. This is a reminder only — never run `/speclink-manual` yourself.
+
        - When the plan order hint noted changes that list `<name>` in their `archiveAfter`, add one more line:
 
-         > <那些 change 的名稱> 要在 <name> 之後封存，並動到同名的 requirement：先重讀它們對同名 requirement 的 MODIFIED／REMOVED／RENAMED 區塊、對照正式規格重寫（走 `/speclink-ingest`），再封存它們。
+         > <those change names> must be archived after <name> and touch the same requirements: reread their MODIFIED/REMOVED/RENAMED blocks for the overlapping requirements, rewrite them against the canonical specs (via `/speclink-ingest`), and then archive them.
 
          This too is a reminder only — never run the ingest yourself.
        - Run `speclink plan --json` and hand the user the next change to start. When `next` is non-null, add one more line:
 
-         > plan 的下一個可開工：<next>，執行 `/speclink-apply <next>`。
+         > Next ready to start from plan: <next> — run `/speclink-apply <next>`.
 
          When the effective worktree policy is on (`speclink workflow-config show --json` → `worktree`; a `SPECLINK_WORKTREE` env override wins) and `changes` holds two or more entries with `wave` 1 and `stage` `proposed` (wave 1 waits on nothing, so their `blockedBy` is empty), also list them as parallel-safe:
 
-         > 第 1 波可並行：<name-a>、<name-b>，各開一個 session 走 `/speclink-apply-with-worktree <name>`。
+         > Wave 1 parallel-safe: <name-a>, <name-b> — open one session per change and run `/speclink-apply-with-worktree <name>`.
 
          Policy off, or only one such change → name `next` alone. A null `next`, or a `plan` failure (a dependency cycle) → say nothing about ordering. This too is a reminder only — never run apply yourself.
 
@@ -2153,7 +2154,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -2259,7 +2260,7 @@ A first run — a document with no policy field set yet — shows the same table
 
 Never infer any of these values from the repo, the test scope and the review rules mode included — a test directory does not mean `tdd: true`.
 
-**Locale fields take locale CODES, never display names.** `locale` accepts exactly `tw`, `ja`, `en`; `spec_locale` accepts `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — 「繁體中文」 → `tw`, 「日本語」 → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
+**Locale fields take locale CODES, never display names.** `locale` accepts exactly `tw`, `ja`, `en`; `spec_locale` accepts `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — "Traditional Chinese" → `tw`, "Japanese" → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
 
 **`worktree` also syncs the skill files, in local mode.** It lands like the other fields, through `speclink workflow-config set worktree <true|false>` and its `--dry-run` preview in Step 5. In local mode that write syncs the skill files: turning it on generates the worktree skills, and turning it off removes them. The CLI refuses to turn it off while a linked worktree is still active, and lists each one; relay the refusal to the user as it stands. The config stays as it was, and the refusal already says how to wrap those worktrees up — do not close or remove any worktree yourself. In remote mode the write changes only the server's config: it neither syncs the skill files nor checks for active worktrees, so tell the user that.
 
@@ -2325,7 +2326,7 @@ The `critical`, `warning` and `suggestion` lists hold rules the review station's
 - a violation is usually to be fixed, with an occasional legitimate exception → `warning`
 - the rule states a preference → `suggestion`
 
-The wording is a hint only, and never decides the list on its own: 「不得」「一律」「要」「宜」「偏好」, "never", "always", "must", "prefer". "Components always use design-token colors" reads as an absolute, but a chart palette legitimately needs raw color codes, so it is a `warning`.
+The wording is a hint only, and never decides the list on its own: "never", "always", "must", "prefer" (and their equivalents in other languages). "Components always use design-token colors" reads as an absolute, but a chart palette legitimately needs raw color codes, so it is a `warning`.
 
 **Checks for every review rule**, each existing one and each new one:
 
@@ -2400,7 +2401,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -2461,7 +2462,7 @@ Every record has the same fixed skeleton:
 
 2. Act on what the discussion list shows:
    - **A record matches the topic and is still live** — `status` `open`, or `promoted` mid-way through a spin-out (Step 9) → resume it (reuse its `slug`): the record already exists; every later `add-round`/`conclude` call uses it. Only `concluded` and archived records are past resuming. **Resume ritual**: before continuing, present a recap derived from the record — one line per round (its Focus → the first sentence of its Position), then the last round's Open ledger as the current frontier — and only then pick the discussion back up. The recap is mechanically derived from fields the record already has; it introduces no new format and existing records need no migration. Rounds you add to a resumed record follow **Record language** (Step 5).
-   - **No live record matches** → do not create one yet. Derive an English kebab-case slug from the topic (translate when the topic is not English — e.g. 「看板搜尋列」 → `board-search-bar`), announce it ("This discussion will be recorded as `<slug>` once it has substance."), and proceed — scout, judge requirement clarity, present your first assumptions or question with nothing on disk. A mis-invocation or a topic answered in one exchange leaves no file behind. Step 5 says when the record is created.
+   - **No live record matches** → do not create one yet. Derive an English kebab-case slug from the topic (translate when the topic is not English — e.g., translating a non-English title into an English kebab-case slug like `board-search-bar`), announce it ("This discussion will be recorded as `<slug>` once it has substance."), and proceed — scout, judge requirement clarity, present your first assumptions or question with nothing on disk. A mis-invocation or a topic answered in one exchange leaves no file behind. Step 5 says when the record is created.
 3. If the user mentioned a specific change name, read its artifacts for context: `speclink show <name> --json` lists them, and `speclink artifact cat <artifact> --change <name>` prints each one — a delta spec is `specs/<capability>`, which `deltaSpecs` lists as `<capability>/spec.md`. When that change's `speclink list --json` entry carries a `worktree` object, run both from its `worktree.path`: the worktree copy is the one being worked on.
 
 ---
@@ -2553,7 +2554,7 @@ Example:
 | **Canon is silent**               | new ground                                      | say so, and check the intended capability name against neighbouring specs while you're there                                                              |
 | **Settled by a prior discussion** | a past discussion already ruled on it           | three cases, the record's slug as Evidence — **ruled out**: record it with the reason it lost at the time; reopening that direction requires stating why that reason no longer holds. **Deferred**: it can be picked up now — say so. **Already landed**: the canon shows it, so do not list it again. Never block or veto the direction over a prior verdict |
 
-**In-flight marker** — on the first two rows, when the canon pass found an in-flight delta hit on that capability, write `(in-flight change <name> will change: <Requirement names>)` right after the triage label, one marker per change. `<Requirement names>` is the `### Requirement:` headings you kept from that delta, comma-separated. A hit past the time-box was never read: write `(in-flight change <name> will change it)` for it, and never guess its Requirement names. The Evidence names the delta next to the spec — e.g. `Covered by canon (in-flight change add-change-plan-remote will change: 討論資訊 payload)`, with Evidence: the `client-protocol` spec plus the delta `add-change-plan-remote: client-protocol`. The marker tells the user that this assumption stands on ground someone is rewriting. It never blocks or vetoes the direction, and it is not a fifth triage row: the assumption stays covered or conflicting.
+**In-flight marker** — on the first two rows, when the canon pass found an in-flight delta hit on that capability, write `(in-flight change <name> will change: <Requirement names>)` right after the triage label, one marker per change. `<Requirement names>` is the `### Requirement:` headings you kept from that delta, comma-separated. A hit past the time-box was never read: write `(in-flight change <name> will change it)` for it, and never guess its Requirement names. The Evidence names the delta next to the spec — e.g. `Covered by canon (in-flight change add-change-plan-remote will change: Discussion metadata payload)`, with Evidence: the `client-protocol` spec plus the delta `add-change-plan-remote: client-protocol`. The marker tells the user that this assumption stands on ground someone is rewriting. It never blocks or vetoes the direction, and it is not a fifth triage row: the assumption stays covered or conflicting.
 
 The discipline: **the user's requirement is the goal; the canon and the prior discussions are evidence, not a verdict.** Departing from the canon, or reopening a direction an earlier discussion rejected, is a legitimate direction — it just goes into the record as a conscious decision, with the old reason and why it no longer holds.
 
@@ -2835,7 +2836,7 @@ Pick the exit that matches the conclusion:
   speclink discuss link <slug> <existing-change>
   ```
 
-  `link` forges the change-side chain (`from_discussion` in the change metadata) without scaffolding anything, so drawer links and auto-archive engage — the discussion is archived automatically when the last linked change is archived and its conclusion is written. Unlike promote, `link` does not mark the discussion 已轉出 (`promoted`): that reflection is sealed by `/speclink-ingest`, which folds the decision into the change's artifacts and then runs `speclink discuss seal` — so the discussion flips to promoted only once its content has actually landed, never at link time. Then run `/speclink-ingest <existing-change>` to fold the decision in and seal. Without the link, a concluded-then-ingested discussion sits on the board forever with nothing to archive it.
+  `link` forges the change-side chain (`from_discussion` in the change metadata) without scaffolding anything, so drawer links and auto-archive engage — the discussion is archived automatically when the last linked change is archived and its conclusion is written. Unlike promote, `link` does not mark the discussion `promoted`: that reflection is sealed by `/speclink-ingest`, which folds the decision into the change's artifacts and then runs `speclink discuss seal` — so the discussion flips to promoted only once its content has actually landed, never at link time. Then run `/speclink-ingest <existing-change>` to fold the decision in and seal. Without the link, a concluded-then-ingested discussion sits on the board forever with nothing to archive it.
 - **The conclusion is "don't do this"** (a valid outcome) → conclude anyway (Step 8), then close the record out:
 
   ```bash
@@ -2901,7 +2902,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -2950,7 +2951,7 @@ Detect drift between a Speclink change and the current codebase state. Reports t
 
 3. **Present the report**
 
-   **Report language**: run `speclink instructions apply --change "<name>" --json` and use its `locale` field (e.g., "Traditional Chinese (繁體中文)") — write the report in that language, prose, headings, and table labels included. Keep severity labels (light/medium/heavy), command lines, and code references in English. If the field is absent or the call fails, write in English.
+   **Report language**: run `speclink instructions apply --change "<name>" --json` and use its `locale` field (e.g., "Traditional Chinese") — write the report in that language, prose, headings, and table labels included. Keep severity labels (light/medium/heavy), command lines, and code references in English. If the field is absent or the call fails, write in English.
 
    Use a user-readable, conclusion-first format. The first substantive paragraph after the title is a plain-language conclusion that says what to do next before showing score tables, broken anchors, task collisions, or severity labels.
 
@@ -3044,7 +3045,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -3241,7 +3242,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -3321,9 +3322,9 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
       speclink discuss link <slug> <change>
       ```
 
-   `link` is idempotent (a no-op when the discuss step already ran it) and forges only the change-side chain — it does not mark the discussion promoted. Marking it 已轉出 is sealed at the end of this workflow (step 10), once the artifacts actually carry the discussion's content. Without the link, the discussion never archives with the change it fed.
+   `link` is idempotent (a no-op when the discuss step already ran it) and forges only the change-side chain — it does not mark the discussion promoted. Marking it `promoted` is sealed at the end of this workflow (step 10), once the artifacts actually carry the discussion's content. Without the link, the discussion never archives with the change it fed.
 
-   **Change flagged stale (`restaleFrom`)?** When `speclink show <change> --json` exposes a non-empty `restaleFrom`, those discussions were re-concluded *after* this change last sealed them — its artifacts are now stale against the newer conclusions (`speclink analyze <change>` surfaces the same as an informational finding, and the desktop board shows a "待重新反映" badge). This is exactly a re-ingest: for each slug in `restaleFrom`, read the discussion's current conclusion (`speclink discuss show <slug> --json`), fold the revised decision into the artifacts, and the seal in step 10 clears that slug from `restaleFrom` — marking the reflection honest again.
+   **Change flagged stale (`restaleFrom`)?** When `speclink show <change> --json` exposes a non-empty `restaleFrom`, those discussions were re-concluded *after* this change last sealed them — its artifacts are now stale against the newer conclusions (`speclink analyze <change>` surfaces the same as an informational finding, and the desktop board shows a "needs re-ingest" badge). This is exactly a re-ingest: for each slug in `restaleFrom`, read the discussion's current conclusion (`speclink discuss show <slug> --json`), fold the revised decision into the artifacts, and the seal in step 10 clears that slug from `restaleFrom` — marking the reflection honest again.
 
 2. **Parse the plan structure** (skip if using conversation context)
 
@@ -3531,7 +3532,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
    speclink discuss seal <slug> <change>
    ```
 
-   `seal` flips the discussion to promoted (已轉出) and is idempotent — run it once per linked `from_discussion` slug (from `fromDiscussions` in `speclink show <change> --json`). This is what keeps "已轉出" honest: the discussion is marked reflected only after ingest actually carried its content in, never at link time. `seal` also clears that slug from the change's `restaleFrom` flag, so a re-ingest (triggered by a re-concluded discussion) closes the loop and the "待重新反映" marker disappears. Skip this step when no discussion fed the change.
+   `seal` flips the discussion to `promoted` and is idempotent — run it once per linked `from_discussion` slug (from `fromDiscussions` in `speclink show <change> --json`). This is what keeps `promoted` honest: the discussion is marked reflected only after ingest actually carried its content in, never at link time. `seal` also clears that slug from the change's `restaleFrom` flag, so a re-ingest (triggered by a re-concluded discussion) closes the loop and the "needs re-ingest" marker disappears. Skip this step when no discussion fed the change.
 
 11. **Summary and next steps**
 
@@ -3583,7 +3584,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -3596,8 +3597,8 @@ Generate a human-readable operating manual from the canonical specs, or walk the
 | Arguments | Mode |
 | --- | --- |
 | none | **Generation** (the default) — read the specs, write `speclink/manual/*.md` |
-| contain `導覽` or `tour` | **Tour** — no file is written; guide the user through the system in conversation |
-| anything else | **Generation with a scope hint** — e.g. one section, one page, or "全部重生"; restate the scope you understood at the top of the summary |
+| contain `tour` (or its equivalent in the user's language) | **Tour** — no file is written; guide the user through the system in conversation |
+| anything else | **Generation with a scope hint** — e.g. one section, one page, or "regenerate all"; restate the scope you understood at the top of the summary |
 
 **Prerequisites**: This skill requires the `speclink` CLI. If any `speclink` command fails with "command not found" or similar, report the error and STOP.
 
@@ -3612,7 +3613,7 @@ Generate a human-readable operating manual from the canonical specs, or walk the
 Read `.speclink.yaml` at the workspace root. No file, or a file without a `remote` section, means a local project — continue with Step 1. A `remote` section means the project is bound to a remote store and generation is not supported yet: the pages would land in this local checkout only and never reach the store. Print
 
 ```
-remote 模式尚不支援手冊生成（導覽模式不受此限：/speclink-manual 導覽）
+Manual generation is not yet supported in remote mode (tour mode still works: /speclink-manual tour)
 ```
 
 and STOP. Zero files are written. Tour mode is unaffected by this check.
@@ -3638,7 +3639,7 @@ When a manual already exists, the cheap parts are still read for every capabilit
 
 ### Step 3: Staleness report
 
-**Source anchors** (the one rule every `sources` reader below follows): an item of `sources` is either a bare `<capability>` or an anchored `"<capability>#<Requirement 名>"` — the part after the first `#` is the heading text of one `### Requirement:` in that spec, trimmed. Only the staleness judgement looks at the anchor; every other use of `sources` — unlisted capability, orphan page, the source line, tour-mode citations — reads the capability name before `#` and ignores the rest. A bare item means the whole spec; an anchored item means that one requirement section (from its heading to the next `### Requirement:` heading or end of file).
+**Source anchors** (the one rule every `sources` reader below follows): an item of `sources` is either a bare `<capability>` or an anchored `"<capability>#<Requirement name>"` — the part after the first `#` is the heading text of one `### Requirement:` in that spec, trimmed. Only the staleness judgement looks at the anchor; every other use of `sources` — unlisted capability, orphan page, the source line, tour-mode citations — reads the capability name before `#` and ignores the rest. A bare item means the whole spec; an anchored item means that one requirement section (from its heading to the next `### Requirement:` heading or end of file).
 
 Compute, from the Step 1 index and the specs:
 
@@ -3653,7 +3654,7 @@ Compute, from the Step 1 index and the specs:
 Then decide what to write:
 
 - **No manual yet** → write everything (Steps 4–5).
-- **Manual exists** → by default regenerate only the stale pages, add a page for each unlisted capability, and rewrite `index.md` and `about.md` whenever any other page is added, regenerated or stamp-only, so the entry links, the contradiction list and the compilation stamp reflect the new set. A stale page whose regenerated content is identical to the file on disk except for the `generated` line is **stamp-only**: write only the new `generated` value and leave every other byte alone — this is what lets the "可能過期" mark clear when an archive touched the spec but not the text this page was written from. The comparison covers the whole file, `sources` included, and a regenerated page always re-derives its `sources` by coverage (Step 5) — so a page that is stale because an anchor no longer resolves (its requirement was renamed or removed) never qualifies: its `sources` come out different, and the page is rewritten in full with the current headings. A stale page whose content differs anywhere is rewritten in full. Pages that are not stale are untouched — byte-identical. Regenerate everything only when the user explicitly asks for it (e.g. "全部重生"); even then, existing `section` and `order` are preserved.
+- **Manual exists** → by default regenerate only the stale pages, add a page for each unlisted capability, and rewrite `index.md` and `about.md` whenever any other page is added, regenerated or stamp-only, so the entry links, the contradiction list and the compilation stamp reflect the new set. A stale page whose regenerated content is identical to the file on disk except for the `generated` line is **stamp-only**: write only the new `generated` value and leave every other byte alone — this is what lets the "possibly stale" mark clear when an archive touched the spec but not the text this page was written from. The comparison covers the whole file, `sources` included, and a regenerated page always re-derives its `sources` by coverage (Step 5) — so a page that is stale because an anchor no longer resolves (its requirement was renamed or removed) never qualifies: its `sources` come out different, and the page is rewritten in full with the current headings. A stale page whose content differs anywhere is rewritten in full. Pages that are not stale are untouched — byte-identical. Regenerate everything only when the user explicitly asks for it (e.g. "regenerate all"); even then, existing `section` and `order` are preserved.
 - **Manual exists, nothing stale, nothing unlisted** → write nothing, `index.md` and `about.md` included. Report that the manual is up to date and stop. A scope hint is the user's explicit request for that scope and overrides this: regenerate what the hint names.
 
 ### Step 4: Choose the journey backbone
@@ -3663,9 +3664,9 @@ The manual is organized as journeys — what a new user does, in order — not a
 1. **Scenario-script specs** — acceptance scripts, walkthroughs, end-to-end journeys: their chapter order and stations become the manual's.
 2. **Routing / hand-off specs** — skill hand-off tables and entry-routing contracts: the edges give the order.
 3. **User-documentation specs** — the structure of the user docs canon.
-4. **None of the above** — rebuild the journeys by functional domain from the user-facing capability specs. The about page then states that the journeys were rebuilt (重建), not transcribed.
+4. **None of the above** — rebuild the journeys by functional domain from the user-facing capability specs. The about page then states that the journeys were rebuilt, not transcribed.
 
-When 1–3 applies, the about page names the specs the journeys were transcribed from (轉寫自).
+When 1–3 applies, the about page names the specs the journeys were transcribed from.
 
 ### Step 5: Write the pages — the page contract
 
@@ -3681,17 +3682,17 @@ This is the `manual-pages` contract. Every reader — the desktop manual page, a
 | `section` | string | yes | sidebar section name |
 | `order` | integer | yes | global sort key, unique across the manual; step by 10 by convention |
 | `keywords` | string array | no | search terms |
-| `sources` | string array | yes | the canonical specs this page was written from, one item per source — bare `<capability>` for the whole spec, anchored `"<capability>#<Requirement 名>"` for one requirement (always double-quoted; one anchor per item, so several requirements of one spec are several items; see **Source anchors** in Step 3); `[]` only on the index and about pages |
+| `sources` | string array | yes | the canonical specs this page was written from, one item per source — bare `<capability>` for the whole spec, anchored `"<capability>#<Requirement name>"` for one requirement (always double-quoted; one anchor per item, so several requirements of one spec are several items; see **Source anchors** in Step 3); `[]` only on the index and about pages |
 | `generated` | RFC 3339 timestamp with offset | yes | when this page was last generated, to the second, with the local offset (`2026-09-05T23:31:00+08:00`); the desktop reader also accepts the older plain `YYYY-MM-DD` form — never write that form anew |
 
 Pages are ordered by `order` alone; sections are ordered by the smallest `order` inside each. Example:
 
 ```yaml
 ---
-title: 第一次登入
-section: 開始使用
+title: First Login
+section: Getting Started
 order: 20
-keywords: [登入, github, 審核]
+keywords: [login, github, approval]
 sources: [github-oauth, user-pending-blocked-pages]
 generated: 2026-09-05T23:31:00+08:00
 ---
@@ -3700,7 +3701,7 @@ generated: 2026-09-05T23:31:00+08:00
 A page that covers only part of a large spec anchors each requirement it used:
 
 ```yaml
-sources: ["desktop-app#看板與任務", "desktop-app#系統匣選單", policy-config]
+sources: ["desktop-app#Board and Tasks", "desktop-app#Tray Menu", policy-config]
 ```
 
 Take the `generated` value from the clock at the moment you write the page, never by hand. Pick the first command that works on the machine:
@@ -3719,26 +3720,26 @@ Before writing, check the value matches `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|
 **Body conventions**:
 
 - GitHub Flavored Markdown. Callouts use GitHub Alert syntax only: `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!CAUTION]`.
-- Links between pages use the relative filename: `[認識畫面](layout.md)`.
-- The last non-empty paragraph of every page is the source line: `**出處**：` followed by the capability names of `sources` (per **Source anchors**: each name once, anchors never shown), each in backticks — e.g. **出處**：`github-oauth`、`user-pending-blocked-pages`; a page with `sources: ["desktop-app#看板與任務", "desktop-app#系統匣選單"]` writes **出處**：`desktop-app`.
+- Links between pages use the relative filename: `[Layout Overview](layout.md)`.
+- The last non-empty paragraph of every page is the source line: `**Sources**:` followed by the capability names of `sources` (per **Source anchors**: each name once, anchors never shown), each in backticks — e.g. **Sources**: `github-oauth`, `user-pending-blocked-pages`; a page with `sources: ["desktop-app#Board and Tasks", "desktop-app#Tray Menu"]` writes **Sources**: `desktop-app`.
 - No HTML tags. No `--json` field names, flags, or code details — unless the text is a command or skill name the user actually types.
-- Write the prose in the workspace's locale (`locale` from `speclink workflow-config show --json`). The contract literals — `**出處**：` and the about page's title — stay verbatim.
+- Write the prose in the workspace's locale (`locale` from `speclink workflow-config show --json`). The contract literals — `**Sources**:` and the about page's title — stay verbatim.
 - Write for a reader who joined today: what they see, what they press, what happens next, and where it can go wrong — quoting button labels, confirmation texts and error exits exactly as the specs state them.
 - When two specs disagree, follow the one whose latest `@trace updated` stamp is after the other's (the same after-rule as the **stale page** definition; a tie keeps the one archived later by directory name) in the page body and list the conflict on the about page. Never resolve a contradiction silently.
 
 **Two required pages**:
 
 - `index.md` — `title` is the manual's name, `section` is the first section, `order` is the smallest in the manual. Body: one sentence positioning the system, at most three core concepts, and entry links grouped by role.
-- `about.md` — `title` is `本手冊的來源`, `order` is the largest in the manual. Body states: the source scope is `speclink/specs/`; the journey backbone (transcribed from which specs, or rebuilt); the list of contradictions found between newer and older descriptions inside the specs (write `未發現` when there are none); known limits (no screenshots — the running product wins); and the compilation date.
+- `about.md` — `title` is `About this manual`, `order` is the largest in the manual. Body states: the source scope is `speclink/specs/`; the journey backbone (transcribed from which specs, or rebuilt); the list of contradictions found between newer and older descriptions inside the specs (write `None found` when there are none); known limits (no screenshots — the running product wins); and the compilation date.
 
-When no capability is user-facing, still write both pages: `about.md` says `尚無可入冊的使用者面向能力` and no other page exists.
+When no capability is user-facing, still write both pages: `about.md` says `No user-facing capabilities yet` and no other page exists.
 
 **Order preservation on regeneration**:
 
 - A page whose filename already exists keeps its `section` and `order` verbatim (unless the user explicitly asked to reorder).
 - A new page takes an integer between its neighbours (between 20 and 30 → 25); existing pages are never renumbered. When no integer fits — neighbours 20 and 21, or a page that must land after the last page while `about.md` has to stay the maximum — do NOT renumber on your own: leave that page out of this run, list it in the report, and ask the user for a reorder; their explicit request is what allows renumbering.
 - Untouched, stamp-only and fully rewritten pages follow the decision in Step 3.
-- Every new page and every page rewritten in full writes its `sources` by coverage: when the page draws on only some requirements of a capability, one anchored item per requirement (`"<capability>#<Requirement 名>"`, the heading text verbatim); when it draws on the whole capability, the bare name. Prefer anchors for large specs — they are what keeps an unrelated archive from marking this page stale.
+- Every new page and every page rewritten in full writes its `sources` by coverage: when the page draws on only some requirements of a capability, one anchored item per requirement (`"<capability>#<Requirement name>"`, the heading text verbatim); when it draws on the whole capability, the bare name. Prefer anchors for large specs — they are what keeps an unrelated archive from marking this page stale.
 - Orphan pages (Step 3) stay on disk and appear in the report.
 
 ### Step 6: Report
@@ -3746,18 +3747,18 @@ When no capability is user-facing, still write both pages: `about.md` says `尚�
 End with a summary in the conversation:
 
 ```
-## 手冊生成摘要
+## Manual Generation Summary
 
-- 新增：N 頁（<filenames>）
-- 重生：N 頁（<filenames>）
-- 只換時戳：N 頁（<filenames>）
-- 未動：N 頁（未被判為過期的頁）
-- 可能過期：<list, or 無>
-- 未入冊能力：<list, or 無>
-- about 頁記錄的矛盾：N 條
-- 跳過（frontmatter 無法解析）／來源已消失：<list, or 無>
+- Added: N pages (<filenames>)
+- Regenerated: N pages (<filenames>)
+- Stamp-only: N pages (<filenames>)
+- Untouched: N pages (pages not marked stale)
+- Possibly stale: <list, or none>
+- Unlisted capabilities: <list, or none>
+- Contradictions recorded on about page: N
+- Skipped (unparseable frontmatter) or missing sources: <list, or none>
 
-手冊異動建議以一般 git commit 收尾。
+Consider committing the manual changes with a regular git commit.
 ```
 
 When a scope hint was given, restate the scope you understood first. When nothing was written, say the manual is already up to date. The commit line is a suggestion only — never run the commit yourself.
@@ -3772,7 +3773,7 @@ Tour mode writes NOTHING — no manual pages, no notes, no scratch files. It is 
    - Ask exactly one question first: which role the user has (e.g. developer running SDD through an agent, product owner, someone who joined today), so you can pick the entry from the index page's role links.
    - Then walk the journey in `section` / `order` order, one station at a time, reading the page body as you go; answer questions as they come.
    - Every answer names its source: the capability (from the page's `sources`, per **Source anchors**) or the page's filename.
-2. **No manual**: say so — `尚無手冊，改以規格直接導覽` — then tour from the specs: `speclink list --specs` for the map, `speclink show <capability> --item-type spec` for each station, sources cited by capability name.
+2. **No manual**: say so — `No manual yet — touring directly from the specs` — then tour from the specs: `speclink list --specs` for the map, `speclink show <capability> --item-type spec` for each station, sources cited by capability name.
 3. **Remote-bound project**: tour mode proceeds as usual, from an existing manual or from the specs.
 
 When the tour ends you may suggest running generation mode (`/speclink-manual`) to produce the manual — a suggestion only. Never invoke another skill from here.
@@ -3786,7 +3787,7 @@ Check these before you report:
 - [ ] Content came from the canonical specs only — no README, docs or code ("The one-source rule"), in both modes.
 - [ ] Generation wrote only under `speclink/manual/` (Step 5); tour mode wrote nothing; a remote-bound project got no generation (Step 0).
 - [ ] No page was deleted or renumbered, and no page with unparseable frontmatter was overwritten (Steps 1, 3 and 5).
-- [ ] Every page has exactly the six frontmatter fields, the `**出處**：` line, and a `generated` value that matches the format check (Step 5).
+- [ ] Every page has exactly the six frontmatter fields, the `**Sources**:` line, and a `generated` value that matches the format check (Step 5).
 - [ ] Contradictions inside the specs are listed on the about page, never silently resolved (Step 5).
 - [ ] No commit and no other skill was run — the commit line and the tour's closing suggestion are suggestions only (Step 6, Tour mode).
 
@@ -3798,7 +3799,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -3939,7 +3940,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
    speclink new change "<name>" --schema <chosen> --agent claude --from-discussion <slug>
    ```
 
-   **Is this the last cut the conclusion planned? Then add `--last`.** A discussion whose conclusion stages several cuts (cut A now, cut B once A lands, …) was concluded with `--hold`, and the engine has no way to tell the final cut from a middle one — you do. Before running the command, read the record's `## Conclusion` **Decision** for the list of planned cuts (刀一／刀二／…, cut A／cut B, or any similar enumeration) and the frontmatter's `promoted_to` for the cuts already spun out — both are in the `content` field of `speclink discuss show <slug> --json` — then decide:
+   **Is this the last cut the conclusion planned? Then add `--last`.** A discussion whose conclusion stages several cuts (cut A now, cut B once A lands, …) was concluded with `--hold`, and the engine has no way to tell the final cut from a middle one — you do. Before running the command, read the record's `## Conclusion` **Decision** for the list of planned cuts (cut 1 / cut 2 / ..., cut A / cut B, or any similar enumeration) and the frontmatter's `promoted_to` for the cuts already spun out — both are in the `content` field of `speclink discuss show <slug> --json` — then decide:
 
    - The change you are creating is the **final cut the conclusion planned** → pass `--last`:
 
@@ -3962,7 +3963,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
    - All file paths are written relative to the project root (e.g., `src/lib/foo.ts`, `src-tauri/crates/core/src/bar.rs`, `docs/specs/specs/auth/spec.md`).
    - Do not use relative fragments (e.g., `parser/mod.rs`, `core/mod.rs`) — preflight rejects them as non-anchored paths.
    - Do not wrap shell commands in backticks inside artifact text (e.g., `` `git mv a.rs b.rs` ``) — preflight's backtick extractor will otherwise mis-parse the command as a file reference.
-   - When referring to a file without naming its concrete path, use descriptive prose (e.g., "Parser 入口檔") rather than a backticked path fragment.
+   - When referring to a file without naming its concrete path, use descriptive prose (e.g., "the parser entry file") rather than a backticked path fragment.
 
    Get instructions:
 
@@ -4108,7 +4109,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
      - `instruction`: Schema-specific guidance
      - `outputPath`: where the engine stores the artifact — for display only; every write goes through `speclink new artifact`
      - `dependencies`: Completed artifacts to read for context
-     - `locale`: The language to write this artifact in (e.g., "Japanese (日本語)"). The engine resolves it per artifact — for the specs artifact it is the spec language, which can differ from the other artifacts' language. If present, write the artifact content in this language. Structural markers (`### Requirement:`, `#### Scenario:`, `- **WHEN**`/`- **THEN**`) and normative keywords (SHALL/MUST) always stay in English. For the specs artifact, the `instruction` also says which requirement and scenario names keep the canonical spec's wording — follow it.
+     - `locale`: The language to write this artifact in (e.g., "Japanese"). The engine resolves it per artifact — for the specs artifact it is the spec language, which can differ from the other artifacts' language. If present, write the artifact content in this language. Structural markers (`### Requirement:`, `#### Scenario:`, `- **WHEN**`/`- **THEN**`) and normative keywords (SHALL/MUST) always stay in English. For the specs artifact, the `instruction` also says which requirement and scenario names keep the canonical spec's wording — follow it.
    - Read each completed dependency for context via `speclink artifact cat <artifact-id> --change "<name>"` before you write the new artifact (never open artifact files by path — the documents may live in a remote store).
      The `specs` dependency is read one delta spec at a time: for each entry of `deltaSpecs` in `speclink show <name> --json` (listed as `<capability>/spec.md`), run `speclink artifact cat specs/<capability> --change "<name>"`.
    - Follow the `instruction` field and use `template` as the structure for your output file — fill in its sections
@@ -4220,7 +4221,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
     Show summary:
     - Change name and location
-    - The chosen schema — show `no-spec-change` as 「不改規格（no-spec-change）」
+    - The chosen schema — show `no-spec-change` as "no-spec-change (no spec changes)"
     - List of artifacts created
     - Validation result
 
@@ -4264,7 +4265,7 @@ Run this check after the summary, right before presenting the Next steps below.
    - **Policy on** → list wave 1 (`waves[0].changes`) as "parallel-safe — run each change in its own session via `/speclink-apply-with-worktree` (the multi-session recipe)", then each later wave in order as "after the wave before it lands". A change's `blockedBy` names what it waits for.
    - **Policy off** → one recommended order: the `changes` array in its given order, one at a time.
    - `next` is the first change that is ready to start; `skipped` lists changes whose metadata could not be parsed — name them so the user can repair them.
-   - For each change whose `archiveAfter` is non-empty, add one line: 「封存時 <change> 要在 <archiveAfter 的名稱> 之後」 — an archive-order note only; it never delays a start.
+   - For each change whose `archiveAfter` is non-empty, add one line: "When archiving, <change> must come after <archiveAfter names>." — an archive-order note only; it never delays a start.
 6. The check is suggestions only — report the waves or the order and stop; never invoke any skill automatically.
 
 ## Guardrails
@@ -4294,7 +4295,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -4432,7 +4433,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -4583,7 +4584,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
    **Project review rules** — when any of step 2's three `review` lists is non-empty, the Standards brief carries the rules verbatim, grouped by severity — one group per list. They bind the axis as follows:
 
    - A rule's list decides the severity of its violation: `critical` → CRITICAL, `warning` → WARNING, `suggestion` → SUGGESTION. Neither the sub-agent nor the main thread raises or lowers it.
-   - The finding description quotes the violated rule verbatim; the rest of the description follows the locale binding above. For example, with an English locale: `- [WARNING] src/api.rs — Standards: violates project review rule "New public APIs need a matching test": add_user has no test`; with a Traditional Chinese locale: `- [WARNING] src/api.rs — Standards: 違反專案審查規則「新增的公開 API 要有對應的測試」：add_user 沒有測試`.
+   - The finding description quotes the violated rule verbatim; the rest of the description follows the locale binding above. For example, with an English locale: `- [WARNING] src/api.rs — Standards: violates project review rule "New public APIs need a matching test": add_user has no test`; with a non-English locale, keep the severity label, path, and axis prefix in English, quote the rule verbatim, and write the rest of the description in the resolved `locale`.
    - Where a project rule and a repo document disagree, the project rule wins — it is the list the project wrote down for this station.
 
    The Correctness brief never carries the project rules.
@@ -4736,7 +4737,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -4824,7 +4825,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -4924,7 +4925,7 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
    **Remote mode**: when the workspace is connected to a remote store, `contextFiles` points into the read-only Context Projection (`.speclink/context/`) — a local snapshot of the remote canon. Read, search, and grep it freely, but never edit projection files: a direct edit is not a remote write and the next command will reject the projection as modified. Any spec or artifact change goes through speclink verbs. If a `STALE` marker file exists at the projection root or a command reports the projection as modified, re-run `speclink instructions apply` to refresh it.
 
-   The payload also carries `locale` — the resolved language for AI output (e.g., "Traditional Chinese (繁體中文)"). Remember it: the verification report is written in this language (see Output Format).
+   The payload also carries `locale` — the resolved language for AI output (e.g., "Traditional Chinese"). Remember it: the verification report is written in this language (see Output Format).
 
    Then read the sub-agent model:
 
@@ -5200,7 +5201,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.64.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -5343,15 +5344,15 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
 
    - **The quality stations already ran in the worktree** (their stamps came along with the merge):
 
-     > 這個 change 已合併回主分支，品質關卡也已在 worktree 內跑完。下一步是在主 checkout `/speclink-archive` 封存。
+     > This change has been merged back into the main branch, and the quality stations already ran in the worktree. Next step: run `/speclink-archive` in the main checkout.
 
    - **The quality stations have not run, and no `[M]` task is open**:
 
-     > 這個 change 已合併回主分支，品質關卡的起點已承接到主 checkout。要跑的話直接在這裡執行 `/speclink-review`（工藝品質）∥ `/speclink-verify`（規格符合度），或 `/speclink-quality`（兩站合跑），是否要跑由你決定；之後 `/speclink-archive` 封存。
+     > This change has been merged back into the main branch, and the quality stations' starting point has been carried over to the main checkout. If you want to run them, run `/speclink-review` (craft quality) ∥ `/speclink-verify` (spec compliance), or `/speclink-quality` (both stations together) right here — whether to run them is your call; then run `/speclink-archive`.
 
    - **Unchecked `[M]` manual tasks remain**:
 
-     > 這個 change 已合併回主分支，品質關卡的起點已承接到主 checkout。在這裡執行 `/speclink-review` ∥ `/speclink-verify`，或 `/speclink-quality`，再把手動任務做完並勾選，之後 `/speclink-archive` 封存。
+     > This change has been merged back into the main branch, and the quality stations' starting point has been carried over to the main checkout. Run `/speclink-review` ∥ `/speclink-verify`, or `/speclink-quality` here, complete and check off the manual tasks, then run `/speclink-archive`.
 
 **Output On Success**
 
@@ -5366,7 +5367,7 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
 **Worktree:** <path> (removed)
 **Branch deleted:** ✓
 
-接下來：<step 6 的交棒——品質關卡已跑完→主 checkout /speclink-archive；未跑→直接在主 checkout 跑品質關卡再封存；有未勾手動任務→主 checkout 跑品質關卡、完成手動任務後封存>
+Next: <step 6 hand-off — quality stations done → /speclink-archive in the main checkout; not run → run the quality stations directly in the main checkout, then archive; unchecked manual tasks remain → run the quality stations in the main checkout, finish manual tasks, then archive>
 ```
 
 **Output On Stop**

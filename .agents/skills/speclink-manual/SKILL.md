@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.61.0"
+  version: "v1.65.0"
   generatedBy: "Speclink"
 ---
 
@@ -18,8 +18,8 @@ Generate a human-readable operating manual from the canonical specs, or walk the
 | Arguments | Mode |
 | --- | --- |
 | none | **Generation** (the default) — read the specs, write `speclink/manual/*.md` |
-| contain `導覽` or `tour` | **Tour** — no file is written; guide the user through the system in conversation |
-| anything else | **Generation with a scope hint** — e.g. one section, one page, or "全部重生"; restate the scope you understood at the top of the summary |
+| contain `tour` (or its equivalent in the user's language) | **Tour** — no file is written; guide the user through the system in conversation |
+| anything else | **Generation with a scope hint** — e.g. one section, one page, or "regenerate all"; restate the scope you understood at the top of the summary |
 
 **Prerequisites**: This skill requires the `speclink` CLI. If any `speclink` command fails with "command not found" or similar, report the error and STOP.
 
@@ -34,7 +34,7 @@ Generate a human-readable operating manual from the canonical specs, or walk the
 Read `.speclink.yaml` at the workspace root. No file, or a file without a `remote` section, means a local project — continue with Step 1. A `remote` section means the project is bound to a remote store and generation is not supported yet: the pages would land in this local checkout only and never reach the store. Print
 
 ```
-remote 模式尚不支援手冊生成（導覽模式不受此限：$speclink-manual 導覽）
+Manual generation is not yet supported in remote mode (tour mode still works: $speclink-manual tour)
 ```
 
 and STOP. Zero files are written. Tour mode is unaffected by this check.
@@ -60,7 +60,7 @@ When a manual already exists, the cheap parts are still read for every capabilit
 
 ### Step 3: Staleness report
 
-**Source anchors** (the one rule every `sources` reader below follows): an item of `sources` is either a bare `<capability>` or an anchored `"<capability>#<Requirement 名>"` — the part after the first `#` is the heading text of one `### Requirement:` in that spec, trimmed. Only the staleness judgement looks at the anchor; every other use of `sources` — unlisted capability, orphan page, the source line, tour-mode citations — reads the capability name before `#` and ignores the rest. A bare item means the whole spec; an anchored item means that one requirement section (from its heading to the next `### Requirement:` heading or end of file).
+**Source anchors** (the one rule every `sources` reader below follows): an item of `sources` is either a bare `<capability>` or an anchored `"<capability>#<Requirement name>"` — the part after the first `#` is the heading text of one `### Requirement:` in that spec, trimmed. Only the staleness judgement looks at the anchor; every other use of `sources` — unlisted capability, orphan page, the source line, tour-mode citations — reads the capability name before `#` and ignores the rest. A bare item means the whole spec; an anchored item means that one requirement section (from its heading to the next `### Requirement:` heading or end of file).
 
 Compute, from the Step 1 index and the specs:
 
@@ -75,7 +75,7 @@ Compute, from the Step 1 index and the specs:
 Then decide what to write:
 
 - **No manual yet** → write everything (Steps 4–5).
-- **Manual exists** → by default regenerate only the stale pages, add a page for each unlisted capability, and rewrite `index.md` and `about.md` whenever any other page is added, regenerated or stamp-only, so the entry links, the contradiction list and the compilation stamp reflect the new set. A stale page whose regenerated content is identical to the file on disk except for the `generated` line is **stamp-only**: write only the new `generated` value and leave every other byte alone — this is what lets the "可能過期" mark clear when an archive touched the spec but not the text this page was written from. The comparison covers the whole file, `sources` included, and a regenerated page always re-derives its `sources` by coverage (Step 5) — so a page that is stale because an anchor no longer resolves (its requirement was renamed or removed) never qualifies: its `sources` come out different, and the page is rewritten in full with the current headings. A stale page whose content differs anywhere is rewritten in full. Pages that are not stale are untouched — byte-identical. Regenerate everything only when the user explicitly asks for it (e.g. "全部重生"); even then, existing `section` and `order` are preserved.
+- **Manual exists** → by default regenerate only the stale pages, add a page for each unlisted capability, and rewrite `index.md` and `about.md` whenever any other page is added, regenerated or stamp-only, so the entry links, the contradiction list and the compilation stamp reflect the new set. A stale page whose regenerated content is identical to the file on disk except for the `generated` line is **stamp-only**: write only the new `generated` value and leave every other byte alone — this is what lets the "possibly stale" mark clear when an archive touched the spec but not the text this page was written from. The comparison covers the whole file, `sources` included, and a regenerated page always re-derives its `sources` by coverage (Step 5) — so a page that is stale because an anchor no longer resolves (its requirement was renamed or removed) never qualifies: its `sources` come out different, and the page is rewritten in full with the current headings. A stale page whose content differs anywhere is rewritten in full. Pages that are not stale are untouched — byte-identical. Regenerate everything only when the user explicitly asks for it (e.g. "regenerate all"); even then, existing `section` and `order` are preserved.
 - **Manual exists, nothing stale, nothing unlisted** → write nothing, `index.md` and `about.md` included. Report that the manual is up to date and stop. A scope hint is the user's explicit request for that scope and overrides this: regenerate what the hint names.
 
 ### Step 4: Choose the journey backbone
@@ -85,9 +85,9 @@ The manual is organized as journeys — what a new user does, in order — not a
 1. **Scenario-script specs** — acceptance scripts, walkthroughs, end-to-end journeys: their chapter order and stations become the manual's.
 2. **Routing / hand-off specs** — skill hand-off tables and entry-routing contracts: the edges give the order.
 3. **User-documentation specs** — the structure of the user docs canon.
-4. **None of the above** — rebuild the journeys by functional domain from the user-facing capability specs. The about page then states that the journeys were rebuilt (重建), not transcribed.
+4. **None of the above** — rebuild the journeys by functional domain from the user-facing capability specs. The about page then states that the journeys were rebuilt, not transcribed.
 
-When 1–3 applies, the about page names the specs the journeys were transcribed from (轉寫自).
+When 1–3 applies, the about page names the specs the journeys were transcribed from.
 
 ### Step 5: Write the pages — the page contract
 
@@ -103,17 +103,17 @@ This is the `manual-pages` contract. Every reader — the desktop manual page, a
 | `section` | string | yes | sidebar section name |
 | `order` | integer | yes | global sort key, unique across the manual; step by 10 by convention |
 | `keywords` | string array | no | search terms |
-| `sources` | string array | yes | the canonical specs this page was written from, one item per source — bare `<capability>` for the whole spec, anchored `"<capability>#<Requirement 名>"` for one requirement (always double-quoted; one anchor per item, so several requirements of one spec are several items; see **Source anchors** in Step 3); `[]` only on the index and about pages |
+| `sources` | string array | yes | the canonical specs this page was written from, one item per source — bare `<capability>` for the whole spec, anchored `"<capability>#<Requirement name>"` for one requirement (always double-quoted; one anchor per item, so several requirements of one spec are several items; see **Source anchors** in Step 3); `[]` only on the index and about pages |
 | `generated` | RFC 3339 timestamp with offset | yes | when this page was last generated, to the second, with the local offset (`2026-09-05T23:31:00+08:00`); the desktop reader also accepts the older plain `YYYY-MM-DD` form — never write that form anew |
 
 Pages are ordered by `order` alone; sections are ordered by the smallest `order` inside each. Example:
 
 ```yaml
 ---
-title: 第一次登入
-section: 開始使用
+title: First Login
+section: Getting Started
 order: 20
-keywords: [登入, github, 審核]
+keywords: [login, github, approval]
 sources: [github-oauth, user-pending-blocked-pages]
 generated: 2026-09-05T23:31:00+08:00
 ---
@@ -122,7 +122,7 @@ generated: 2026-09-05T23:31:00+08:00
 A page that covers only part of a large spec anchors each requirement it used:
 
 ```yaml
-sources: ["desktop-app#看板與任務", "desktop-app#系統匣選單", policy-config]
+sources: ["desktop-app#Board and Tasks", "desktop-app#Tray Menu", policy-config]
 ```
 
 Take the `generated` value from the clock at the moment you write the page, never by hand. Pick the first command that works on the machine:
@@ -141,26 +141,26 @@ Before writing, check the value matches `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|
 **Body conventions**:
 
 - GitHub Flavored Markdown. Callouts use GitHub Alert syntax only: `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!CAUTION]`.
-- Links between pages use the relative filename: `[認識畫面](layout.md)`.
-- The last non-empty paragraph of every page is the source line: `**出處**：` followed by the capability names of `sources` (per **Source anchors**: each name once, anchors never shown), each in backticks — e.g. **出處**：`github-oauth`、`user-pending-blocked-pages`; a page with `sources: ["desktop-app#看板與任務", "desktop-app#系統匣選單"]` writes **出處**：`desktop-app`.
+- Links between pages use the relative filename: `[Layout Overview](layout.md)`.
+- The last non-empty paragraph of every page is the source line: `**Sources**:` followed by the capability names of `sources` (per **Source anchors**: each name once, anchors never shown), each in backticks — e.g. **Sources**: `github-oauth`, `user-pending-blocked-pages`; a page with `sources: ["desktop-app#Board and Tasks", "desktop-app#Tray Menu"]` writes **Sources**: `desktop-app`.
 - No HTML tags. No `--json` field names, flags, or code details — unless the text is a command or skill name the user actually types.
-- Write the prose in the workspace's locale (`locale` from `speclink workflow-config show --json`). The contract literals — `**出處**：` and the about page's title — stay verbatim.
+- Write the prose in the workspace's locale (`locale` from `speclink workflow-config show --json`). The contract literals — `**Sources**:` and the about page's title — stay verbatim.
 - Write for a reader who joined today: what they see, what they press, what happens next, and where it can go wrong — quoting button labels, confirmation texts and error exits exactly as the specs state them.
 - When two specs disagree, follow the one whose latest `@trace updated` stamp is after the other's (the same after-rule as the **stale page** definition; a tie keeps the one archived later by directory name) in the page body and list the conflict on the about page. Never resolve a contradiction silently.
 
 **Two required pages**:
 
 - `index.md` — `title` is the manual's name, `section` is the first section, `order` is the smallest in the manual. Body: one sentence positioning the system, at most three core concepts, and entry links grouped by role.
-- `about.md` — `title` is `本手冊的來源`, `order` is the largest in the manual. Body states: the source scope is `speclink/specs/`; the journey backbone (transcribed from which specs, or rebuilt); the list of contradictions found between newer and older descriptions inside the specs (write `未發現` when there are none); known limits (no screenshots — the running product wins); and the compilation date.
+- `about.md` — `title` is `About this manual`, `order` is the largest in the manual. Body states: the source scope is `speclink/specs/`; the journey backbone (transcribed from which specs, or rebuilt); the list of contradictions found between newer and older descriptions inside the specs (write `None found` when there are none); known limits (no screenshots — the running product wins); and the compilation date.
 
-When no capability is user-facing, still write both pages: `about.md` says `尚無可入冊的使用者面向能力` and no other page exists.
+When no capability is user-facing, still write both pages: `about.md` says `No user-facing capabilities yet` and no other page exists.
 
 **Order preservation on regeneration**:
 
 - A page whose filename already exists keeps its `section` and `order` verbatim (unless the user explicitly asked to reorder).
 - A new page takes an integer between its neighbours (between 20 and 30 → 25); existing pages are never renumbered. When no integer fits — neighbours 20 and 21, or a page that must land after the last page while `about.md` has to stay the maximum — do NOT renumber on your own: leave that page out of this run, list it in the report, and ask the user for a reorder; their explicit request is what allows renumbering.
 - Untouched, stamp-only and fully rewritten pages follow the decision in Step 3.
-- Every new page and every page rewritten in full writes its `sources` by coverage: when the page draws on only some requirements of a capability, one anchored item per requirement (`"<capability>#<Requirement 名>"`, the heading text verbatim); when it draws on the whole capability, the bare name. Prefer anchors for large specs — they are what keeps an unrelated archive from marking this page stale.
+- Every new page and every page rewritten in full writes its `sources` by coverage: when the page draws on only some requirements of a capability, one anchored item per requirement (`"<capability>#<Requirement name>"`, the heading text verbatim); when it draws on the whole capability, the bare name. Prefer anchors for large specs — they are what keeps an unrelated archive from marking this page stale.
 - Orphan pages (Step 3) stay on disk and appear in the report.
 
 ### Step 6: Report
@@ -168,18 +168,18 @@ When no capability is user-facing, still write both pages: `about.md` says `尚�
 End with a summary in the conversation:
 
 ```
-## 手冊生成摘要
+## Manual Generation Summary
 
-- 新增：N 頁（<filenames>）
-- 重生：N 頁（<filenames>）
-- 只換時戳：N 頁（<filenames>）
-- 未動：N 頁（未被判為過期的頁）
-- 可能過期：<list, or 無>
-- 未入冊能力：<list, or 無>
-- about 頁記錄的矛盾：N 條
-- 跳過（frontmatter 無法解析）／來源已消失：<list, or 無>
+- Added: N pages (<filenames>)
+- Regenerated: N pages (<filenames>)
+- Stamp-only: N pages (<filenames>)
+- Untouched: N pages (pages not marked stale)
+- Possibly stale: <list, or none>
+- Unlisted capabilities: <list, or none>
+- Contradictions recorded on about page: N
+- Skipped (unparseable frontmatter) or missing sources: <list, or none>
 
-手冊異動建議以一般 git commit 收尾。
+Consider committing the manual changes with a regular git commit.
 ```
 
 When a scope hint was given, restate the scope you understood first. When nothing was written, say the manual is already up to date. The commit line is a suggestion only — never run the commit yourself.
@@ -194,7 +194,7 @@ Tour mode writes NOTHING — no manual pages, no notes, no scratch files. It is 
    - Ask exactly one question first: which role the user has (e.g. developer running SDD through an agent, product owner, someone who joined today), so you can pick the entry from the index page's role links.
    - Then walk the journey in `section` / `order` order, one station at a time, reading the page body as you go; answer questions as they come.
    - Every answer names its source: the capability (from the page's `sources`, per **Source anchors**) or the page's filename.
-2. **No manual**: say so — `尚無手冊，改以規格直接導覽` — then tour from the specs: `speclink list --specs` for the map, `speclink show <capability> --item-type spec` for each station, sources cited by capability name.
+2. **No manual**: say so — `No manual yet — touring directly from the specs` — then tour from the specs: `speclink list --specs` for the map, `speclink show <capability> --item-type spec` for each station, sources cited by capability name.
 3. **Remote-bound project**: tour mode proceeds as usual, from an existing manual or from the specs.
 
 When the tour ends you may suggest running generation mode (`$speclink-manual`) to produce the manual — a suggestion only. Never invoke another skill from here.
@@ -208,6 +208,6 @@ Check these before you report:
 - [ ] Content came from the canonical specs only — no README, docs or code ("The one-source rule"), in both modes.
 - [ ] Generation wrote only under `speclink/manual/` (Step 5); tour mode wrote nothing; a remote-bound project got no generation (Step 0).
 - [ ] No page was deleted or renumbered, and no page with unparseable frontmatter was overwritten (Steps 1, 3 and 5).
-- [ ] Every page has exactly the six frontmatter fields, the `**出處**：` line, and a `generated` value that matches the format check (Step 5).
+- [ ] Every page has exactly the six frontmatter fields, the `**Sources**:` line, and a `generated` value that matches the format check (Step 5).
 - [ ] Contradictions inside the specs are listed on the about page, never silently resolved (Step 5).
 - [ ] No commit and no other skill was run — the commit line and the tour's closing suggestion are suggestions only (Step 6, Tour mode).
