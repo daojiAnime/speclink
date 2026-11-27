@@ -15,7 +15,9 @@ const BUSY = { working: "正在处理", blocked: "等待你回答", error: "出�
 
 // 这些技能要在主文件夹运行；其余技能跟着变更走，有 worktree 就在 worktree 中运行。
 const MAIN_FOLDER = new Set(["archive", "archive+commit", "worktree-merge", "apply-with-worktree"]);
-const CLAUDE_ONLY = new Set(["analyze"]);
+const ANALYZE_TOOLS = new Set(["claude", "antigravity"]);
+export const skillUnsupported = (skill, key) => skill === "analyze" && !ANALYZE_TOOLS.has(key);
+export const onlyClaude = skillUnsupported;
 
 // 第一个是建议的下一步。这里只放合理的选项，技能本身没有阶段限制的（ingest、drift、commit）每个阶段都有。
 const STAGE_SKILLS = {
@@ -399,6 +401,24 @@ export function sendArgs(agent, text) {
 
 export const inside = (path, folder) => Boolean(path) && (path === folder || path.startsWith(`${folder}/`));
 
+// 把 git --git-common-dir 解析成主 checkout 目录：普通仓库与普通 worktree 以 /.git 结尾；
+// submodule 的 common dir 为 <super>/.git/modules/<name>，需搭配 core.worktree 才能回到主目录。
+export function resolveGitRoot(commonDir, coreWorktree = null) {
+  const dir = (commonDir ?? "").trim().replace(/\/+$/, "");
+  if (!dir) return null;
+  if (dir.endsWith("/.git")) return dir.slice(0, -"/.git".length) || "/";
+  const wt = (coreWorktree ?? "").trim();
+  if (!wt) return null;
+  const parts = (wt.startsWith("/") ? wt : `${dir}/${wt}`).split("/");
+  const stack = [];
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") stack.pop();
+    else stack.push(part);
+  }
+  return `/${stack.join("/")}`;
+}
+
 // agents() 的 done 看過就變 idle，送達要看 core 的原始狀態（terminals()）。
 // 這個 agent 在做 board 裡的哪個變更，比對規則和面板的 changeAgents 相同。查不到時是 null。
 export function agentChange(agent, board) {
@@ -603,7 +623,7 @@ export function changeActions(row, ctx) {
       ...s,
       delivery: s.waitingFor ? null : planDelivery({ ...ctx, skill: s.skill, change: row, args: s.args }),
     }))
-    .filter((a) => !CLAUDE_ONLY.has(a.skill) || !deliveryKey(a.delivery) || deliveryKey(a.delivery) === "claude");
+    .filter((a) => !deliveryKey(a.delivery) || !skillUnsupported(a.skill, deliveryKey(a.delivery)));
 }
 
 export function discussionActions(d, ctx) {
@@ -640,7 +660,6 @@ export function skillTargets(skill, board) {
 }
 
 const none = (reason, ...args) => ({ kind: "none", reason: tr(reason, ...args) });
-export const onlyClaude = (skill, key) => CLAUDE_ONLY.has(skill) && key !== "claude";
 const joinArgs = (target, note) => [target?.args, note].filter(Boolean).join(" ");
 // 控制字符会被终端当成按键（换行就发送了），一律换成空格。
 const pasteable = (text) => text.replace(/[\u0000-\u001f\u007f]/g, " ");
@@ -661,7 +680,7 @@ export function placePlan({ skill, target, note, agents, focus, agentKey }) {
   if (left) return none("还有 {0} 个代码任务未完成", left);
   const agent = placeTarget(agents, focus, agentKey);
   if (agent.kind === "none") return agent;
-  if (onlyClaude(skill, agent.key)) return none("{0} 仅支持 Claude Code", skill);
+  if (skillUnsupported(skill, agent.key)) return none("{0} 仅支持 Claude Code 和 Antigravity", skill);
   return {
     kind: "place",
     agent,
@@ -715,7 +734,7 @@ export function newTabPlan({ skill, target, note, root, agents, known, preferred
   const discussion = target?.kind === "discussion" ? { slug: target.name } : null;
   const d = newAgent({ name, args: joinArgs(target, note), folder, change, discussion, known, preferred });
   if (d.kind === "none") return d;
-  if (onlyClaude(skill, d.key)) return none("{0} 仅支持 Claude Code", skill);
+  if (skillUnsupported(skill, d.key)) return none("{0} 仅支持 Claude Code 和 Antigravity", skill);
   return {
     ...d,
     kind: "tab",
@@ -795,9 +814,11 @@ const SKILL_FOLDERS = {
   ],
   antigravity: [
     ["project", ".agents/skills"],
-    ["project", "_agents/skills"],
+    ["project", ".agent/skills"],
     ["personal", "~/.gemini/config/skills"],
     ["personal", "~/.agents/skills"],
+    ["personal", "~/.gemini/antigravity-cli/skills"],
+    ["personal", "~/.gemini/skills"],
   ],
 };
 export const skillFolders = (key) => (SKILL_FOLDERS[key] ?? []).map(([source, dir]) => ({ source, prefix: "", dir }));
@@ -811,6 +832,22 @@ export function pluginFolders(installed, settings, root) {
     const entry = entries.find((e) => e.scope === "user" || e.projectPath === root);
     return entry ? [{ source: "plugin", prefix: `${key.split("@")[0]}:`, dir: `${entry.installPath}/skills` }] : [];
   });
+}
+
+// Antigravity (`agy plugin list --json`) 与工作区 `.agents/plugins/*` 已启用插件的技能目录。
+export function agyPluginFolders(plugins, workspacePlugins = []) {
+  const seen = new Set();
+  const dirs = [];
+  for (const entry of [...(Array.isArray(plugins) ? plugins : []), ...(Array.isArray(workspacePlugins) ? workspacePlugins : [])]) {
+    if (!entry || entry.enabled === false || !entry.name || !entry.path) continue;
+    const hasSkills = Array.isArray(entry.skills) ? entry.skills.length > 0 : Boolean(entry.workspace);
+    if (!hasSkills) continue;
+    const dir = `${String(entry.path).replace(/\/+$/, "")}/skills`;
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    dirs.push({ source: "plugin", prefix: `${entry.name}:`, dir });
+  }
+  return dirs;
 }
 
 // 依名稱猜用途，畫面用來分組。比對順序照這張表（remotion 含 motion，影片要排在動畫前面），對不到的是「其他」。

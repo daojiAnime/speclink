@@ -920,7 +920,10 @@ fn show_json_carries_empty_subagent_model_and_the_builtin_list_by_default() {
     assert_eq!(payload["subagentModel"], serde_json::json!({"review": {}, "verify": {}, "choices": {}}));
     assert_eq!(
         payload["builtinSubagentModels"],
-        serde_json::json!({"claude": ["sonnet", "opus", "haiku", "fable"]})
+        serde_json::json!({
+            "claude": ["sonnet", "opus", "haiku", "fable"],
+            "agy": ["inherit", "pro", "flash", "flash_lite"]
+        })
     );
     let keys: Vec<&str> = payload.as_object().unwrap().keys().map(|k| k.as_str()).collect();
     assert!(!keys.contains(&"subagent_model"), "no snake_case keys: {keys:?}");

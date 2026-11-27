@@ -132,7 +132,12 @@ describe('skills.render — render matrix', () => {
     expect(normalize(rendered)).toBe(normalize(generated))
     expect(rendered).toContain('/speclink-')
     expect(rendered).toContain('--agent agy')
+    expect(rendered).toContain('## Antigravity (agy) harness adaptation')
+    expect(rendered).toContain('ask_question')
     expect(rendered).not.toContain('$speclink-')
+    expect(
+      readFileSync(join(agyProject, '.agents', 'skills', 'speclink-analyze', 'SKILL.md'), 'utf8'),
+    ).toContain('## Antigravity (agy) harness adaptation')
   })
 
   // spec node-sdk「渲染 API」：specInCheckout（規格資料夾是否在使用這份技能的 checkout）。

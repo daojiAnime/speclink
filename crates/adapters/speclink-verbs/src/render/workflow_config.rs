@@ -480,6 +480,12 @@ Workflow config: speclink/config.yaml
     }
   },
   "builtinSubagentModels": {
+    "agy": [
+      "inherit",
+      "pro",
+      "flash",
+      "flash_lite"
+    ],
     "claude": [
       "sonnet",
       "opus",

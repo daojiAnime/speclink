@@ -142,6 +142,30 @@ The hooks write no output and do not stop the message. Outside Herdr they do not
 { "extensions": ["/Users/you/.config/herdr-app/mods/speclink/pi-labels.ts"] }
 ```
 
+**Antigravity (`agy`):** install the bundled plugin in this repo (includes read-only review/verify/audit subagents, glob rules, and the Herdr label hook):
+
+```bash
+agy plugin install ./integrations/antigravity/speclink-skills
+```
+
+Or add this hook group manually to `~/.gemini/config/hooks.json` (global) or `.agents/hooks.json` (project):
+
+```json
+{
+  "speclink-herdr-sync": {
+    "enabled": true,
+    "SessionStart": [{ "type": "command", "command": "node /path/to/speclink/integrations/antigravity/speclink-skills/scripts/herdr-label.mjs", "timeout": 5 }],
+    "PreInvocation": [{ "type": "command", "command": "node /path/to/speclink/integrations/antigravity/speclink-skills/scripts/herdr-label.mjs", "timeout": 5 }],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [{ "type": "command", "command": "node /path/to/speclink/integrations/antigravity/speclink-skills/scripts/herdr-label.mjs", "timeout": 5 }]
+      }
+    ]
+  }
+}
+```
+
 ### Where a skill goes
 
 The panel tries these in order and stops at the first match:
@@ -156,7 +180,7 @@ The panel does not send to an agent that works, waits for your answer or shows a
 
 The buttons on the row always follow this order. If the change has a stopped agent and you want a new tab, use the Skills button at the top.
 
-Claude Code, GitHub Copilot and Cursor get `/speclink-<skill>`. Codex gets `$speclink-<skill>`. Pi gets `/skill:speclink-<skill>`. Pi uses `.pi/skills` from `speclink init --tools pi`. Cursor uses `.cursor/skills` from `speclink init --tools cursor`. In a project with only the Codex `.agents/skills`, Pi can read those files too, but they use `$speclink-`, so select pi instead. Cursor also reads `.claude/skills` and `.agents/skills`. In a project with only Claude or Codex skills, the panel finds skills for Cursor and does not show the `--tools cursor` hint, but Cursor uses the Claude or Codex version (recorded as `--agent claude`, or written with `$speclink-`), so select cursor instead. The panel does not track labels for Cursor: Claude Code and Codex use a hook, Pi uses an extension, and Cursor has no such mechanism, so the panel only sends skills to it. Only Claude Code has analyze, so the button does not show for other agents. Other agents have no speclink skills, so the panel does not send to them.
+Claude Code, GitHub Copilot, Cursor and Antigravity (`agy`) get `/speclink-<skill>`. Codex gets `$speclink-<skill>`. Pi gets `/skill:speclink-<skill>`. Pi uses `.pi/skills` from `speclink init --tools pi`. Cursor uses `.cursor/skills` from `speclink init --tools cursor`. Antigravity uses `.agents/skills` from `speclink init --tools agy`. In a project with only the Codex `.agents/skills`, Pi and Antigravity can read those files too, but they use `$speclink-`, so select pi or agy instead. Cursor also reads `.claude/skills` and `.agents/skills`. In a project with only Claude or Codex skills, the panel finds skills for Cursor and does not show the `--tools cursor` hint, but Cursor uses the Claude or Codex version (recorded as `--agent claude`, or written with `$speclink-`), so select cursor instead. The panel does not track labels for Cursor: Claude Code, Codex and Antigravity use a hook, Pi uses an extension, and Cursor has no such mechanism, so the panel only sends skills to it. Claude Code and Antigravity support `analyze`; the button stays hidden for other agents. Other agents have no speclink skills, so the panel does not send to them.
 
 ### Start
 
@@ -204,13 +228,13 @@ These rows have no checkbox and show the reason: an agent is busy on the change 
 
 **My skills page:** the skills that you installed yourself. The selected row shows the full description. These skills do not pair with a change, so there is only a note, which goes after the command.
 
-- **What it lists**: for Claude Code, the project `.claude/skills`, `~/.claude/skills` and the skills of enabled plugins. For Codex, the project `.agents/skills`, `~/.agents/skills` and `~/.codex/skills`. For Pi, the project `.pi/skills` and `.agents/skills`, `~/.pi/agent/skills` and `~/.agents/skills`. For Cursor, the project `.cursor/skills`, `.agents/skills`, `.claude/skills` and `.codex/skills`, and `~/.cursor/skills`, `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`. For Antigravity (`agy`), the project `.agents/skills` and `_agents/skills`, and `~/.gemini/config/skills` and `~/.agents/skills`.
+- **What it lists**: for Claude Code, the project `.claude/skills`, `~/.claude/skills` and the skills of enabled plugins. For Codex, the project `.agents/skills`, `~/.agents/skills` and `~/.codex/skills`. For Pi, the project `.pi/skills` and `.agents/skills`, `~/.pi/agent/skills` and `~/.agents/skills`. For Cursor, the project `.cursor/skills`, `.agents/skills`, `.claude/skills` and `.codex/skills`, and `~/.cursor/skills`, `~/.agents/skills`, `~/.claude/skills` and `~/.codex/skills`. For Antigravity (`agy`), the project `.agents/skills`, `.agent/skills`, `~/.gemini/config/skills`, `~/.agents/skills`, `~/.gemini/antigravity-cli/skills`, `~/.gemini/skills`, plus workspace `.agents/plugins/` and enabled `agy plugin list` skills.
 - **What it does not list**: `speclink-*` (on the other page), skills built into the agent, `~/.claude/skills/synced` from Anthropic, `~/.codex/skills/.system`, and skills with `user-invocable: false`.
 - **Groups**: the name tells the use: Development, Design, Commit and release, Video, Animation, 3D, Content, Tools or Other. Each group has its own color. Each row shows its source at the right (Project, Personal or Plugin).
 - **Families**: three or more skills in a group with the same start share one row, for example `gsap`. Click it to list them. A group with more than 12 rows is closed by default.
 - **Search**: the search box matches names and descriptions. When it has text, all rows open. `→` moves to the note and `←` moves back.
 
-**Which agent:** the pop-up starts with the agent in the current tab, then the agent you last selected, then the most used agent. The panel row buttons also use the agent you selected when they open a new tab. "Put in input" works only for the agent in the current tab. If you select another agent, this button does not work, because the command form and the skills do not match. If the project has no Speclink skills for this agent, the Speclink page shows the command to run. Only Claude Code can use analyze, so it shows dim for other agents.
+**Which agent:** the pop-up starts with the agent in the current tab, then the agent you last selected, then the most used agent. The panel row buttons also use the agent you selected when they open a new tab. "Put in input" works only for the agent in the current tab. If you select another agent, this button does not work, because the command form and the skills do not match. If the project has no Speclink skills for this agent, the Speclink page shows the command to run. Only Claude Code and Antigravity can use analyze, so it shows dim for other agents.
 
 ### Open in Speclink
 

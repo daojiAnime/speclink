@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 /// 產物層的唯一版號：技能檔 frontmatter 的 version 同源於此，也是過期探測與
 /// 降級守門的比對基準。僅在內嵌資產（assets/skills）的 render 內容變動時遞增——
 /// 與 app／CLI 的發版號無關；`assets.lock` 鎖定測試把這條紀律變成紅燈。
-pub const ASSET_VERSION: &str = "v1.62.0";
+pub const ASSET_VERSION: &str = "v1.63.0";
 
 const APP_CONFIG_TEMPLATE: &str = concat!(
     "# Speclink application config
@@ -341,7 +341,7 @@ fn spec_location(app: &crate::config::AppConfig) -> SpecLocation {
 /// content. This is the only producer of that set — generation, orphan cleanup, the
 /// staleness diff and the guard all read it through [`SyncPlan`].
 ///
-/// Non-Claude targets skip the `claude_only` skills; worktree-gated skills need the policy on.
+/// Non-Claude/non-Agy targets skip `claude_only` skills; worktree-gated skills need the policy on.
 /// `location` is the render's project side (see [`spec_location`]).
 ///
 /// Public for the host kit's HTTP door: a Server answers a skills request with this same
@@ -352,10 +352,9 @@ pub fn managed_skills(
     spec_dir: &str,
     location: SpecLocation,
 ) -> Vec<(String, String)> {
-    let non_claude = !matches!(target, skills::RenderTarget::Builtin(Tool::Claude));
     skills::registry()
         .into_iter()
-        .filter(|s| !(non_claude && s.claude_only))
+        .filter(|s| s.is_supported_by(target))
         .filter(|s| !s.worktree_gated || worktree_on)
         .map(|s| {
             let content = skills::render_skill_file_for(target, &s, spec_dir, location);

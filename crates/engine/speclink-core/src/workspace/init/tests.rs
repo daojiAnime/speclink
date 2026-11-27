@@ -2365,16 +2365,16 @@ fn pi_and_cursor_skills_differ_from_codex_only_by_prefix_and_tool_name() {
 fn builtin_render_differences_match_the_spec_table() {
     // Example「內建工具的渲染差異」逐列：skills 目錄、技能引用寫法、--agent 值、
     // Claude 專用 frontmatter、是否含 analyze。
-    let rows: [(Tool, &str, &str, &str, bool); 6] = [
-        (Tool::Claude, ".claude/skills", "/speclink-apply", "claude", true),
-        (Tool::Codex, ".agents/skills", "$speclink-apply", "codex", false),
-        (Tool::Copilot, ".github/skills", "/speclink-apply", "copilot", false),
-        (Tool::Pi, ".pi/skills", "/skill:speclink-apply", "pi", false),
-        (Tool::Cursor, ".cursor/skills", "/speclink-apply", "cursor", false),
-        (Tool::Agy, ".agents/skills", "/speclink-apply", "agy", false),
+    let rows: [(Tool, &str, &str, &str, bool, bool); 6] = [
+        (Tool::Claude, ".claude/skills", "/speclink-apply", "claude", true, true),
+        (Tool::Codex, ".agents/skills", "$speclink-apply", "codex", false, false),
+        (Tool::Copilot, ".github/skills", "/speclink-apply", "copilot", false, false),
+        (Tool::Pi, ".pi/skills", "/skill:speclink-apply", "pi", false, false),
+        (Tool::Cursor, ".cursor/skills", "/speclink-apply", "cursor", false, false),
+        (Tool::Agy, ".agents/skills", "/speclink-apply", "agy", false, true),
     ];
     assert_eq!(Tool::ALL.to_vec(), rows.map(|r| r.0).to_vec(), "內建工具的固定順序");
-    for (tool, dir, reference, agent, claude) in rows {
+    for (tool, dir, reference, agent, claude, has_analyze) in rows {
         let root = TempRoot::new(&format!("render-table-{agent}"));
         init(&root.dir, &[tool], false, "openspec").unwrap();
 
@@ -2382,17 +2382,18 @@ fn builtin_render_differences_match_the_spec_table() {
         let propose = root.read(&format!("{dir}/speclink-propose/SKILL.md"));
         assert!(propose.contains(reference), "{agent}: 技能引用須寫成 {reference}");
         assert!(propose.contains(&format!("--agent {agent}")), "{agent}: --agent 值");
-        assert_eq!(root.exists(&format!("{dir}/speclink-analyze")), claude, "{agent}: analyze");
+        assert_eq!(root.exists(&format!("{dir}/speclink-analyze")), has_analyze, "{agent}: analyze");
         let drift = root.read(&format!("{dir}/speclink-drift/SKILL.md"));
         assert_eq!(drift.contains("context: fork\nagent: Explore\n"), claude, "{agent}: fork 欄位");
         assert_eq!(drift.contains("disallowedTools"), claude, "{agent}: 唯讀欄位");
+        assert_eq!(propose.contains("## Antigravity (agy) harness adaptation"), tool == Tool::Agy, "{agent}: agy preamble");
     }
 }
 
 #[test]
 fn agy_shares_agents_skills_dir_cleanly_alone_and_with_codex() {
-    // 1. agy alone: renders `/speclink-*` & `--agent agy` under `.agents/skills`, writes no instruction file,
-    //    and update/reconcile do not prune `.agents/skills` on behalf of deselected codex.
+    // 1. agy alone: renders `/speclink-*`, `--agent agy`, agy preamble, and speclink-analyze under `.agents/skills`,
+    //    writes no instruction file, and update/reconcile do not prune `.agents/skills` on behalf of deselected codex.
     let alone = TempRoot::new("agy-alone");
     init(&alone.dir, &[Tool::Agy], false, "openspec").unwrap();
     assert_eq!(Tool::Agy.skills_dir(), ".agents/skills");
@@ -2403,7 +2404,10 @@ fn agy_shares_agents_skills_dir_cleanly_alone_and_with_codex() {
     let propose = alone.read(&propose_skill(Tool::Agy));
     assert!(propose.contains("/speclink-apply"));
     assert!(propose.contains("--agent agy"));
+    assert!(propose.contains("## Antigravity (agy) harness adaptation"));
+    assert!(propose.contains("ask_question"));
     assert!(!propose.contains("$speclink-"));
+    assert!(alone.exists(".agents/skills/speclink-analyze/SKILL.md"));
     let updated = update(&alone.dir, false).expect("update with agy alone succeeds");
     assert!(!updated.pruned.iter().any(|p| p == "codex"), "codex must not prune agy: {updated:?}");
     assert!(alone.exists(&propose_skill(Tool::Agy)));

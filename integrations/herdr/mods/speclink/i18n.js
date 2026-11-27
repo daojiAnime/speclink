@@ -354,7 +354,7 @@ export const TO_EN = {
   "当前标签页的 agent 等待你回答": "The agent in the current tab waits for your answer",
   "当前标签页没有 agent，可改用新建标签页": "The current tab has no agent. You can open a new tab",
   "当前标签页没有 agent": "The current tab has no agent",
-  "{0} 仅支持 Claude Code": "{0} works only in Claude Code",
+  "{0} 仅支持 Claude Code 和 Antigravity": "{0} works only in Claude Code and Antigravity",
   "已有 agent 在处理": "An agent already works on it",
   "需等待 {0} 落地": "Waiting for {0} to land",
   "还有 {0} 个代码任务未完成": "{0} code tasks are not done",

@@ -14,12 +14,29 @@ const STAGES = [
 // repo 對應各階段的數量。內建 spaces 的 git 資訊裡，repo 是 JSON.stringify([機器, .git 資料夾])。
 const counts = new Map();
 
+// 把 .git 或 submodule 的 .git/modules/<name> 解析为实际项目根目录。
+async function repoRoot(gitDir, on) {
+  const dir = (gitDir ?? "").trim().replace(/\/+$/, "");
+  if (dir.endsWith("/.git")) return dir.slice(0, -"/.git".length) || "/";
+  const wt = await exec("git", ["config", "--file", `${dir}/config`, "--get", "core.worktree"], { on }).catch(() => null);
+  const rel = wt?.code === 0 ? wt.stdout.trim() : "";
+  if (!rel) return dir;
+  const stack = [];
+  for (const part of (rel.startsWith("/") ? rel : `${dir}/${rel}`).split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") stack.pop();
+    else stack.push(part);
+  }
+  return `/${stack.join("/")}`;
+}
+
 async function look(view, cx) {
   const repos = new Set(Object.values(view.git).map((g) => g?.repo).filter(Boolean));
   for (const repo of repos) {
     const [on, gitDir] = JSON.parse(repo);
     // 沒有 Speclink 的專案和連不上的機器都當成沒有徽章。
-    const r = await exec("speclink", ["plan", "--json"], { cwd: gitDir.replace(/\/\.git$/, ""), on }).catch(() => null);
+    const root = await repoRoot(gitDir, on);
+    const r = await exec("speclink", ["plan", "--json"], { cwd: root, on }).catch(() => null);
     const changes = r?.code === 0 ? JSON.parse(r.stdout).changes : [];
     const now = STAGES.map((s) => changes.filter((c) => c.stage === s.id).length);
     if (String(counts.get(repo)) !== String(now)) {

@@ -84,7 +84,8 @@ fn renderings(location: SpecLocation) -> Vec<Rendering> {
     for skill in skills::registry() {
         let forms = [
             ("claude", RenderTarget::Builtin(Tool::Claude), true),
-            ("tool-call", RenderTarget::Custom(&harness), !skill.claude_only),
+            ("agy", RenderTarget::Builtin(Tool::Agy), skill.is_supported_by(RenderTarget::Builtin(Tool::Agy))),
+            ("tool-call", RenderTarget::Custom(&harness), skill.is_supported_by(RenderTarget::Custom(&harness))),
         ];
         for (form, target, generated) in forms {
             if generated {

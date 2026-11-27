@@ -16,11 +16,11 @@ import {
   joinAgents,
   missingSkillsPlan,
   newTabPlan,
-  onlyClaude,
   pickerGroups,
   pickerStep,
   placePlan,
   skillTargets,
+  skillUnsupported,
   usableAgents,
 } from "./model.js";
 import { tr } from "./i18n.js";
@@ -345,7 +345,7 @@ export default class SkillPicker {
             .text_size(12)
             .cursor_pointer()
             // discuss、propose 没有讨论也能打字开工，只有搭配变更的技能才真的不可用。
-            .when((count === 0 && w.pair === "变更") || onlyClaude(w.skill, this.agentKey), (el) => el.text_color(t.dim))
+            .when((count === 0 && w.pair === "变更") || skillUnsupported(w.skill, this.agentKey), (el) => el.text_color(t.dim))
             .when(w.skill === current, (el) => el.bg(t.selected).font_medium())
             .when(w.skill !== current, (el) => el.hover((s) => s.bg(t.hover)))
             .on_click((_e, cx) => {

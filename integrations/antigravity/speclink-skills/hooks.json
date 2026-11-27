@@ -1,0 +1,31 @@
+{
+  "speclink-herdr-sync": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node ./scripts/herdr-label.mjs",
+        "timeout": 5
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node ./scripts/herdr-label.mjs",
+        "timeout": 5
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./scripts/herdr-label.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

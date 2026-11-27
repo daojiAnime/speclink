@@ -1,7 +1,7 @@
 // 面板和技能跳窗共用的 Herdr 小工具。
 import { exec, focused, hc, panes, run, spaces } from "herdr";
 import { tr } from "./i18n.js";
-import { hasSpeclinkSkills, inside, parseStations, pluginFolders, skillEntries, skillFolders, stampedPaths } from "./model.js";
+import { agyPluginFolders, hasSpeclinkSkills, inside, parseStations, pluginFolders, resolveGitRoot, skillEntries, skillFolders, stampedPaths } from "./model.js";
 
 export const firstLine = (text) => text.trim().split("\n")[0];
 
@@ -21,10 +21,18 @@ export function location() {
   };
 }
 
-// 主資料夾：在 worktree 裡也要回到主 checkout，變更清單才完整。
+// 主文件夹：在 worktree 里也要回到主 checkout，变更清单才完整；兼容 git submodule（common dir 不以 /.git 结尾）。
 export async function projectRoot(cwd, on) {
   const r = await exec("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd, on });
-  return r.code === 0 ? r.stdout.trim().replace(/\/\.git\/?$/, "") : cwd;
+  if (r.code !== 0) return cwd;
+  const commonDir = r.stdout.trim();
+  const direct = resolveGitRoot(commonDir);
+  if (direct) return direct;
+  const wt = await exec("git", ["config", "--file", `${commonDir}/config`, "--get", "core.worktree"], { cwd, on }).catch(() => null);
+  const resolved = wt?.code === 0 ? resolveGitRoot(commonDir, wt.stdout.trim()) : null;
+  if (resolved) return resolved;
+  const top = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on }).catch(() => null);
+  return top?.code === 0 ? top.stdout.trim() : cwd;
 }
 
 // 新分頁開在已經待在這個資料夾的 space，目前的 space 優先。
@@ -188,6 +196,26 @@ export async function readSkills(key, root, on) {
     const paths = ["$HOME/.claude/settings.json", ".claude/settings.json", ".claude/settings.local.json"];
     const [installed, ...settings] = await Promise.all(["$HOME/.claude/plugins/installed_plugins.json", ...paths].map((path) => readJson(path, options)));
     folders.push(...pluginFolders(installed, settings, root));
+  } else if (key === "antigravity") {
+    const [pluginOut, wsOut] = await Promise.all([
+      exec("agy", ["plugin", "list", "--json"], options).catch(() => null),
+      exec("sh", ["-c", 'for d in .agents/plugins/*; do [ -d "$d/skills" ] && basename "$d"; done'], options).catch(() => null),
+    ]);
+    let installed = null;
+    try {
+      if (pluginOut?.code === 0) installed = JSON.parse(pluginOut.stdout);
+    } catch {
+      installed = null;
+    }
+    const workspacePlugins =
+      wsOut?.code === 0
+        ? wsOut.stdout
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((name) => ({ name, enabled: true, workspace: true, path: `.agents/plugins/${name}` }))
+        : [];
+    folders.push(...agyPluginFolders(installed, workspacePlugins));
   }
   const specs = folders.map(({ source, prefix, dir }) => `${source}\t${prefix}\t${dir}`);
   const r = await exec("perl", ["-MJSON::PP", "-e", READ_SKILLS, "--", ...specs], options);

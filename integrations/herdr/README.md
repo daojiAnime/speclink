@@ -142,6 +142,30 @@
 { "extensions": ["/Users/you/.config/herdr-app/mods/speclink/pi-labels.ts"] }
 ```
 
+**Antigravity（`agy`）：** 建議直接安裝本倉庫隨附的外掛（會一併載入只讀 review/verify/audit 子代理、glob 規則與 Herdr 標籤 hook）：
+
+```bash
+agy plugin install ./integrations/antigravity/speclink-skills
+```
+
+或手動在 `~/.gemini/config/hooks.json`（全域）或專案的 `.agents/hooks.json` 加上這段（注意 Antigravity 需以 hook 名稱當作外層鍵名，並回傳 JSON）：
+
+```json
+{
+  "speclink-herdr-sync": {
+    "enabled": true,
+    "SessionStart": [{ "type": "command", "command": "node /path/to/speclink/integrations/antigravity/speclink-skills/scripts/herdr-label.mjs", "timeout": 5 }],
+    "PreInvocation": [{ "type": "command", "command": "node /path/to/speclink/integrations/antigravity/speclink-skills/scripts/herdr-label.mjs", "timeout": 5 }],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [{ "type": "command", "command": "node /path/to/speclink/integrations/antigravity/speclink-skills/scripts/herdr-label.mjs", "timeout": 5 }]
+      }
+    ]
+  }
+}
+```
+
 ### 技能會送給誰
 
 依序找，找到就停：
@@ -156,7 +180,7 @@ agent 在做事、在等你回答或出錯時不送，按鈕變灰，滑鼠停�
 
 列上的鈕一定照這個順序。變更有停著的 agent 時，要讓它在新分頁跑，請用頂端的「技能」鈕。
 
-Claude Code、GitHub Copilot 與 Cursor 送 `/speclink-<技能>`，Codex 送 `$speclink-<技能>`，Pi 送 `/skill:speclink-<技能>`。Pi 用 `speclink init --tools pi` 產生的 `.pi/skills`，Cursor 用 `speclink init --tools cursor` 產生的 `.cursor/skills`。專案只有 Codex 的 `.agents/skills` 時，Pi 也讀得到，但那一份寫的是 `$speclink-`，建議改勾 pi。Cursor 也讀 `.claude/skills` 與 `.agents/skills`：專案只有 Claude 或 Codex 的技能時，面板判定 Cursor 有技能、不提示 `--tools cursor`，但 Cursor 用的是 Claude 或 Codex 版（記成 `--agent claude`，或寫 `$speclink-`），建議改勾 cursor。面板不為 Cursor 追蹤標籤：Claude Code 和 Codex 靠 hook，Pi 靠 extension，Cursor 沒有接上的機制，面板只把技能送給它。analyze 只有 Claude Code 有，送給其他 agent 時不顯示。其他 agent 沒有 speclink 技能，不會當送達對象。
+Claude Code、GitHub Copilot、Cursor 與 Antigravity（`agy`）送 `/speclink-<技能>`，Codex 送 `$speclink-<技能>`，Pi 送 `/skill:speclink-<技能>`。Pi 用 `speclink init --tools pi` 產生的 `.pi/skills`，Cursor 用 `speclink init --tools cursor` 產生的 `.cursor/skills`，Antigravity 用 `speclink init --tools agy` 產生的 `.agents/skills`。專案只有 Codex 的 `.agents/skills` 時，Pi 與 Antigravity 也讀得到，但那一份寫的是 `$speclink-`，建議改勾 pi 或 agy。Cursor 也讀 `.claude/skills` 與 `.agents/skills`：專案只有 Claude 或 Codex 的技能時，面板判定 Cursor 有技能、不提示 `--tools cursor`，但 Cursor 用的是 Claude 或 Codex 版（記成 `--agent claude`，或寫 `$speclink-`），建議改勾 cursor。面板不為 Cursor 追蹤標籤：Claude Code、Codex 與 Antigravity 靠 hook，Pi 靠 extension，Cursor 沒有接上的機制，面板只把技能送給它。analyze 支援 Claude Code 與 Antigravity，送給其他 agent 時不顯示。其他 agent 沒有 speclink 技能，不會當送達對象。
 
 ### 開工
 
@@ -204,13 +228,13 @@ Claude Code、GitHub Copilot 與 Cursor 送 `/speclink-<技能>`，Codex 送 `$s
 
 **我的技能頁：** 列出你自己裝的技能，選中的列展開完整說明。這些技能不搭配變更，所以只有一個「補充說明」，會接在指令後面。
 
-- **列哪些**：Claude Code 是專案的 `.claude/skills`、`~/.claude/skills` 和已啟用外掛的技能；Codex 是專案的 `.agents/skills`、`~/.agents/skills`、`~/.codex/skills`；Pi 是專案的 `.pi/skills`、`.agents/skills`、`~/.pi/agent/skills`、`~/.agents/skills`；Cursor 是專案的 `.cursor/skills`、`.agents/skills`、`.claude/skills`、`.codex/skills`、`~/.cursor/skills`、`~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`；Antigravity（`agy`）是專案的 `.agents/skills`、`_agents/skills`、`~/.gemini/config/skills`、`~/.agents/skills`。
+- **列哪些**：Claude Code 是專案的 `.claude/skills`、`~/.claude/skills` 和已啟用外掛的技能；Codex 是專案的 `.agents/skills`、`~/.agents/skills`、`~/.codex/skills`；Pi 是專案的 `.pi/skills`、`.agents/skills`、`~/.pi/agent/skills`、`~/.agents/skills`；Cursor 是專案的 `.cursor/skills`、`.agents/skills`、`.claude/skills`、`.codex/skills`、`~/.cursor/skills`、`~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`；Antigravity（`agy`）是專案的 `.agents/skills`、`.agent/skills`、`~/.gemini/config/skills`、`~/.agents/skills`、`~/.gemini/antigravity-cli/skills`、`~/.gemini/skills`，以及工作區 `.agents/plugins/` 與 `agy plugin list` 中已啟用外掛的技能。
 - **不列哪些**：`speclink-*`（在另一頁）、agent 內建的技能、Anthropic 同步來的 `~/.claude/skills/synced`、`~/.codex/skills/.system`、標記 `user-invocable: false` 的技能。
 - **分組**：依名稱猜用途，分成開發、設計、提交與發版、影片、動畫、3D、內容、工具、其他，每組有自己的顏色。每一列右邊標來源（專案、個人、外掛）。
 - **系列**：同一組裡三個以上開頭相同的技能收成一列，例如 `gsap`，點開才列出來。一組超過 12 列時，整組預設收合。
 - **搜尋**：上面的搜尋框比對名稱和說明，有字時全部攤開。`→` 移到補充說明，`←` 移回來。
 
-**給哪個 agent：** 跳窗打開時預設目前分頁的 agent，再來是上次選的，最後是最常用的。你選的 agent 也會用在面板列上的鈕要開新分頁時。「放到輸入框」只能給目前分頁的 agent，選了別的 agent 時這顆鈕不能用，因為指令的寫法和技能都對不上。專案沒有這個 agent 用的 Speclink 技能時，Speclink 頁會寫要執行哪一行。analyze 只有 Claude Code 能用，選別的 agent 時會變淡。
+**給哪個 agent：** 跳窗打開時預設目前分頁的 agent，再來是上次選的，最後是最常用的。你選的 agent 也會用在面板列上的鈕要開新分頁時。「放到輸入框」只能給目前分頁的 agent，選了別的 agent 時這顆鈕不能用，因為指令的寫法和技能都對不上。專案沒有這個 agent 用的 Speclink 技能時，Speclink 頁會寫要執行哪一行。analyze 只支援 Claude Code 與 Antigravity，選別的 agent 時會變淡。
 
 ### 叫 Speclink 開頁面
 

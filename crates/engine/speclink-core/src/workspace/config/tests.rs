@@ -1847,8 +1847,14 @@ fn subagent_model_unknown_top_level_keys_stay_ignored() {
 }
 
 #[test]
-fn builtin_subagent_models_list_only_the_claude_short_names() {
-    assert_eq!(BUILTIN_SUBAGENT_MODELS, &[("claude", &["sonnet", "opus", "haiku", "fable"][..])]);
+fn builtin_subagent_models_list_claude_and_agy_tiers() {
+    assert_eq!(
+        BUILTIN_SUBAGENT_MODELS,
+        &[
+            ("claude", &["sonnet", "opus", "haiku", "fable"][..]),
+            ("agy", &["inherit", "pro", "flash", "flash_lite"][..]),
+        ]
+    );
 }
 
 #[test]

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "speclink-skills",
+  "displayName": "Speclink for Antigravity",
+  "version": "0.2.0",
+  "description": "Native Antigravity (agy) enhancement plugin for Speclink: read-only review/verify/audit subagents, Herdr tab label and focus hooks, glob-scoped workflow rules, and statusline focus helpers.",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "daoji",
+    "url": "https://github.com/daojiAnime/speclink"
+  },
+  "homepage": "https://github.com/daojiAnime/speclink/tree/main/integrations/antigravity/speclink-skills",
+  "repository": "https://github.com/daojiAnime/speclink",
+  "license": "MIT",
+  "keywords": ["speclink", "spec-driven", "herdr", "review", "verify"],
+  "suggestedPrompts": [
+    "/speclink-propose",
+    "/speclink-apply",
+    "/speclink-quality"
+  ]
+}

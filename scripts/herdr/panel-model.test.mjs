@@ -13,6 +13,7 @@ import {
   PICKER_SKILLS,
   PICKER_VARIANTS,
   SKILL_GROUPS,
+  agyPluginFolders,
   customPlacePlan,
   customTabPlan,
   defaultAgent,
@@ -25,6 +26,7 @@ import {
   skillEntries,
   skillFolders,
   skillRows,
+  skillUnsupported,
   skillUse,
   usableAgents,
   attachPlan,
@@ -53,6 +55,7 @@ import {
   parseStations,
   placePlan,
   planDelivery,
+  resolveGitRoot,
   rowChoices,
   sendArgs,
   commandLabels,
@@ -1156,6 +1159,20 @@ test('lastOpenError：全部失敗回傳最後一次有內容的錯誤', async (
   assert.equal(await lastOpenError([URL_ARGS, BRING_UP], exec), 'Unable to find application');
 });
 
+test('resolveGitRoot：普通仓库剥离 /.git，git submodule 通过 core.worktree 回到主目录', () => {
+  assert.equal(resolveGitRoot('/Users/dev/app/.git'), '/Users/dev/app');
+  assert.equal(resolveGitRoot('/Users/dev/app/.git/'), '/Users/dev/app');
+  assert.equal(resolveGitRoot('/Users/dev/super/.git/modules/speclink'), null);
+  assert.equal(
+    resolveGitRoot('/Users/dev/super/.git/modules/speclink', '../../../speclink'),
+    '/Users/dev/super/speclink',
+  );
+  assert.equal(
+    resolveGitRoot('/Users/dev/super/.git/modules/speclink', '/opt/custom/speclink'),
+    '/opt/custom/speclink',
+  );
+});
+
 test('lastOpenError：後一次沒有錯誤訊息時，保留前一次的訊息', async () => {
   const { exec } = fakeExec(NOT_REGISTERED, { code: 1, stderr: '' });
   assert.equal(await lastOpenError([URL_ARGS, BRING_UP], exec), NOT_REGISTERED.stderr);
@@ -1870,12 +1887,14 @@ test('放到輸入框：選的 agent 和目前分頁不同時不放', () => {
   assert.match(other.reason, /Claude Code/);
 });
 
-test('analyze 只有 Claude Code 有', () => {
-  assert.equal(onlyClaude('analyze', 'claude'), false);
-  assert.equal(onlyClaude('analyze', 'pi'), true);
-  assert.equal(onlyClaude('apply', 'pi'), false);
-  assert.equal(onlyClaude('analyze', 'cursor'), true);
-  assert.equal(onlyClaude('analyze', 'antigravity'), true);
+test('analyze 支援 Claude Code 與 Antigravity，其餘 agent 不顯示', () => {
+  assert.equal(skillUnsupported('analyze', 'claude'), false);
+  assert.equal(skillUnsupported('analyze', 'antigravity'), false);
+  assert.equal(onlyClaude('analyze', 'antigravity'), false);
+  assert.equal(skillUnsupported('analyze', 'pi'), true);
+  assert.equal(skillUnsupported('apply', 'pi'), false);
+  assert.equal(skillUnsupported('analyze', 'cursor'), true);
+  assert.equal(skillUnsupported('analyze', 'codex'), true);
 });
 
 test('專案沒有這個 agent 的技能時，說明要怎麼裝；Pi 和 Cursor 各有自己的工具名', () => {
@@ -2004,11 +2023,30 @@ test('每個 agent 讀自己的資料夾', () => {
   ]);
   assert.deepEqual(dirs('antigravity'), [
     '.agents/skills',
-    '_agents/skills',
+    '.agent/skills',
     '~/.gemini/config/skills',
     '~/.agents/skills',
+    '~/.gemini/antigravity-cli/skills',
+    '~/.gemini/skills',
   ]);
   assert.deepEqual(dirs('opencode'), []);
+});
+
+test('Antigravity 外掛：只算已啟用且含技能的外掛、兼顧工作區外掛並去重', () => {
+  const installed = [
+    { name: 'agy-callback-mcp', enabled: true, path: '/home/u/.gemini/config/plugins/agy-callback-mcp', skills: ['cb'] },
+    { name: 'disabled-p', enabled: false, path: '/home/u/.gemini/config/plugins/disabled-p', skills: ['x'] },
+    { name: 'no-skills', enabled: true, path: '/home/u/.gemini/config/plugins/no-skills', skills: [] },
+  ];
+  const workspace = [
+    { name: 'local-p', enabled: true, workspace: true, path: '.agents/plugins/local-p' },
+    { name: 'agy-callback-mcp', enabled: true, path: '/home/u/.gemini/config/plugins/agy-callback-mcp', skills: ['cb'] },
+  ];
+  assert.deepEqual(agyPluginFolders(installed, workspace), [
+    { source: 'plugin', prefix: 'agy-callback-mcp:', dir: '/home/u/.gemini/config/plugins/agy-callback-mcp/skills' },
+    { source: 'plugin', prefix: 'local-p:', dir: '.agents/plugins/local-p/skills' },
+  ]);
+  assert.deepEqual(agyPluginFolders(null, []), []);
 });
 
 test('外掛：只算已啟用的；專案範圍只算這個專案；不掃快取裡的舊版', () => {

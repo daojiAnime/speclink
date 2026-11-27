@@ -104,6 +104,15 @@ pub struct Skill {
     pub body: &'static str,
 }
 
+impl Skill {
+    /// Whether this skill is emitted for `target`. Antigravity (`agy`) unlocks `analyze`
+    /// alongside Claude Code, while Codex/Copilot/Pi/Cursor and custom descriptors keep
+    /// the narrower set.
+    pub fn is_supported_by(&self, target: RenderTarget) -> bool {
+        !self.claude_only || matches!(target, RenderTarget::Builtin(Tool::Claude | Tool::Agy))
+    }
+}
+
 // Embedded bodies.
 const B_ANALYZE: &str = include_str!("../../assets/skills/analyze.md");
 const B_APPLY: &str = include_str!("../../assets/skills/apply.md");
@@ -466,6 +475,70 @@ The rules in this section take precedence over the shared `{skill_name}` body be
     ))
 }
 
+/// Antigravity (`agy`) harness adaptation preamble: maps Claude-oriented tool references
+/// (`AskUserQuestion`, `Agent tool`, read-only edit guards, plan mode) onto native `agy`
+/// tools (`ask_question`, `invoke_subagent`, `.agents/agents/`, `update_steps`).
+fn agy_context(skill: &Skill) -> String {
+    let mut notes = vec![
+        "- **User prompts**: map **AskUserQuestion tool** instructions to `ask_question` \
+(when `ask_question` is unavailable or restricted by an active collaboration hook/mode, \
+ask as plain text or follow the active pane protocol).",
+    ];
+    if skill.disallow_edit {
+        notes.push(
+            "- **Read-only guarantee**: do not modify workspace source files (`write_to_file`, \
+`replace_file_content`, `multi_replace_file_content`, `edit_file`, `write_file`); run only \
+read-only inspections and the `speclink` CLI verbs this skill requires.",
+        );
+    }
+    if matches!(skill.name, "analyze" | "drift" | "trace") {
+        notes.push(
+            "- **Isolated read sweep**: execute inline without editing project files; if a clean \
+parallel read pass helps, spawn `invoke_subagent` with `TypeName: \"research\"`.",
+        );
+    }
+    match skill.name {
+        "audit" => notes.push(
+            "- **Parallel sub-agents**: launch all adversary lenses in parallel with \
+`invoke_subagent` (preferring `.agents/agents/speclink-auditor` when available, otherwise \
+`TypeName: \"research\"` or `\"self\"` with strict read-only prompts) and wait via Reactive \
+Wakeup rather than polling.",
+        ),
+        "review" => notes.push(
+            "- **Checking sub-agents**: map `Agent tool` to parallel `invoke_subagent` calls \
+(preferring `.agents/agents/speclink-reviewer` when available, otherwise `TypeName: \"research\"` \
+or `\"self\"` with strict read-only prompts). Map `subagentModel.review.agy` to \
+`invoke_subagent`'s `Model` tier (`inherit`, `pro`, `flash`, `flash_lite`; default `inherit` when unset).",
+        ),
+        "verify" => notes.push(
+            "- **Checking sub-agent**: map `Agent tool` to one read-only `invoke_subagent` call \
+(preferring `.agents/agents/speclink-verifier` when available, otherwise `TypeName: \"research\"` \
+or `\"self\"` with strict read-only prompts). Map `subagentModel.verify.agy` to \
+`invoke_subagent`'s `Model` tier (`inherit`, `pro`, `flash`, `flash_lite`; default `inherit` when unset).",
+        ),
+        "quality" => notes.push(
+            "- **Parallel stations**: send the review Standards, review Correctness, and verify \
+`invoke_subagent` calls (preferring `.agents/agents/speclink-reviewer` and `speclink-verifier` \
+when available, otherwise `research` / `self`) in one turn and wait via Reactive Wakeup, mapping \
+`subagentModel.<station>.agy` to `Model` tiers (`inherit`, `pro`, `flash`, `flash_lite`).",
+        ),
+        "propose" | "ingest" => notes.push(
+            "- **Plan mode input**: when running under `agy --mode=plan` or `/plan`, treat any \
+active plan Markdown file referenced in conversation or sandbox context as the plan source \
+instead of expecting a fixed plan directory.",
+        ),
+        "apply" | "apply-with-worktree" => notes.push(
+            "- **Live progress HUD**: you may mirror task checklist progress read-only into `agy`'s \
+`update_steps` HUD while keeping `tasks.md` (`speclink task done`) as the single source of truth.",
+        ),
+        _ => {}
+    }
+    format!(
+        "## Antigravity (agy) harness adaptation\n\n{}\n\n---\n\n",
+        notes.join("\n")
+    )
+}
+
 /// The invocation preamble that tells a custom harness how `speclink <verb>` references in
 /// the body are meant to be executed — and that `speclink-<name>` is not one of them: the
 /// body names another skill that way, and a skill sent as a verb either fails or, where a
@@ -622,13 +695,15 @@ pub fn render_skill_file_with_limits(
     fm.push_str("  generatedBy: \"Speclink\"\n");
     fm.push_str("---\n\n");
     match target {
-        RenderTarget::Builtin(_) => {
-            if claude && skill.fork {
+        RenderTarget::Builtin(Tool::Claude) => {
+            if skill.fork {
                 if let Some(preamble) = fork_context(skill.name) {
                     fm.push_str(&preamble);
                 }
             }
         }
+        RenderTarget::Builtin(Tool::Agy) => fm.push_str(&agy_context(skill)),
+        RenderTarget::Builtin(_) => {}
         RenderTarget::Custom(custom) => fm.push_str(invocation_note(custom.invocation)),
     }
     if let Some(note) = harness_limits_note(limits, subs.slash_replacement) {
@@ -942,6 +1017,13 @@ mod tests {
         let tool_call = CustomTool { invocation: Invocation::ToolCall, ..custom_target() };
 
         let claude_fork = render_skill_file_for(RenderTarget::Builtin(Tool::Claude), drift, "openspec", SpecLocation::InCheckout);
+        let agy_apply = render_skill_file_for(RenderTarget::Builtin(Tool::Agy), apply, "openspec", SpecLocation::InCheckout);
+        let agy_review = render_skill_file_for(
+            RenderTarget::Builtin(Tool::Agy),
+            reg.iter().find(|s| s.name == "review").unwrap(),
+            "openspec",
+            SpecLocation::InCheckout,
+        );
         let codex = render_skill_file_for(RenderTarget::Builtin(Tool::Codex), apply, "openspec", SpecLocation::InCheckout);
         let custom_cli = render_skill_file_for(RenderTarget::Custom(&cli), apply, "openspec", SpecLocation::InCheckout);
         let custom_tool_call =
@@ -949,6 +1031,7 @@ mod tests {
 
         for (label, rendered) in [
             ("claude/drift", &claude_fork),
+            ("agy/apply", &agy_apply),
             ("codex/apply", &codex),
             ("custom-cli/apply", &custom_cli),
             ("custom-tool-call/apply", &custom_tool_call),
@@ -966,6 +1049,14 @@ mod tests {
             claude_fork.contains("## Claude fork context"),
             "the Claude render of a fork skill carries the fork preamble"
         );
+        assert!(
+            agy_apply.contains("## Antigravity (agy) harness adaptation") && agy_apply.contains("update_steps"),
+            "the Agy render carries the Antigravity preamble"
+        );
+        assert!(
+            agy_review.contains("invoke_subagent") && agy_review.contains("subagentModel.review.agy"),
+            "the Agy review skill maps Agent tool and subagentModel.review.agy to invoke_subagent"
+        );
         for (label, rendered) in [
             ("codex/apply", &codex),
             ("custom-cli/apply", &custom_cli),
@@ -975,9 +1066,13 @@ mod tests {
                 !rendered.contains("## Claude fork context"),
                 "{label} must not carry the Claude-only fork preamble"
             );
+            assert!(
+                !rendered.contains("## Antigravity (agy) harness adaptation"),
+                "{label} must not carry the Antigravity preamble"
+            );
         }
 
-        for (label, rendered) in [("claude/drift", &claude_fork), ("codex/apply", &codex)] {
+        for (label, rendered) in [("claude/drift", &claude_fork), ("agy/apply", &agy_apply), ("codex/apply", &codex)] {
             assert!(
                 !rendered.contains("## Invocation"),
                 "{label} is a built-in render — no invocation preamble"

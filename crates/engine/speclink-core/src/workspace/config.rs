@@ -383,10 +383,13 @@ pub struct SubagentModelConfig {
     pub choices: BTreeMap<ToolName, Vec<String>>,
 }
 
-/// The engine's built-in sub-agent model lists. Only Claude Code has one: its
-/// Agent tool takes these four short names, which carry no version and never go
-/// stale. Every other tool's names carry versions, so they live in `choices`.
-pub const BUILTIN_SUBAGENT_MODELS: &[(&str, &[&str])] = &[("claude", &["sonnet", "opus", "haiku", "fable"])];
+/// The engine's built-in sub-agent model lists. Claude Code's Agent tool takes
+/// short names without versions, while Antigravity (`agy`) takes fixed `invoke_subagent`
+/// model tiers. Tools whose names carry versions live in `choices`.
+pub const BUILTIN_SUBAGENT_MODELS: &[(&str, &[&str])] = &[
+    ("claude", &["sonnet", "opus", "haiku", "fable"]),
+    ("agy", &["inherit", "pro", "flash", "flash_lite"]),
+];
 
 /// An AI tool name in `subagent_model`: kebab-case, the tool descriptor's rule.
 /// [`ToolName::parse`] is the only way to build one, so every key the block holds —
