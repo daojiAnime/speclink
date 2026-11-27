@@ -106,8 +106,9 @@ pub struct Skill {
     pub fork: bool,
     /// Whether to add `disallowedTools: [Edit, Write]` — Claude frontmatter only.
     pub disallow_edit: bool,
-    /// Generated for Claude only. Every other target (codex, copilot, pi, cursor and
-    /// custom descriptors) gets the rest of the registry.
+    /// Restricted to sub-agent/fork-capable built-in harnesses (`claude`, `agy`, `omp` — see
+    /// [`Skill::is_supported_by`]). Kept named `claude_only` for public-field backward
+    /// compatibility; other built-in targets and custom descriptors skip it.
     pub claude_only: bool,
     /// Generated only when the workflow config's `worktree` policy is on. The registry
     /// itself stays complete regardless — the gate applies to the GENERATION set, so
@@ -559,60 +560,73 @@ instead of expecting a fixed plan directory.",
 /// in the shared skill bodies onto oh-my-pi's native tools (`ask`, `task`, `scout`, `reviewer`,
 /// `security-reviewer`, `edit`/`write`/`ast_edit`, `todo`, `local://<slug>-plan.md`).
 fn omp_context(skill: &Skill) -> String {
+    const OMP_MODEL_ROLES: &str = "`@default`, `@slow`, `@smol`, `@task`, `@plan`";
+
     let mut notes = vec![
         "- **User prompts**: map **AskUserQuestion tool** instructions to `ask` \
-(when `ask` is unavailable, ask as plain text and wait for the user's reply).",
+(when `ask` is unavailable, ask as plain text and wait for the user's reply)."
+            .to_string(),
     ];
     if skill.disallow_edit {
         notes.push(
             "- **Read-only guarantee**: do not modify workspace source files (`edit`, `write`, \
-`ast_edit`); run only read-only inspections and the `speclink` CLI verbs this skill requires.",
+`ast_edit`); run only read-only inspections and the `speclink` CLI verbs this skill requires."
+                .to_string(),
         );
     }
     if matches!(skill.name, "analyze" | "drift" | "trace") {
         notes.push(
             "- **Isolated read sweep**: execute without editing project files; when a parallel \
-read-only sweep helps, dispatch `scout` sub-agents via the `task` tool.",
+read-only sweep helps, dispatch `scout` sub-agents via the `task` tool."
+                .to_string(),
         );
     }
     match skill.name {
         "audit" => notes.push(
             "- **Parallel sub-agents**: launch all adversary lenses concurrently with the `task` \
 tool's batch dispatch (preferring `security-reviewer` or read-only `scout` agents, or custom \
-read-only agents under `.omp/agents/`).",
+read-only agents under `.omp/agents/`)."
+                .to_string(),
         ),
-        "review" => notes.push(
+        "review" => notes.push(format!(
             "- **Checking sub-agents**: map `Agent tool` to parallel `task` tool calls for the \
 Standards and Correctness checks (preferring `reviewer`, read-only `scout`, or custom read-only \
-agents under `.omp/agents/`). Honor `subagentModel.review.omp` (model role aliases `@default`, \
-`@slow`, `@smol`, `@task`, `@plan`, or custom agent configuration under `.omp/agents/`).",
-        ),
-        "verify" => notes.push(
+agents under `.omp/agents/`). Honor `subagentModel.review.omp` (model role aliases \
+{OMP_MODEL_ROLES}, or custom agent configuration under `.omp/agents/`)."
+        )),
+        "verify" => notes.push(format!(
             "- **Checking sub-agent**: map `Agent tool` to one read-only `task` tool call \
 (preferring `reviewer`, `scout`, a read-only-constrained `task` agent, or a custom read-only \
-agent under `.omp/agents/`). Honor `subagentModel.verify.omp` (model role aliases `@default`, \
-`@slow`, `@smol`, `@task`, `@plan`, or custom agent configuration under `.omp/agents/`).",
-        ),
-        "quality" => notes.push(
+agent under `.omp/agents/`). Honor `subagentModel.verify.omp` (model role aliases \
+{OMP_MODEL_ROLES}, or custom agent configuration under `.omp/agents/`)."
+        )),
+        "quality" => notes.push(format!(
             "- **Parallel stations**: dispatch the review Standards, review Correctness, and \
 verify checks in one turn via the `task` tool (preferring `reviewer`, read-only `scout`, or \
 custom read-only agents under `.omp/agents/`), mapping `subagentModel.<station>.omp` to model \
-role aliases (`@default`, `@slow`, `@smol`, `@task`, `@plan`) or custom agents.",
-        ),
+role aliases ({OMP_MODEL_ROLES}) or custom agents."
+        )),
         "propose" | "ingest" => notes.push(
             "- **Plan mode input**: when running in oh-my-pi plan mode, treat any \
-`local://<slug>-plan.md` plan file referenced in conversation as the plan source instead of \
-expecting a fixed plan directory.",
+`local://<slug>-plan.md` plan file referenced in conversation as the plan source; skip any \
+fixed plan-directory scan or empty-prefix path prepending (`\"\"` / `<name>.md`) in the shared \
+body below."
+                .to_string(),
         ),
         "apply" | "apply-with-worktree" => notes.push(
-            "- **Live progress HUD**: you may mirror task checklist progress read-only into \
-oh-my-pi's `todo` tool while keeping `tasks.md` (`speclink task done`) as the single source \
-of truth.",
+            "- **Live progress HUD**: this overrides the shared body's prohibition on a built-in \
+todo tool — you may mirror task checklist progress read-only into oh-my-pi's `todo` tool while \
+keeping `tasks.md` (`speclink task done`) as the single source of truth."
+                .to_string(),
         ),
         _ => {}
     }
     format!(
-        "## oh-my-pi (omp) harness adaptation\n\n{}\n\n---\n\n",
+        "## oh-my-pi (omp) harness adaptation\n\n\
+When this section conflicts with generic wording in the shared skill body below (such as tool \
+names, empty plan-directory references, or built-in tracker prohibitions), this section takes \
+precedence.\n\n\
+{}\n\n---\n\n",
         notes.join("\n")
     )
 }
@@ -917,7 +931,9 @@ mod tests {
         assert!(!omp_analyze.contains("disallowedTools"));
 
         let omp_propose = render_skill_file_for(RenderTarget::Builtin(Tool::Omp), propose, "speclink", SpecLocation::InCheckout);
+        assert!(omp_propose.contains("this section takes precedence"));
         assert!(omp_propose.contains("local://<slug>-plan.md"));
+        assert!(omp_propose.contains("skip any fixed plan-directory scan"));
         assert!(omp_propose.contains("/skill:speclink-apply"));
         assert!(omp_propose.contains("--agent omp"));
         assert!(!omp_propose.contains("$speclink-"));
@@ -930,6 +946,7 @@ mod tests {
         assert!(omp_audit.contains("security-reviewer"));
 
         let omp_apply = render_skill_file_for(RenderTarget::Builtin(Tool::Omp), apply, "speclink", SpecLocation::InCheckout);
+        assert!(omp_apply.contains("overrides the shared body's prohibition on a built-in todo tool"));
         assert!(omp_apply.contains("`todo`"));
     }
 

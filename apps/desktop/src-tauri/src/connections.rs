@@ -847,8 +847,9 @@ mod checkout_tests {
 
     #[test]
     fn bind_claude_and_omp_generates_both_skill_sets() {
+        // spec Scenario「勾選 omp 綁定 checkout」。
         let dir = git_checkout();
-        write(dir.path(), ".omp/agents/custom.md", "# custom\n");
+        write(dir.path(), ".omp/rules/team.md", "# team rules\n");
 
         bind(dir.path(), &["claude", "omp"]).expect("new omp binding");
 
@@ -859,7 +860,10 @@ mod checkout_tests {
         ] {
             assert!(exists(dir.path(), skill), "{skill} 須生成");
         }
-        assert_eq!(read(dir.path(), ".omp/agents/custom.md"), "# custom\n");
+        for absent in [".omp/agents", "AGENTS.md", "CLAUDE.md"] {
+            assert!(!exists(dir.path(), absent), "{absent} 不得生成");
+        }
+        assert_eq!(read(dir.path(), ".omp/rules/team.md"), "# team rules\n");
         assert_eq!(
             inspect(dir.path()).expect("re-inspect").tools,
             vec!["claude", "omp"]

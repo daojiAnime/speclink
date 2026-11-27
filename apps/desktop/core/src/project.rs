@@ -1286,13 +1286,16 @@ mod tests {
 
         let fx = FixtureRoot::legacy("adopt-omp");
         fx.write("openspec/specs/auth/spec.md", "## Purpose\n既有規格。\n");
-        fx.write(".omp/agents/custom.md", "# custom\n");
+        fx.write(".omp/rules/team.md", "# team rules\n");
         adopt_project_at(fx.root(), &["omp".into()]).expect("adopt omp ok");
         let ap = fx.root();
         assert!(read(&ap.join(".speclink.yaml")).contains("omp"));
         assert!(ap.join(".omp/skills/speclink-propose/SKILL.md").is_file());
         assert!(ap.join(".omp/skills/speclink-analyze/SKILL.md").is_file());
-        assert_eq!(read(&ap.join(".omp/agents/custom.md")), "# custom\n");
+        assert_eq!(read(&ap.join(".omp/rules/team.md")), "# team rules\n");
+        for absent in ["CLAUDE.md", "AGENTS.md", ".claude", ".agents", ".omp/agents"] {
+            assert!(!ap.join(absent).exists(), "{absent} 不得生成");
+        }
     }
 
     #[test]
