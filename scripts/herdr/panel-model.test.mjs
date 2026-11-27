@@ -1770,11 +1770,11 @@ test('promptLabels：認得疊加的指令', () => {
 test('autoTr：中文系統查對照表，英文系統維持原文', () => {
   try {
     setLang('zh');
-    assert.equal(autoTr('Settings'), '设置');
+    assert.equal(autoTr('Settings'), 'Settings');
     assert.equal(autoTr('Commit'), '提交');
     assert.equal(autoTr('LAYOUT'), '布局');
     setLang('en');
-    assert.equal(autoTr('Settings'), 'Settings');
+    assert.equal(autoTr('Commit'), 'Commit');
     assert.equal(autoTr('7 agents'), '7 agents');
   } finally {
     setLang('zh');
@@ -1824,7 +1824,8 @@ test('translateHerdr：畫面上的字串都查對照表，其他東西原樣傳
   const ui = { div: () => new Fake(), InputState: inputs };
   translateHerdr(ui);
   const element = new Fake();
-  assert.equal(element.child('Settings').got, '设置');
+  assert.equal(element.child('Commit').got, '提交');
+  assert.equal(element.child('Settings').got, 'Settings');
   assert.equal(element.child('add-team-invites').got, 'add-team-invites');
   assert.equal(element.child(3).got, 3);
   const inner = new Fake();
@@ -1837,7 +1838,7 @@ test('translateHerdr：畫面上的字串都查對照表，其他東西原樣傳
   const once = Fake.prototype.child;
   translateHerdr(ui);
   assert.equal(Fake.prototype.child, once);
-  assert.equal(new Fake().child('Settings').got, '设置');
+  assert.equal(new Fake().child('Commit').got, '提交');
 });
 
 test('dock-panel：檔案樹的名稱不會被翻，改不到時不擋停靠', () => {

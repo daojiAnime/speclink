@@ -196,7 +196,6 @@ export const TO_ZH = {
   "Pin to the top": "置顶",
   "No agent status yet. Agents show up here when they report their status. Older versions and agents inside tmux may not.":
     "暂无 agent 上报状态。agent 上报后会显示在这里。旧版本或 tmux 内的 agent 可能不会上报。",
-  Settings: "设置",
   "Add machine": "添加机器",
 };
 
