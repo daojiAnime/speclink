@@ -4,7 +4,7 @@
 // 由 speclink-new 的 mod.json 開啟，main.js 看到 props 的 view 就把畫面交給這裡。
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { agents, checking, closeOverlay, focused, knownAgents, panes, props, setShared, shared, terminals, theme } from "herdr";
+import { agents, checking, closeOverlay, focused, knownAgents, panes, props, terminals, theme } from "herdr";
 import {
   PICKER_ROWS,
   PICKER_SKILLS,
@@ -16,6 +16,7 @@ import {
   joinAgents,
   missingSkillsPlan,
   newTabPlan,
+  pickPreferredAgent,
   pickerGroups,
   pickerStep,
   placePlan,
@@ -25,7 +26,18 @@ import {
 } from "./model.js";
 import { tr } from "./i18n.js";
 import MySkillsPage from "./my-skills.js";
-import { codeRemaining, location, openTabs, placeInInput, projectRoot, sendError, speclinkJson } from "./shared.js";
+import {
+  codeRemaining,
+  loadPreferredAgent,
+  location,
+  openTabs,
+  placeInInput,
+  projectRoot,
+  readProjectTools,
+  savePreferredAgent,
+  sendError,
+  speclinkJson,
+} from "./shared.js";
 
 const STAGE_LABEL = { proposed: "提案中", "in-progress": "进行中", ready: "已就绪" };
 // 颜色和 Claude Code 的技能栏对应。
@@ -42,6 +54,9 @@ export default class SkillPicker {
     this.variants = {};
     this.groupChoices = {};
     this.agentKey = null;
+    this.preferredAgent = loadPreferredAgent();
+    this.projectTools = [];
+    this.settingsCursor = 0;
     this.target = null;
     this.checked = new Set();
     this.board = null;
@@ -105,11 +120,17 @@ export default class SkillPicker {
   // 沒有輸入框時由跳窗本身接按鍵。
   focusKeys() {
     if (this.page === "mine") this.mine.focus();
+    else if (this.page === "settings") this.handle.focus();
     else (this.hasNote() ? this.note : this.handle).focus();
   }
 
   showPage(page) {
     this.page = page;
+    if (page === "settings") {
+      const options = this.settingsOptions();
+      const idx = options.findIndex((o) => o.key === this.preferredAgent);
+      this.settingsCursor = idx >= 0 ? idx : 0;
+    }
     this.focusKeys();
   }
 
@@ -118,14 +139,21 @@ export default class SkillPicker {
     this.on = on;
     cx.spawn(async (cx) => {
       this.root = await projectRoot(cwd, on).catch(() => cwd);
-      this.known = await knownAgents({ on }).catch(() => []);
+      const [known, projectTools] = await Promise.all([
+        knownAgents({ on }).catch(() => []),
+        readProjectTools(this.root, on).catch(() => []),
+      ]);
+      this.known = known;
+      this.projectTools = projectTools;
+      this.preferredAgent = loadPreferredAgent();
       const f = focused();
       this.selectAgent(
         defaultAgent({
           known: this.known,
           agents: joinAgents(agents(), terminals(), panes()),
           focus: { tab: f?.tab, terminal: f?.terminal },
-          preferred: shared("speclink.agent"),
+          preferred: this.preferredAgent,
+          projectTools: this.projectTools,
         }),
         cx,
       );
@@ -165,6 +193,7 @@ export default class SkillPicker {
       agents: joinAgents(agents(), terminals(), panes()),
       known: this.known,
       preferred: this.agentKey,
+      projectTools: this.projectTools,
       worktreePolicy: this.worktreePolicy,
       space: focused()?.space,
       on: this.on,
@@ -576,7 +605,142 @@ export default class SkillPicker {
       .child(label);
   }
 
+  settingsOptions() {
+    const configured = new Set(this.projectTools);
+    const effective = pickPreferredAgent({ known: this.known, preferred: null, projectTools: this.projectTools });
+    return [
+      {
+        key: null,
+        name: tr("自动（优先项目配置）"),
+        detail: effective ? tr("当前自动选用：{0}", effective.name) : tr("未检测到已安装的 agent"),
+        configured: false,
+      },
+      ...usableAgents(this.known).map((a) => ({
+        key: a.key,
+        name: a.name,
+        detail: (a.run ?? []).join(" "),
+        configured: configured.has(a.key),
+      })),
+    ];
+  }
+
+  applyDefaultAgent(key, cx) {
+    this.preferredAgent = key || null;
+    savePreferredAgent(this.preferredAgent);
+    const resolved = pickPreferredAgent({
+      known: this.known,
+      preferred: this.preferredAgent,
+      projectTools: this.projectTools,
+    });
+    if (resolved) this.selectAgent(resolved.key, cx);
+  }
+
+  settingsPage(t) {
+    const options = this.settingsOptions();
+    const active = this.preferredAgent;
+    const toolsText = this.projectTools.length > 0 ? this.projectTools.join(", ") : tr("未在 .speclink.yaml 配置");
+    return v_flex()
+      .id("settings-page")
+      .flex_1()
+      .min_h(0)
+      .p(12)
+      .gap(10)
+      .overflow_y_scrollbar()
+      .child(
+        v_flex()
+          .gap(2)
+          .child(div().text_size(12.5).font_semibold().child(tr("默认启动 Agent")))
+          .child(
+            div()
+              .text_size(11)
+              .text_color(t.muted)
+              .child(tr("点击面板「开工」或新建标签页时默认使用的 agent，修改后立即持久保存。")),
+          ),
+      )
+      .child(
+        v_flex()
+          .gap(3)
+          .children(
+            options.map((opt, idx) => {
+              const selected = opt.key === active;
+              const focusedRow = idx === this.settingsCursor;
+              return h_flex()
+                .id(`default-agent-${opt.key ?? "auto"}`)
+                .flex_none()
+                .px(10)
+                .py(7)
+                .gap(8)
+                .items_center()
+                .rounded(6)
+                .border_1()
+                .border_color(selected ? t.accent : t.border)
+                .cursor_pointer()
+                .when(focusedRow, (el) => el.bg(t.selected))
+                .when(!focusedRow, (el) => el.hover((s) => s.bg(t.hover)))
+                .on_click((_e, cx) => {
+                  this.settingsCursor = idx;
+                  this.applyDefaultAgent(opt.key, cx);
+                  this.focusKeys();
+                  cx.notify();
+                })
+                .child(
+                  div()
+                    .size(14)
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
+                    .border_1()
+                    .border_color(selected ? t.accent : t.border)
+                    .bg(selected ? t.accent : t.background)
+                    .when(selected, (el) => el.child(svg("mods/speclink/icons/check.svg").size(10).text_color(t.background))),
+                )
+                .child(
+                  v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(div().truncate().text_size(12).font_medium().child(opt.name))
+                    .when(Boolean(opt.detail), (el) =>
+                      el.child(div().truncate().text_size(11).text_color(t.muted).child(opt.detail)),
+                    ),
+                )
+                .when(opt.key !== null, (el) =>
+                  el.child(
+                    div()
+                      .flex_none()
+                      .px(6)
+                      .py(1)
+                      .rounded(4)
+                      .bg(opt.configured ? `${t.ansi2}26` : t.raised)
+                      .text_size(10.5)
+                      .text_color(opt.configured ? t.ansi2 : t.dim)
+                      .child(opt.configured ? tr("项目已配置") : tr("未配置")),
+                  ),
+                );
+            }),
+          ),
+      )
+      .child(
+        v_flex()
+          .gap(4)
+          .pt(6)
+          .border_t_1()
+          .border_color(t.border)
+          .child(div().text_size(11.5).font_semibold().text_color(t.muted).child(tr("当前项目")))
+          .child(div().truncate().text_size(11).text_color(t.dim).child(tr("路径：{0}", this.root ?? "-")))
+          .child(div().truncate().text_size(11).text_color(t.dim).child(tr("已配置工具：{0}", toolsText)))
+          .child(
+            div()
+              .text_size(11)
+              .text_color(t.dim)
+              .child(tr("worktree 流程：{0}", this.worktreePolicy ? tr("已开启") : tr("未开启"))),
+          ),
+      );
+  }
+
   hints() {
+    if (this.page === "settings") return tr("↑↓ 选择　⏎ 确认　Tab 切页");
     if (this.page === "mine") return tr("↑↓ 移动　→ 补充说明　Tab 切页");
     const hints = [tr("↑↓ 技能"), tr("←→ 搭配")];
     if (this.canTick()) hints.push(tr("Space 勾选"));
@@ -643,7 +807,19 @@ export default class SkillPicker {
   onKey(e, cx) {
     if (e.key === "escape") return closeOverlay(props().overlay);
     if (e.key === "tab") {
-      this.showPage(this.page === "mine" ? "speclink" : "mine");
+      const order = ["speclink", "mine", "settings"];
+      this.showPage(order[(order.indexOf(this.page) + 1) % order.length]);
+      cx.stop_propagation();
+      cx.notify();
+      return;
+    }
+    if (this.page === "settings") {
+      const options = this.settingsOptions();
+      if (options.length === 0) return;
+      if (e.key === "down") this.settingsCursor = (this.settingsCursor + 1) % options.length;
+      else if (e.key === "up") this.settingsCursor = (this.settingsCursor - 1 + options.length) % options.length;
+      else if (e.key === "enter" || e.key === "space") this.applyDefaultAgent(options[this.settingsCursor].key, cx);
+      else return;
       cx.stop_propagation();
       cx.notify();
       return;
@@ -720,9 +896,10 @@ export default class SkillPicker {
       .border_color(t.border)
       .child(page("speclink", "Speclink"))
       .child(page("mine", tr("我的技能"), this.mine.found()?.skills.length))
+      .child(page("settings", tr("设置")))
       .child(div().flex_1())
       // 只有一个 agent 时没得选。
-      .when(usable.length > 1, (el) =>
+      .when(usable.length > 1 && this.page !== "settings", (el) =>
         el
           .child(div().flex_none().mr(2).text_size(11).text_color(t.dim).child(tr("给")))
           .children(
@@ -734,7 +911,8 @@ export default class SkillPicker {
                   on: a.key === this.agentKey,
                   click: (cx) => {
                     this.selectAgent(a.key, cx);
-                    setShared("speclink.agent", a.key);
+                    this.preferredAgent = a.key;
+                    savePreferredAgent(a.key);
                     this.focusKeys();
                     cx.notify();
                   },
@@ -766,7 +944,24 @@ export default class SkillPicker {
       .text_color(t.foreground)
       .on_key_down((e, cx) => this.onKey(e, cx))
       .child(this.header(t))
-      .child(this.page === "mine" ? this.mine.render(t) : this.speclinkPage(t))
-      .when(this.page === "mine" || !this.uninitialized, (el) => el.child(this.footer(t)));
+      .child(
+        this.page === "settings"
+          ? this.settingsPage(t)
+          : this.page === "mine"
+            ? this.mine.render(t)
+            : this.speclinkPage(t),
+      )
+      .when(this.page === "settings", (el) =>
+        el.child(
+          h_flex()
+            .flex_none()
+            .px(12)
+            .py(8)
+            .border_t_1()
+            .border_color(t.border)
+            .child(div().flex_1().text_size(11).text_color(t.dim).child(this.hints())),
+        ),
+      )
+      .when(this.page === "mine" || (this.page === "speclink" && !this.uninitialized), (el) => el.child(this.footer(t)));
   }
 }

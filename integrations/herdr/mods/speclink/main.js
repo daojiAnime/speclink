@@ -34,12 +34,14 @@ import {
   discussionActions,
   discussionAgents,
   unrecordedDiscussions,
+  formatShortDate,
   isUninitialized,
   joinAgents,
   lastOpenError,
   logoOpenAttempts,
   newTabPlan,
   newTabRun,
+  parseArtifactPreview,
   rowChoices,
   speclinkUrl,
   startChoices,
@@ -50,7 +52,21 @@ import {
 import ColumnSync from "./column-sync.js";
 import { tr, watchLang } from "./i18n.js";
 import SkillPicker from "./skill-picker.js";
-import { codeRemaining, firstLine, location, openTabs, placeInInput, projectRoot, sendError, spaceFor, speclinkJson, stationFacts } from "./shared.js";
+import {
+  codeRemaining,
+  firstLine,
+  loadPreferredAgent,
+  location,
+  openTabs,
+  placeInInput,
+  projectRoot,
+  readChangeArtifact,
+  readProjectTools,
+  sendError,
+  spaceFor,
+  speclinkJson,
+  stationFacts,
+} from "./shared.js";
 
 // 這個 mod 的其他畫面。speclink-new 開跳窗、dock-panel.mjs 放浮動區塊時，用 props 的 view 指定。
 const VIEWS = { "skill-picker": SkillPicker, "column-sync": ColumnSync };
@@ -116,7 +132,12 @@ export default class SpeclinkPanel extends View {
     this.sending = new Set();
     this.starting = new Set();
     this.worktreePolicy = false;
+    this.projectTools = [];
     this.viewMode = "board";
+    this.detailChange = null;
+    this.detailReturnView = "board";
+    this.detailTab = "proposal";
+    this.artifactCache = new Map();
     this.desktopApp = false;
     this.collapsed = new Set(JSON.parse(localStorage.getItem("collapsed") ?? "[]"));
     this.promotedOpen = localStorage.getItem("promotedOpen") === "true";
@@ -196,16 +217,21 @@ export default class SpeclinkPanel extends View {
         if (root !== this.root) {
           this.root = root;
           this.board = null;
+          this.projectTools = [];
+          this.detailChange = null;
+          this.artifactCache.clear();
+          if (this.viewMode === "detail") this.viewMode = "board";
           this.uninitialized = false;
           this.watch(root, on, cx);
         }
         const read = (...verb) => speclinkJson(verb, root, on);
-        const [list, plan, discussions, archived, config] = await Promise.all([
+        const [list, plan, discussions, archived, config, projectTools] = await Promise.all([
           read("list"),
           read("plan"),
           read("discuss", "list"),
           read("discuss", "list", "--archived"),
           read("workflow-config", "show"),
+          readProjectTools(root, on),
         ]);
         const [remaining, facts] = await Promise.all([codeRemaining(list, plan, root, on), stationFacts(list, plan, root, on)]);
         // 封存的討論不上看板，只用來認出做完討論的 agent（見 unrecordedDiscussions）。
@@ -214,6 +240,7 @@ export default class SpeclinkPanel extends View {
           archived: archived.discussions.map((d) => d.slug),
         };
         this.worktreePolicy = config.worktree === true;
+        this.projectTools = projectTools;
         this.error = null;
         this.uninitialized = false;
       } catch (e) {
@@ -271,7 +298,8 @@ export default class SpeclinkPanel extends View {
       on: this.place.on,
       board: this.board,
       known: this.known,
-      preferred: shared("speclink.agent") ?? null,
+      preferred: loadPreferredAgent(),
+      projectTools: this.projectTools,
       worktreePolicy: this.worktreePolicy,
       starting: this.starting,
     };
@@ -667,11 +695,15 @@ export default class SpeclinkPanel extends View {
     const hint = blocked ? tr("等待 {0}", row.blockedBy.join(tr("、"))) : "";
     const percent = row.total > 0 ? Math.round((row.completed / row.total) * 100) : 0;
     const working = changeAgents(row, ctx.agents);
+    const dateTag = formatShortDate(row.created || row.modifiedAt);
     const el = v_flex()
       .id(`change-${row.name}`)
       .px(10)
       .py(8)
       .gap(5)
+      .cursor_pointer()
+      .hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => this.openDetail(row, cx))
       .when(working.some((a) => a.tab === ctx.focus.tab), (el) => this.markCurrent(el, t))
       .child(
         h_flex()
@@ -679,7 +711,7 @@ export default class SpeclinkPanel extends View {
           .items_center()
           .when(blocked, (el) => el.opacity(0.6))
           .child(this.waveNumber(row, t))
-          .child(div().flex_1().min_w_0().truncate().child(row.name))
+          .child(div().flex_1().min_w_0().truncate().font_medium().child(row.name))
           .children(this.stationBadges(row, ctx, t))
           .when(Boolean(row.worktree), (el) =>
             el.child(
@@ -690,11 +722,17 @@ export default class SpeclinkPanel extends View {
                 .child(icon("branch", 12, t.ansi4)),
             ),
           )
+          .when(Boolean(dateTag), (el) =>
+            el.child(div().flex_none().text_size(10.5).text_color(t.dim).child(dateTag)),
+          )
           .when(row.total > 0, (el) =>
             el.child(div().flex_none().text_size(11).text_color(t.muted).child(`${row.completed}/${row.total}`)),
           )
           .child(this.attachButton(`change-${row.name}`, row.name, ctx, t))
           .child(this.copyButton(`change-${row.name}`, row.name, tr("复制名称"), t)),
+      )
+      .when(Boolean(row.summary), (el) =>
+        el.child(div().truncate().text_size(11).text_color(t.muted).child(row.summary)),
       )
       .when(row.total > 0, (el) =>
         el.child(
@@ -709,7 +747,7 @@ export default class SpeclinkPanel extends View {
       )
       .children(working.map((a) => this.agentChip(`change-${row.name}`, a, a.tab === ctx.focus.tab, t)))
       .child(this.skillRow({ id: `change-${row.name}`, actions, start, target: row.name, hint }, t));
-    return this.openOnClick(el, speclinkUrl("change", this.root, row.name), t);
+    return el;
   }
 
   discussionRow(d, ctx, t) {
@@ -960,11 +998,15 @@ export default class SpeclinkPanel extends View {
     if (blocked) hintParts.push(tr("依赖：{0}", row.blockedBy.join(tr("、"))));
     if (row.unlocks?.length > 0) hintParts.push(tr("解锁：{0}", row.unlocks.join(tr("、"))));
     const depLine = hintParts.join(" · ");
+    const dateTag = formatShortDate(row.created || row.modifiedAt);
     const el = v_flex()
       .id(`roadmap-change-${row.name}`)
       .px(10)
       .py(8)
       .gap(5)
+      .cursor_pointer()
+      .hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => this.openDetail(row, cx))
       .when(working.some((a) => a.tab === ctx.focus.tab), (el) => this.markCurrent(el, t))
       .child(
         h_flex()
@@ -972,7 +1014,7 @@ export default class SpeclinkPanel extends View {
           .items_center()
           .when(blocked, (el) => el.opacity(0.65))
           .child(div().w(7).h(7).flex_none().rounded_full().bg(t[stageMeta.tone]))
-          .child(div().flex_1().min_w_0().truncate().child(row.name))
+          .child(div().flex_1().min_w_0().truncate().font_medium().child(row.name))
           .child(
             div()
               .flex_none()
@@ -985,10 +1027,16 @@ export default class SpeclinkPanel extends View {
               .child(tr(stageMeta.label)),
           )
           .children(this.stationBadges(row, ctx, t))
+          .when(Boolean(dateTag), (el) =>
+            el.child(div().flex_none().text_size(10.5).text_color(t.dim).child(dateTag)),
+          )
           .when(row.total > 0, (el) =>
             el.child(div().flex_none().text_size(11).text_color(t.muted).child(`${row.completed}/${row.total}`)),
           )
           .child(this.copyButton(`roadmap-${row.name}`, row.name, tr("复制名称"), t)),
+      )
+      .when(Boolean(row.summary), (el) =>
+        el.child(div().truncate().text_size(11).text_color(t.muted).child(row.summary)),
       )
       .when(row.total > 0, (el) =>
         el.child(
@@ -1006,7 +1054,7 @@ export default class SpeclinkPanel extends View {
       )
       .children(working.map((a) => this.agentChip(`roadmap-${row.name}`, a, a.tab === ctx.focus.tab, t)))
       .child(this.skillRow({ id: `roadmap-${row.name}`, actions, start, target: row.name, hint: "" }, t));
-    return this.openOnClick(el, speclinkUrl("change", this.root, row.name), t);
+    return el;
   }
 
   roadmapCutRow(cut, ctx, t) {
@@ -1046,6 +1094,255 @@ export default class SpeclinkPanel extends View {
           .child(this.copyButton(`cut-${cut.slug}-${cut.label}`, cmd, tr("复制提案指令"), t)),
       )
       .child(div().truncate().text_size(11).text_color(t.muted).child(tr("来源：{0}", `${cut.slug}${cut.topic ? ` · ${cut.topic}` : ""}`)));
+  }
+
+  openDetail(row, cx) {
+    if (this.viewMode !== "detail") this.detailReturnView = this.viewMode;
+    this.detailChange = row.name;
+    this.detailTab = "proposal";
+    this.viewMode = "detail";
+    this.loadDetailArtifact(row, "proposal", cx);
+    cx.notify();
+  }
+
+  loadDetailArtifact(row, tab, cx, force = false) {
+    if (!row || checking()) return;
+    const key = `${row.name}:${tab}`;
+    const existing = this.artifactCache.get(key);
+    if (!force && (existing?.loading || existing?.ok)) return;
+    this.artifactCache.set(key, { loading: true });
+    const cwd = row.worktree?.path ?? this.root;
+    const on = this.place.on;
+    cx.spawn(async (cx) => {
+      const res = await readChangeArtifact(row.name, tab, cwd, on);
+      this.artifactCache.set(key, { loading: false, ...res });
+      cx.notify();
+    });
+  }
+
+  detailRow() {
+    if (!this.board || !this.detailChange) return null;
+    return Object.values(this.board.stages).flat().find((r) => r.name === this.detailChange) ?? null;
+  }
+
+  previewBlock(item, idx, t) {
+    if (item.kind === "blank") return div().id(`pv-${idx}`).h(4);
+    if (item.kind === "h1" || item.kind === "h2") {
+      return div().id(`pv-${idx}`).pt(4).text_size(12.5).font_semibold().text_color(t.foreground).child(item.text);
+    }
+    if (item.kind === "h3") {
+      return div().id(`pv-${idx}`).pt(2).text_size(12).font_semibold().text_color(t.accent).child(item.text);
+    }
+    if (item.kind === "task-done") {
+      return h_flex()
+        .id(`pv-${idx}`)
+        .gap(5)
+        .items_start()
+        .child(div().flex_none().text_size(11.5).text_color(t.ansi2).child("✓"))
+        .child(div().flex_1().min_w_0().text_size(11.5).text_color(t.muted).child(item.text));
+    }
+    if (item.kind === "task-manual") {
+      return h_flex()
+        .id(`pv-${idx}`)
+        .gap(5)
+        .items_start()
+        .child(div().flex_none().text_size(11).font_semibold().text_color(t.ansi3).child("[M]"))
+        .child(div().flex_1().min_w_0().text_size(11.5).text_color(t.foreground).child(item.text));
+    }
+    if (item.kind === "task-todo") {
+      return h_flex()
+        .id(`pv-${idx}`)
+        .gap(5)
+        .items_start()
+        .child(div().flex_none().text_size(11.5).text_color(t.dim).child("○"))
+        .child(div().flex_1().min_w_0().text_size(11.5).text_color(t.foreground).child(item.text));
+    }
+    if (item.kind === "bullet") {
+      return h_flex()
+        .id(`pv-${idx}`)
+        .gap(5)
+        .items_start()
+        .child(div().flex_none().text_size(11.5).text_color(t.dim).child("·"))
+        .child(div().flex_1().min_w_0().text_size(11.5).text_color(t.foreground).child(item.text));
+    }
+    if (item.kind === "code") {
+      return div().id(`pv-${idx}`).px(6).py(1).rounded(3).bg(t.raised).text_size(11).text_color(t.muted).child(item.text);
+    }
+    return div().id(`pv-${idx}`).text_size(11.5).text_color(t.foreground).child(item.text);
+  }
+
+  detailBody(ctx, t) {
+    const row = this.detailRow();
+    if (!row) {
+      return [
+        v_flex()
+          .flex_none()
+          .p(10)
+          .gap(8)
+          .rounded(10)
+          .border_1()
+          .border_color(t.border)
+          .bg(t.surface)
+          .child(div().text_size(12).text_color(t.muted).child(tr("该变更已归档或不存在")))
+          .child(
+            h_flex().child(
+              this.chip(
+                {
+                  id: "detail-missing-back",
+                  label: tr("返回看板"),
+                  ready: true,
+                  click: (cx) => {
+                    this.viewMode = "board";
+                    this.detailChange = null;
+                    cx.notify();
+                  },
+                },
+                t,
+              ),
+            ),
+          ),
+      ];
+    }
+    const stageMeta = STAGES.find((s) => s.id === row.stage) ?? STAGES[0];
+    const actions = changeActions(row, ctx);
+    const start = startChoices(row, ctx);
+    const blocked = row.blockedBy.length > 0;
+    const hint = blocked ? tr("等待 {0}", row.blockedBy.join(tr("、"))) : "";
+    const tabs = [
+      { id: "proposal", label: tr("提案") },
+      { id: "tasks", label: tr("任务") },
+      { id: "design", label: tr("设计") },
+    ];
+    const cacheKey = `${row.name}:${this.detailTab}`;
+    const entry = this.artifactCache.get(cacheKey);
+    const lines = entry?.ok ? parseArtifactPreview(entry.text) : [];
+    const dateTag = formatShortDate(row.created || row.modifiedAt);
+    return [
+      v_flex()
+        .id("detail-header")
+        .flex_none()
+        .px(10)
+        .py(8)
+        .gap(6)
+        .rounded(10)
+        .border_1()
+        .border_color(t.border)
+        .bg(t.surface)
+        .child(
+          h_flex()
+            .gap(6)
+            .items_center()
+            .child(div().w(7).h(7).flex_none().rounded_full().bg(t[stageMeta.tone]))
+            .child(div().flex_1().min_w_0().truncate().font_semibold().child(row.name))
+            .when(Boolean(dateTag), (el) => el.child(div().flex_none().text_size(10.5).text_color(t.dim).child(dateTag)))
+            .when(row.total > 0, (el) =>
+              el.child(div().flex_none().text_size(11).text_color(t.muted).child(`${row.completed}/${row.total}`)),
+            )
+            .when(this.desktopApp && canOpenProject(this.projectTarget()), (el) =>
+              el.child(
+                this.chip(
+                  {
+                    id: "detail-desktop",
+                    label: tr("在桌面端打开"),
+                    ready: true,
+                    click: (cx) => this.openInApp([speclinkUrl("change", this.root, row.name)], cx),
+                  },
+                  t,
+                ),
+              ),
+            )
+            .child(
+              this.chip(
+                {
+                  id: "detail-back",
+                  label: tr("返回"),
+                  ready: true,
+                  click: (cx) => {
+                    this.viewMode = this.detailReturnView || "board";
+                    cx.notify();
+                  },
+                },
+                t,
+              ),
+            ),
+        )
+        .child(this.skillRow({ id: `detail-${row.name}`, actions, start, target: row.name, hint }, t)),
+      v_flex()
+        .id("detail-doc")
+        .flex_none()
+        .rounded(10)
+        .border_1()
+        .border_color(t.border)
+        .bg(t.surface)
+        .child(
+          h_flex()
+            .px(8)
+            .py(6)
+            .gap(4)
+            .items_center()
+            .border_b_1()
+            .border_color(t.border)
+            .children(
+              tabs.map((tab) => {
+                const active = this.detailTab === tab.id;
+                return h_flex()
+                  .id(`detail-tab-${tab.id}`)
+                  .h(22)
+                  .px(8)
+                  .items_center()
+                  .rounded(5)
+                  .text_size(11.5)
+                  .cursor_pointer()
+                  .text_color(active ? t.foreground : t.muted)
+                  .when(active, (el) => el.bg(t.selected).font_semibold())
+                  .when(!active, (el) => el.hover((s) => s.bg(t.hover)))
+                  .on_click((_e, cx) => {
+                    this.detailTab = tab.id;
+                    this.loadDetailArtifact(row, tab.id, cx);
+                    cx.notify();
+                  })
+                  .child(tab.label);
+              }),
+            )
+            .child(div().flex_1())
+            .child(
+              this.chip(
+                {
+                  id: "detail-reload",
+                  label: tr("刷新"),
+                  ready: true,
+                  click: (cx) => {
+                    this.loadDetailArtifact(row, this.detailTab, cx, true);
+                    cx.notify();
+                  },
+                },
+                t,
+              ),
+            ),
+        )
+        .child(
+          v_flex()
+            .px(10)
+            .py(8)
+            .gap(3)
+            .when(!entry || entry.loading, (el) =>
+              el.child(
+                h_flex()
+                  .gap(6)
+                  .items_center()
+                  .child(icon("spinner", 12, t.working).spin(900))
+                  .child(div().text_size(11.5).text_color(t.muted).child(tr("加载中…"))),
+              ),
+            )
+            .when(Boolean(entry && !entry.loading && !entry.ok), (el) =>
+              el.child(div().text_size(11.5).text_color(t.muted).child(entry?.error || tr("此文档尚未创建"))),
+            )
+            .when(Boolean(entry?.ok && lines.length === 0), (el) =>
+              el.child(div().text_size(11.5).text_color(t.muted).child(tr("文档内容为空"))),
+            )
+            .when(lines.length > 0, (el) => el.children(lines.map((item, idx) => this.previewBlock(item, idx, t)))),
+        ),
+    ];
   }
 
   roadmapBody(ctx, t) {
@@ -1278,7 +1575,13 @@ export default class SpeclinkPanel extends View {
             el.child(div().flex_none().px(4).text_size(11.5).text_color(t.dim).child(tr("加载中…"))),
           )
           .when(Boolean(this.board), (el) =>
-            el.children(roadmapActive ? this.roadmapBody(ctx, t) : this.body(ctx, t)),
+            el.children(
+              this.viewMode === "detail"
+                ? this.detailBody(ctx, t)
+                : roadmapActive
+                  ? this.roadmapBody(ctx, t)
+                  : this.body(ctx, t),
+            ),
           ),
       );
   }

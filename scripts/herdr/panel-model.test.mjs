@@ -57,6 +57,10 @@ import {
   parseStations,
   placePlan,
   planDelivery,
+  parseArtifactPreview,
+  parseConfigTools,
+  pickPreferredAgent,
+  formatShortDate,
   resolveGitRoot,
   rowChoices,
   sendArgs,
@@ -148,6 +152,9 @@ test('buildBoard：階段、波次、順序取自 plan，任務數與 worktree �
       codeRemaining: null,
       worktree: { path: TREE, branch: 'speclink/add-a' },
       restale: true,
+      summary: '',
+      created: null,
+      modifiedAt: null,
       stations: { review: 'none', verify: 'none' },
     },
   ]);
@@ -1217,6 +1224,54 @@ test('resolveGitRoot：普通仓库剥离 /.git，git submodule 通过 core.work
     resolveGitRoot('/Users/dev/super/.git/modules/speclink', '/opt/custom/speclink'),
     '/opt/custom/speclink',
   );
+});
+
+test('parseConfigTools 与 pickPreferredAgent：自动模式优先项目 .speclink.yaml 已配置工具，不误选未配置 agent', () => {
+  assert.deepEqual(parseConfigTools('tools: [claude, agy]\n'), ['claude', 'antigravity']);
+  assert.deepEqual(parseConfigTools('# comment\ntools:\n  - codex\n  - claude\n  - agents\n'), ['codex', 'claude']);
+  assert.deepEqual(parseConfigTools('spec_dir: docs/specs\n'), []);
+
+  const known = [
+    { key: 'cursor', name: 'Cursor', run: ['agent'], installed: true },
+    { key: 'claude', name: 'Claude Code', run: ['claude'], installed: true },
+    { key: 'codex', name: 'Codex', run: ['codex'], installed: true },
+  ];
+  // 未显式指定 preferred 时，应命中项目配置的 claude，而不是排第一但未配置的 cursor。
+  assert.equal(pickPreferredAgent({ known, preferred: null, projectTools: ['claude', 'codex'] })?.key, 'claude');
+  // 显式指定 preferred 时，优先使用用户选择的默认 agent。
+  assert.equal(pickPreferredAgent({ known, preferred: 'codex', projectTools: ['claude'] })?.key, 'codex');
+  // 两者都未配置时回退到第一个已安装 agent。
+  assert.equal(pickPreferredAgent({ known, preferred: null, projectTools: [] })?.key, 'cursor');
+});
+
+test('formatShortDate 与 parseArtifactPreview：正确裁剪日期与解析提案/任务预览行', () => {
+  assert.equal(formatShortDate('2026-11-27'), '11-27');
+  assert.equal(formatShortDate('2026-11-27T07:52:41Z'), '11-27');
+  assert.equal(formatShortDate(null), '');
+
+  const md = [
+    '<!-- hidden comment -->',
+    '## Why',
+    '需要支持长周期提案预览。',
+    '',
+    '- [x] 1.1 已完成任务',
+    '- [ ] [M] 1.2 手动验收',
+    '- [ ] 1.3 待办任务',
+    '- 普通条目',
+    '```bash',
+    'speclink list',
+    '```',
+  ].join('\n');
+  assert.deepEqual(parseArtifactPreview(md), [
+    { kind: 'h2', text: 'Why' },
+    { kind: 'text', text: '需要支持长周期提案预览。' },
+    { kind: 'blank', text: '' },
+    { kind: 'task-done', text: '1.1 已完成任务' },
+    { kind: 'task-manual', text: '1.2 手动验收' },
+    { kind: 'task-todo', text: '1.3 待办任务' },
+    { kind: 'bullet', text: '普通条目' },
+    { kind: 'code', text: 'speclink list' },
+  ]);
 });
 
 test('lastOpenError：後一次沒有錯誤訊息時，保留前一次的訊息', async () => {

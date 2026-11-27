@@ -160,6 +160,9 @@ export function buildBoard(list, plan, discussions, remaining = {}, facts = {}) 
       codeRemaining: c.stage === "ready" ? 0 : remaining[c.name] ?? null,
       worktree: l?.worktree ?? null,
       restale: (l?.restaleFrom ?? []).length > 0,
+      summary: l?.summary ?? "",
+      created: l?.created ?? null,
+      modifiedAt: l?.modifiedAt ?? null,
     };
     stages[c.stage].push({ ...row, stations: stationStates(facts[c.name], row) });
   }
@@ -544,7 +547,7 @@ function pickAgent({ change, discussion, folder, root, agents, focus }) {
   return current ? { agent: current, where: "tab" } : null;
 }
 
-export function planDelivery({ skill, change = null, discussion = null, args, root, agents, focus, known, preferred }) {
+export function planDelivery({ skill, change = null, discussion = null, args, root, agents, focus, known, preferred, projectTools = [] }) {
   let name = skill;
   let folder = change?.worktree && !MAIN_FOLDER.has(skill) ? change.worktree.path : root;
   let target = pickAgent({ change, discussion, folder, root, agents, focus });
@@ -561,27 +564,92 @@ export function planDelivery({ skill, change = null, discussion = null, args, ro
     const text = commandText(agent.key, name, args);
     return { kind: "send", where, agent, skill: name, text, hc: sendArgs(agent, text), labels: skillLabels(name, change?.name ?? discussion?.slug) };
   }
-  return newAgent({ name, args, folder, change, discussion, known, preferred });
+  return newAgent({ name, args, folder, change, discussion, known, preferred, projectTools });
 }
 
-// 已安裝、有 speclink 技能的 agent，Herdr 依最常用排序。
+// .speclink.yaml 中内置工具名映射到 Herdr 的 agent key。
+const TOOL_TO_AGENT = {
+  claude: "claude",
+  codex: "codex",
+  agents: "codex",
+  copilot: "copilot",
+  pi: "pi",
+  cursor: "cursor",
+  agy: "antigravity",
+  antigravity: "antigravity",
+};
+
+// 从 .speclink.yaml 原文解析已配置的内置工具并转为去重后的 Herdr agent key 列表。
+export function parseConfigTools(yamlText) {
+  if (!yamlText) return [];
+  const names = [];
+  const lines = yamlText.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].replace(/#.*$/, "");
+    const flow = line.match(/^\s*tools:\s*\[([^\]]*)\]\s*$/);
+    if (flow) {
+      for (const item of flow[1].split(",")) {
+        const clean = item.trim().replace(/^["']|["']$/g, "").toLowerCase();
+        if (clean) names.push(clean);
+      }
+      break;
+    }
+    if (/^\s*tools:\s*$/.test(line)) {
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const sub = lines[j].replace(/#.*$/, "");
+        if (!sub.trim()) continue;
+        if (!/^\s+/.test(sub)) break;
+        const item = sub.match(/^\s+-\s+([A-Za-z0-9_-]+)\s*$/);
+        if (item) names.push(item[1].toLowerCase());
+      }
+      break;
+    }
+  }
+  const seen = new Set();
+  const keys = [];
+  for (const name of names) {
+    const key = TOOL_TO_AGENT[name];
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
+// 已安装、有 speclink 技能的 agent，Herdr 依最常用排序。
 export const usableAgents = (known) => (known ?? []).filter((a) => a.installed && Object.hasOwn(PREFIX, a.key));
 
-// 跳窗一開啟要給哪個 agent：目前分頁的 agent，再來是上次選的，最後是最常用的。
-export function defaultAgent({ known, agents, focus, preferred }) {
+// 选出默认启动的 agent：显式设置的默认 agent 优先，其次项目 .speclink.yaml 已配置的第一个已安装 agent，最后回退到最常用。
+export function pickPreferredAgent({ known, preferred = null, projectTools = [] }) {
+  const usable = usableAgents(known);
+  if (preferred) {
+    const chosen = usable.find((a) => a.key === preferred);
+    if (chosen) return chosen;
+  }
+  for (const key of projectTools ?? []) {
+    const match = usable.find((a) => a.key === key);
+    if (match) return match;
+  }
+  return usable[0] ?? null;
+}
+
+// 弹窗一开启要给哪个 agent：当前标签页的 agent，其次持久默认 agent，再其次项目已配置的，最后是最常用的。
+export function defaultAgent({ known, agents, focus, preferred, projectTools = [] }) {
   const keys = usableAgents(known).map((a) => a.key);
-  return [inputAgent(agents, focus)?.key, preferred].find((key) => keys.includes(key)) ?? keys[0] ?? null;
+  const current = inputAgent(agents, focus)?.key;
+  if (current && keys.includes(current)) return current;
+  return pickPreferredAgent({ known, preferred, projectTools })?.key ?? null;
 }
 
 // hc --skill：Codex 要带 --no-daemon，否则它的指令跑在 hc 之外；Antigravity CLI 需要 -i 传入初始互动提示词。
 const agentArgv = (pick) =>
   pick.key === "codex" ? [...pick.run, "--no-daemon"] : pick.key === "antigravity" ? [...pick.run, "-i"] : pick.run;
 
-// 新开一个 agent：选用户选的那一个，没有就选最常用的。
-function newAgent({ name, args, folder, change, discussion, known, preferred }) {
+// 新开一个 agent：优先用户默认设置，其次项目 .speclink.yaml 已配置工具，最后回退到最常用。
+function newAgent({ name, args, folder, change, discussion, known, preferred, projectTools = [] }) {
   if (!known) return { kind: "none", where: "none", reason: tr("正在确认可用的 agent") };
-  const usable = usableAgents(known);
-  const pick = usable.find((a) => a.key === preferred) ?? usable[0];
+  const pick = pickPreferredAgent({ known, preferred, projectTools });
   if (!pick) return { kind: "none", where: "none", reason: tr("找不到带有 speclink 技能的 agent") };
   return {
     kind: "new",
@@ -595,6 +663,45 @@ function newAgent({ name, args, folder, change, discussion, known, preferred }) 
     skill: name,
     labels: skillLabels(name, change?.name ?? discussion?.slug),
   };
+}
+
+// 紧凑日期显示（2026-11-27 或 RFC3339 -> 11-27），用于列表行快速辨识提案时间。
+export function formatShortDate(value) {
+  const m = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[2]}-${m[3]}` : "";
+}
+
+// 轻量把 Markdown 产物切成可渲染的预览行（标题、任务勾选、列表、代码、正文），跳过 HTML 注释。
+export function parseArtifactPreview(text) {
+  if (!text) return [];
+  const cleaned = text.replace(/<!--[\s\S]*?-->/g, "");
+  const out = [];
+  let inFence = false;
+  for (const raw of cleaned.split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("```")) {
+      inFence = !inFence;
+      continue;
+    }
+    if (!trimmed) {
+      if (out.length > 0 && out.at(-1).kind !== "blank") out.push({ kind: "blank", text: "" });
+      continue;
+    }
+    if (inFence) {
+      out.push({ kind: "code", text: raw });
+      continue;
+    }
+    if (trimmed.startsWith("### ")) out.push({ kind: "h3", text: trimmed.slice(4).trim() });
+    else if (trimmed.startsWith("## ")) out.push({ kind: "h2", text: trimmed.slice(3).trim() });
+    else if (trimmed.startsWith("# ")) out.push({ kind: "h1", text: trimmed.slice(2).trim() });
+    else if (/^-\s+\[[xX]\]\s+/.test(trimmed)) out.push({ kind: "task-done", text: trimmed.replace(/^-\s+\[[xX]\]\s+/, "") });
+    else if (/^-\s+\[\s\]\s+\[M\]\s+/.test(trimmed)) out.push({ kind: "task-manual", text: trimmed.replace(/^-\s+\[\s\]\s+\[M\]\s+/, "") });
+    else if (/^-\s+\[\s\]\s+/.test(trimmed)) out.push({ kind: "task-todo", text: trimmed.replace(/^-\s+\[\s\]\s+/, "") });
+    else if (/^[-*]\s+/.test(trimmed)) out.push({ kind: "bullet", text: trimmed.replace(/^[-*]\s+/, "") });
+    else out.push({ kind: "text", text: trimmed });
+  }
+  while (out.at(-1)?.kind === "blank") out.pop();
+  return out;
 }
 
 // 开工：开一个专门做这个变更的新 agent，开在当前工作区。没被挡、任务还没做完、没有 agent 在做才有这个按钮；
@@ -721,7 +828,7 @@ function unfinishedApply(agents, board) {
 }
 
 // 新建标签页：做法和检查都跟 herdr-dispatch 技能相同。标签页开在当前的 space，画面留在原地。
-export function newTabPlan({ skill, target, note, root, agents, known, preferred, worktreePolicy, space, on, board }) {
+export function newTabPlan({ skill, target, note, root, agents, known, preferred, projectTools = [], worktreePolicy, space, on, board }) {
   const change = target?.kind === "change" ? target.row : null;
   const applying = skill === "apply" || skill === "apply-with-worktree";
   // 只挡正在忙的 agent。标签在标签页关闭前都留着，做完停着的不算，例如 apply 做完后新建标签页 merge。
@@ -738,7 +845,7 @@ export function newTabPlan({ skill, target, note, root, agents, known, preferred
   if (unfinished) return none("{0} 的 apply 尚未完成", unfinished);
   const folder = change?.worktree && !MAIN_FOLDER.has(name) ? change.worktree.path : root;
   const discussion = target?.kind === "discussion" ? { slug: target.name } : null;
-  const d = newAgent({ name, args: joinArgs(target, note), folder, change, discussion, known, preferred });
+  const d = newAgent({ name, args: joinArgs(target, note), folder, change, discussion, known, preferred, projectTools });
   if (d.kind === "none") return d;
   if (skillUnsupported(skill, d.key)) return none("{0} 仅支持 Claude Code 和 Antigravity", skill);
   const labels = change

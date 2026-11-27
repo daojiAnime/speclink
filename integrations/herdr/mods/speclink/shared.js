@@ -1,7 +1,63 @@
 // 面板和技能跳窗共用的 Herdr 小工具。
-import { exec, focused, hc, panes, run, spaces } from "herdr";
+import { exec, focused, hc, panes, run, setShared, shared, spaces } from "herdr";
 import { tr } from "./i18n.js";
-import { agyPluginFolders, hasSpeclinkSkills, inside, parseStations, pluginFolders, resolveGitRoot, skillEntries, skillFolders, stampedPaths } from "./model.js";
+import {
+  agyPluginFolders,
+  hasSpeclinkSkills,
+  inside,
+  parseConfigTools,
+  parseStations,
+  pluginFolders,
+  resolveGitRoot,
+  skillEntries,
+  skillFolders,
+  stampedPaths,
+} from "./model.js";
+
+const DEFAULT_AGENT_KEY = "speclink.defaultAgent";
+
+// 读取持久化的默认 agent（优先会话内共享值，其次 localStorage）；null 表示自动模式。
+export function loadPreferredAgent() {
+  const fromShared = shared("speclink.agent");
+  if (fromShared) return fromShared;
+  try {
+    const saved = localStorage.getItem(DEFAULT_AGENT_KEY) || null;
+    if (saved) setShared("speclink.agent", saved);
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+// 保存默认 agent：写入 localStorage 并同步到 shared，传 null 则切回自动模式。
+export function savePreferredAgent(key) {
+  const next = key || null;
+  try {
+    if (next) localStorage.setItem(DEFAULT_AGENT_KEY, next);
+    else localStorage.removeItem(DEFAULT_AGENT_KEY);
+  } catch {
+    // 某些检查环境无 localStorage 时忽略持久化。
+  }
+  setShared("speclink.agent", next);
+}
+
+// 读取项目 .speclink.yaml 中已配置的内置工具（转为 Herdr agent key 列表）。
+export async function readProjectTools(root, on) {
+  if (!root) return [];
+  const r = await exec("sh", ["-c", "cat .speclink.yaml 2>/dev/null"], { cwd: root, on }).catch(() => null);
+  return r?.code === 0 ? parseConfigTools(r.stdout) : [];
+}
+
+// 读取变更的单个产物正文（proposal / tasks / design），用于面板内建详情预览。
+export async function readChangeArtifact(change, artifact, cwd, on) {
+  const r = await exec("speclink", ["artifact", "cat", artifact, "--change", change, "--no-color"], { cwd, on }).catch((e) => ({
+    code: 1,
+    stdout: "",
+    stderr: String(e.message ?? e),
+  }));
+  if (r.code !== 0) return { ok: false, error: firstLine(r.stderr) || tr("未找到 {0} 文档", artifact) };
+  return { ok: true, text: r.stdout };
+}
 
 export const firstLine = (text) => text.trim().split("\n")[0];
 
