@@ -231,6 +231,12 @@ fn update_with_legacy_policy_keys_touches_no_config_and_stays_silent() {
 /// The instruction ends with the engine's language paragraph for `display`, one blank
 /// line after the text before it, and with one closing newline.
 fn assert_ends_with_language_paragraph(instr: &str, display: &str) {
+    let cjk_note = if display == "Simplified Chinese (简体中文)" {
+        " Vague Chinese wording (应该、可能、也许、或许、大概、考虑、尽量、待定) is \
+flagged by the analyzer just like should/may/TBD — state requirements with SHALL/MUST."
+    } else {
+        ""
+    };
     let paragraph = format!(
         "Write spec prose in {display}. Structural markers (`## ADDED/MODIFIED/REMOVED/RENAMED \
 Requirements`, `### Requirement:`, `#### Scenario:`, `- **WHEN**`/`- **THEN**`) and normative \
@@ -240,7 +246,7 @@ exception is a name that points at the canonical spec: the requirement name unde
 Requirements` or `## REMOVED Requirements`, the `FROM:` name of a RENAMED entry, a canonical \
 scenario name that a MODIFIED block carries over, and the name inside a `<!-- REMOVED-SCENARIO: … \
 -->` declaration. Copy each of those exactly as the canonical spec writes it, in whatever language \
-it is in — a changed name fails validation.\n"
+it is in — a changed name fails validation.{cjk_note}\n"
     );
     let before = instr
         .strip_suffix(&paragraph)
@@ -253,13 +259,13 @@ it is in — a changed name fails validation.\n"
 
 #[test]
 fn specs_locale_is_the_spec_language_and_proposal_keeps_the_project_locale() {
-    // Scenario 沒有設定 spec_locale 時規格語言是 English: locale tw, spec_locale unset.
+    // Scenario 沒有設定 spec_locale 時規格語言是 Simplified Chinese (简体中文): locale tw, spec_locale unset.
     let p = TempProject::new("spec-lang-default", "tools:\n  - claude\n", "locale: tw\n");
     let specs = json_payload(&p.instructions("specs", &[]));
     assert!(specs["locale"].is_string(), "locale stays a string: {specs}");
-    assert_eq!(specs["locale"], "English");
+    assert_eq!(specs["locale"], "Simplified Chinese (简体中文)");
     let instr = instruction_text(&specs);
-    assert_ends_with_language_paragraph(&instr, "English");
+    assert_ends_with_language_paragraph(&instr, "Simplified Chinese (简体中文)");
     assert!(!instr.contains("config.yaml"), "the instruction never points at config.yaml: {instr}");
     let proposal = json_payload(&p.instructions("proposal", &[]));
     assert_eq!(proposal["locale"], "Traditional Chinese (繁體中文)");
@@ -275,6 +281,25 @@ fn spec_locale_env_var_overrides_the_config_file_for_the_specs_locale() {
 }
 
 #[test]
+fn specs_locale_cn_reports_simplified_chinese_and_vague_wording_note() {
+    // Scenario 簡體中文規格語言與提醒: locale: cn + spec_locale: auto.
+    let p = TempProject::new("spec-lang-cn", "tools:\n  - claude\n", "locale: cn\nspec_locale: auto\n");
+    let specs = json_payload(&p.instructions("specs", &[]));
+    assert_eq!(specs["locale"], "Simplified Chinese (简体中文)");
+    let instr = instruction_text(&specs);
+    let last = instr.trim_end().rsplit("\n\n").next().unwrap_or_default();
+    assert!(last.starts_with("Write spec prose in Simplified Chinese (简体中文)."), "{last}");
+    assert!(
+        last.contains("Requirement and scenario names are prose too: write them in Simplified Chinese (简体中文)."),
+        "{last}"
+    );
+    assert!(
+        last.contains("Vague Chinese wording (应该、可能、也许、或许、大概、考虑、尽量、待定)"),
+        "{last}"
+    );
+}
+
+#[test]
 fn human_instruction_section_ends_with_the_same_language_paragraph() {
     let p = TempProject::new("spec-lang-human", "tools:\n  - claude\n", "locale: tw\n");
     let json = instruction_text(&json_payload(&p.instructions("specs", &[])));
@@ -287,7 +312,7 @@ fn human_instruction_section_ends_with_the_same_language_paragraph() {
     let (header, _) = human.split_once("\nInstruction:\n").expect("Instruction section");
     let labels: Vec<&str> = header.lines().filter_map(|l| l.split_once(": ")).map(|(label, _)| label).collect();
     assert_eq!(labels, ["Artifact", "Output", "Description"], "{header}");
-    assert_ends_with_language_paragraph(&json, "English");
+    assert_ends_with_language_paragraph(&json, "Simplified Chinese (简体中文)");
     assert!(
         human.contains(&format!("\nInstruction:\n{json}\n\nDependencies:\n")),
         "the Instruction section is the payload's instruction, then the next section: {human}"

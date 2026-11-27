@@ -397,10 +397,32 @@ fn set_rejects_a_display_name_locale_value() {
     let err = stderr_of(&out);
     assert!(err.contains("locale"), "stderr names the key: {err}");
     assert!(err.contains("繁體中文"), "stderr echoes the received value: {err}");
-    for code in ["tw", "ja", "en"] {
+    for code in ["tw", "cn", "ja", "en"] {
         assert!(err.contains(code), "stderr lists the accepted codes ({code}): {err}");
     }
     assert_eq!(p.config_bytes(), before, "config.yaml is byte-for-byte unchanged");
+}
+
+#[test]
+fn set_accepts_cn_and_rejects_case_variant_or_bcp47() {
+    // Spec Example 表：locale cn 成功、spec_locale cn 成功、locale CN 拒絕、spec_locale zh-CN 拒絕。
+    let p = TempProject::new("set-cn-locale", WF_YAML);
+    let out = p.run(&["workflow-config", "set", "locale", "cn"]);
+    assert!(out.status.success(), "stderr: {}", stderr_of(&out));
+    assert!(p.config_text().contains("locale: cn"), "got: {}", p.config_text());
+
+    let out = p.run(&["workflow-config", "set", "spec_locale", "cn"]);
+    assert!(out.status.success(), "stderr: {}", stderr_of(&out));
+    assert!(p.config_text().contains("spec_locale: cn"), "got: {}", p.config_text());
+
+    let before = p.config_bytes();
+    for (key, bad) in [("locale", "CN"), ("spec_locale", "zh-CN")] {
+        let out = p.run(&["workflow-config", "set", key, bad]);
+        assert!(!out.status.success(), "{key}={bad} must be rejected");
+        let err = stderr_of(&out);
+        assert!(err.contains("cn"), "stderr lists cn for {key}={bad}: {err}");
+        assert_eq!(p.config_bytes(), before, "no file effect for {key}={bad}");
+    }
 }
 
 #[test]
@@ -422,7 +444,7 @@ fn set_dry_run_rejects_an_invalid_locale_without_a_diff() {
     assert!(!out.status.success(), "invalid value must exit non-zero even with --dry-run");
     assert!(!stdout_of(&out).contains("@@"), "no diff on stdout: {}", stdout_of(&out));
     let err = stderr_of(&out);
-    for code in ["tw", "ja", "en", "auto"] {
+    for code in ["tw", "cn", "ja", "en", "auto"] {
         assert!(err.contains(code), "stderr lists the spec_locale codes ({code}): {err}");
     }
     assert_eq!(p.config_bytes(), before, "no file effect");
@@ -805,7 +827,7 @@ fn show_prints_the_review_line_after_rules() {
     assert!(out.status.success(), "stderr: {}", stderr_of(&out));
     assert_eq!(
         stdout_of(&out),
-        "Workflow config: speclink/config.yaml\n\n  schema       spec-driven\n  locale       tw\n  spec_locale  unset (specs in English)\n  tdd          on\n  audit        unset (off)\n  worktree     unset (off)\n  context      2 lines\n  rules        design 2, tasks 1\n  review       none\n"
+        "Workflow config: speclink/config.yaml\n\n  schema       spec-driven\n  locale       tw\n  spec_locale  unset (specs in Simplified Chinese)\n  tdd          on\n  audit        unset (off)\n  worktree     unset (off)\n  context      2 lines\n  rules        design 2, tasks 1\n  review       none\n"
     );
     // Spec Example review 行的值.
     for (tag, review, value) in [

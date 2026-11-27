@@ -222,6 +222,7 @@ artifacts:
       the task list cut the task at the separator and at the verification
       marker, so a task with a short title can fold. Pick the line for the
       instructions JSON `locale`; any other language uses the English line:
+      - Simplified Chinese: `<短标题>：<行为>。验证：<验证方式>`
       - Traditional Chinese: `<短標題>：<行為>。驗證：<驗證方式>`
       - Japanese: `<短いタイトル>：<振る舞い>。検証：<検証方法>`
       - English: `<Short title>: <behavior>. Verify: <how it is verified>`

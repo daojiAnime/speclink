@@ -177,11 +177,11 @@ describe('instructions 經宿主套件回報的語言與紀律說明', () => {
       host.dispatch({ identity: { id: 'u_1', displayName: 'Alice' }, scope: 's1', argv }) as Promise<Instructions>
   }
 
-  it('範圍設定 locale tw、未設 spec_locale 時，specs 的 locale 是 English', async () => {
+  it('範圍設定 locale tw、未設 spec_locale 時，specs 的 locale 是 Simplified Chinese (简体中文)', async () => {
     const specs = await scopeDispatch()('instructions', 'specs', '--change', 'demo', '--json')
-    expect(specs.locale).toBe('English')
+    expect(specs.locale).toBe('Simplified Chinese (简体中文)')
     // 最後一段：和前文之間空一行，整份以一個換行結尾。
-    expect(specs.instruction).toMatch(/[^\n]\n\nWrite spec prose in English\. [^\n]+\.\n$/)
+    expect(specs.instruction).toMatch(/[^\n]\n\nWrite spec prose in Simplified Chinese \(简体中文\)\. [^\n]+\.\n$/)
   })
 
   // workflow-config「instructions 對 specs 產出物回報解析後的規格語言」的名稱規則。
@@ -214,7 +214,7 @@ describe('instructions 經宿主套件回報的語言與紀律說明', () => {
     const argv = ['instructions', 'specs', '--change', 'alpha', '--json']
     const specs = (await fsEngine(root).dispatch(argv)) as Instructions
     expect(specs).toEqual(cliJson(root, argv))
-    expect(specs.locale).toBe('English')
+    expect(specs.locale).toBe('Simplified Chinese (简体中文)')
   })
 })
 

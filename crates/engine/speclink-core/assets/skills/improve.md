@@ -83,7 +83,7 @@ Create the discussion record and write the scan into it as Round 1:
 speclink discuss new "<topic>" --slug improve-<scope> --kind improve
 ```
 
-**Record language**: run `speclink workflow-config show --json` and write the record — its topic, the Context, every round and the conclusion — in the language of its `locale` field (`tw` Traditional Chinese, `ja` Japanese, `en` or null English; English when the command fails). These stay in English: the field labels (`**Focus**:`, `**Position**:`, `**Ruled out**:`, `**Open**:` and the conclusion's labels), the fixed markers (the word `none`, the ``**cut N `change-name`**:`` heads, the **Capture to** values), the `improve-<scope>` slug, the `scan` mode label, command lines and code.
+**Record language**: run `speclink workflow-config show --json` and write the record — its topic, the Context, every round and the conclusion — in the language of its `locale` field (`cn` or null Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English; Simplified Chinese when the command fails). These stay in English: the field labels (`**Focus**:`, `**Position**:`, `**Ruled out**:`, `**Open**:` and the conclusion's labels), the fixed markers (the word `none`, the ``**cut N `change-name`**:`` heads, the **Capture to** values), the `improve-<scope>` slug, the `scan` mode label, command lines and code.
 
 `--kind improve` marks the record as an improvement discussion (it is what the board and the discussion drawer show a badge for). The slug convention is `improve-<scope>` — `improve-store-layer`, `improve-cli-commands`. Write the Context once (what prompted the scan, the scope you settled on in Step 2 and why, what Step 1 excluded), then record the candidates as Round 1 with the mode label `scan`:
 

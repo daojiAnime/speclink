@@ -816,7 +816,7 @@ mod tests {
                     exists: false,
                 }),
                 true,
-                "Workflow config: speclink/config.yaml\n\n  schema       unset (spec-driven)\n  locale       unset (English)\n  spec_locale  unset (specs in English)\n  tdd          unset (off)\n  audit        unset (off)\n  worktree     unset (off)\n  context      none\n  rules        none\n  review       none\n",
+                "Workflow config: speclink/config.yaml\n\n  schema       unset (spec-driven)\n  locale       unset (Simplified Chinese)\n  spec_locale  unset (specs in Simplified Chinese)\n  tdd          unset (off)\n  audit        unset (off)\n  worktree     unset (off)\n  context      none\n  rules        none\n  review       none\n",
             ),
             (
                 &["workflow-config", "set", "tdd", "true"],

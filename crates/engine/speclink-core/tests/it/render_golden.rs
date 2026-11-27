@@ -658,7 +658,7 @@ fn every_product_skill_carries_conversation_language_once() {
 #[test]
 fn document_skills_bind_locale() {
     let field_labels = "`**Focus**:`, `**Position**:`, `**Ruled out**:`, `**Open**:`";
-    let null_english = "`tw` Traditional Chinese, `ja` Japanese, `en` or null English";
+    let null_cn = "`cn` or null Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English; Simplified Chinese when the command fails";
     // (skill, the binding's label, its step's start and end, needles in that step)
     let bindings: [(&str, &str, &str, &str, &[&str]); 4] = [
         (
@@ -669,7 +669,7 @@ fn document_skills_bind_locale() {
             &[
                 "`speclink workflow-config show --json`",
                 "`locale` field",
-                null_english,
+                null_cn,
                 "The topic is the exception: it keeps the user's words",
                 field_labels,
                 "`Prior discussions:`, `Source doc:`, the word `none`",
@@ -684,7 +684,7 @@ fn document_skills_bind_locale() {
             &[
                 "`speclink workflow-config show --json`",
                 "`locale` field",
-                null_english,
+                null_cn,
                 "its topic, the Context",
                 field_labels,
                 "the word `none`",
@@ -698,7 +698,7 @@ fn document_skills_bind_locale() {
             "## Step 6:",
             &[
                 "`locale` as Step 3 confirmed it",
-                "`tw` Traditional Chinese, `ja` Japanese, `en` or not set English",
+                "`cn` or not set Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English",
                 "rewrite those lines before you produce the diff",
                 "Lines you leave unchanged keep their wording",
                 "review rules keep the user's own words",
@@ -714,7 +714,7 @@ fn document_skills_bind_locale() {
                 "`speclink workflow-config show --json`",
                 "the report, closing summary included",
                 "`locale` field",
-                "`en` or null English; English when the command fails",
+                null_cn,
                 "Critical/High/Medium/Low",
             ],
         ),
@@ -2100,8 +2100,8 @@ fn config_skill_confirms_policy_in_one_table() {
         let step_three = section_between(&rel, &config, "## Step 3", "## Step 4");
         // one table row per item, each carrying its not-set default
         for (item, default) in [
-            ("`locale`", "English"),
-            ("`spec_locale`", "English"),
+            ("`locale`", "Simplified Chinese"),
+            ("`spec_locale`", "Simplified Chinese"),
             ("`tdd`", "`false`"),
             ("`audit`", "`false`"),
             ("`worktree`", "`false`"),
@@ -2129,6 +2129,10 @@ fn config_skill_confirms_policy_in_one_table() {
             // the tool limits and the plain-text fallback
             "option limit for one question, ask which ones as plain text",
             "run the whole confirmation as plain text",
+            // locale codes and cn mapping
+            "`locale` accepts exactly `cn`, `tw`, `ja`, `en`",
+            "`spec_locale` accepts `cn`, `tw`, `ja`, `en`, `auto`",
+            "\"Simplified Chinese\" → `cn`",
             // worktree lands through the same dry-run approval; a refusal is relayed
             "speclink workflow-config set worktree <true|false>",
             "`--dry-run`",

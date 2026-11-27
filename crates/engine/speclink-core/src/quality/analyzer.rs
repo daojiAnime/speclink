@@ -339,6 +339,15 @@ fn contains_word(haystack: &str, needle: &str) -> bool {
     })
 }
 
+/// 简体中文弱语气词（顺序即 specs 指示文案顺序；「可能」在检测时另有「不可能」豁免）。
+pub(crate) const CJK_WEAK_CN_DISPLAY: &[&str] =
+    &["应该", "可能", "也许", "或许", "大概", "考虑", "尽量", "待定"];
+/// 繁体中文弱语气词（顺序即 specs 指示文案顺序；检测时另含异体「儘量」）。
+pub(crate) const CJK_WEAK_TW_DISPLAY: &[&str] =
+    &["應該", "可能", "也許", "或許", "大概", "考慮", "盡量", "待定"];
+/// 繁体中文弱语气词额外异体字形（仅 analyzer 检测用）。
+const CJK_WEAK_TW_VARIANTS: &[&str] = &["儘量"];
+
 /// First weak/vague pattern on a spec line — at most ONE finding per line, taken in
 /// the frozen check order (should, may, might, consider, possibly, TBD, TODO, ???,
 /// TKTK). The five English patterns match case-insensitively on WORD BOUNDARIES, so
@@ -368,8 +377,15 @@ fn weak_pattern_in(line: &str) -> Option<String> {
             return Some(p.to_string());
         }
     }
-    let cjk = ["應該", "也許", "或許", "大概", "考慮", "盡量", "儘量", "待定"];
-    for p in cjk {
+    for p in CJK_WEAK_CN_DISPLAY
+        .iter()
+        .chain(CJK_WEAK_TW_DISPLAY)
+        .chain(CJK_WEAK_TW_VARIANTS)
+        .copied()
+    {
+        if p == "可能" {
+            continue;
+        }
         if line.contains(p) {
             return Some(p.to_string());
         }

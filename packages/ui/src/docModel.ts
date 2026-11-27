@@ -390,10 +390,11 @@ const DESIGN_PAREN_RE = /[（(]\s*design\s+([^）)]*)[）)]\s*$/i;
 const TASK_NUMBER_RE = /^(\d+(?:\.\d+)*)\s+([\s\S]*)$/;
 
 /**
- * 驗證標記，依這個順序取第一個有出現的：繁體中文（舊版唯一認得的標記，排第一才不會改變舊任務的切法）、
- * 日文、英文。`skipCode`：落在行內程式碼裡的不算，只有半形的標記如此。
+ * 驗證標記，依這個順序取第一個有出現的：簡體中文、繁體中文、日文、英文。
+ * `skipCode`：落在行內程式碼裡的不算，只有半形的標記如此。
  */
 const VERIFY_MARKS = [
+  { mark: "验证：", skipCode: false },
   { mark: "驗證：", skipCode: false },
   { mark: "検証：", skipCode: false },
   { mark: "Verify: ", skipCode: true },
@@ -403,8 +404,8 @@ const VERIFY_MARKS = [
 const INLINE_CODE_RE = /`[^`]+`/g;
 
 /**
- * 任務描述拆三層（docs/verb-contract 的 task-line-shape 一節）：先剝開頭序號；再依「驗證：」「検証：」
- * 「Verify: 」的順序取第一個有出現的標記，在它首次出現的位置切驗證；前段有全形「：」時以首個全形「：」
+ * 任務描述拆三層（docs/verb-contract 的 task-line-shape 一節）：先剝開頭序號；再依「验证：」「驗證：」
+ * 「検証：」「Verify: 」的順序取第一個有出現的標記，在它首次出現的位置切驗證；前段有全形「：」時以首個全形「：」
  * 切標題與內文，沒有時才以首個「: 」切。半形的「Verify: 」與「: 」落在行內程式碼裡時不算。
  */
 export function splitTaskText(raw: string): TaskTextParts {

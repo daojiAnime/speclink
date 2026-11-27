@@ -128,15 +128,21 @@ pub fn build_artifact(
     if artifact.id == "specs" {
         let lang = policy.spec_locale.as_deref();
         locale = crate::config::locale_display(lang);
-        let cjk_note = if lang.is_some_and(|l| {
-            let lower = l.to_ascii_lowercase();
-            lower == "tw" || lower.starts_with("zh")
-        }) {
-            " Vague Chinese wording (應該、可能、也許、或許、大概、考慮、盡量、待定) is \
-flagged by the analyzer just like should/may/TBD — state requirements with SHALL/MUST."
-        } else {
-            ""
+        let cjk_words = match lang.map(str::to_ascii_lowercase).as_deref() {
+            None | Some("cn" | "zh-cn" | "zh-sg") => Some(crate::analyzer::CJK_WEAK_CN_DISPLAY),
+            Some(l) if l.starts_with("zh-hans") => Some(crate::analyzer::CJK_WEAK_CN_DISPLAY),
+            Some(l) if l == "tw" || l.starts_with("zh") => Some(crate::analyzer::CJK_WEAK_TW_DISPLAY),
+            _ => None,
         };
+        let cjk_note = cjk_words
+            .map(|words| {
+                format!(
+                    " Vague Chinese wording ({}) is flagged by the analyzer just like \
+should/may/TBD — state requirements with SHALL/MUST.",
+                    words.join("、")
+                )
+            })
+            .unwrap_or_default();
         append_paragraph(
             &mut instruction,
             &format!(
@@ -479,8 +485,11 @@ mod tests {
 
     const META: &str = "schema: spec-driven\ncreated: 2026-11-24\n";
     const TW: &str = "Traditional Chinese (繁體中文)";
+    const CN: &str = "Simplified Chinese (简体中文)";
     const JA: &str = "Japanese (日本語)";
     const EN: &str = "English";
+    const TW_VAGUE: &str = "Vague Chinese wording (應該、可能、也許、或許、大概、考慮、盡量、待定)";
+    const CN_VAGUE: &str = "Vague Chinese wording (应该、可能、也许、或许、大概、考虑、尽量、待定)";
 
     fn built(config: &str, env: &EnvOverrides, schema: &Schema, artifact: &str) -> ArtifactInstructions {
         let store = TestStore::with_meta("demo", META);
@@ -498,13 +507,19 @@ mod tests {
     #[test]
     fn specs_locale_reports_the_resolved_spec_language() {
         // Example「規格語言的解析」每一列：(locale, spec_locale, SPECLINK_SPEC_LOCALE, specs, proposal)。
-        let rows: [(Option<&str>, Option<&str>, Option<&str>, &str, &str); 7] = [
-            (Some("tw"), None, None, EN, TW),
+        let rows: [(Option<&str>, Option<&str>, Option<&str>, &str, &str); 13] = [
+            (None, None, None, CN, CN),
+            (Some("tw"), None, None, CN, TW),
+            (Some("cn"), None, None, CN, CN),
+            (Some("cn"), Some("auto"), None, CN, CN),
             (Some("tw"), Some("en"), None, EN, TW),
             (Some("tw"), Some("auto"), None, TW, TW),
             (Some("tw"), Some("ja"), None, JA, TW),
-            (None, Some("auto"), None, EN, EN),
-            (None, Some("tw"), None, TW, EN),
+            (None, Some("auto"), None, CN, CN),
+            (None, Some("cn"), None, CN, CN),
+            (None, Some("tw"), None, TW, CN),
+            (None, Some("en"), None, EN, CN),
+            (Some("tw"), Some("en"), Some("cn"), CN, TW),
             (Some("tw"), Some("en"), Some("ja"), JA, TW),
         ];
         let schema = crate::schema::spec_driven();
@@ -535,9 +550,14 @@ mod tests {
                 assert!(last.contains(marker), "row {i}: 最後一段點名 {marker}: {last}");
             }
             assert_eq!(
-                last.contains("Vague Chinese wording"),
+                last.contains(TW_VAGUE),
                 *want_specs == TW,
-                "row {i}: 中文模糊用語的提醒只在 tw: {last}"
+                "row {i}: 繁體中文模糊用語提醒只在 tw: {last}"
+            );
+            assert_eq!(
+                last.contains(CN_VAGUE),
+                *want_specs == CN,
+                "row {i}: 簡體中文模糊用語提醒只在 cn: {last}"
             );
             for banned in ["config.yaml", "English by default", "spec_locale"] {
                 assert!(!instruction.contains(banned), "row {i}: instruction 不含 {banned}");
@@ -552,13 +572,19 @@ mod tests {
         specs.instruction = None;
         let got = built("locale: tw\n", &EnvOverrides::default(), &schema, "specs");
         let instruction = got.instruction.expect("引擎補上語言段落");
-        assert!(instruction.starts_with("Write spec prose in English."), "{instruction}");
+        assert!(instruction.starts_with(&format!("Write spec prose in {CN}.")), "{instruction}");
         assert!(!instruction.contains("\n\n"), "只有這一段: {instruction}");
         assert!(
-            instruction.contains("Requirement and scenario names are prose too: write them in English."),
+            instruction.contains(&format!("Requirement and scenario names are prose too: write them in {CN}.")),
             "名稱規則也在這一段: {instruction}"
         );
+        assert!(instruction.contains(CN_VAGUE), "預設簡體中文帶模糊用語提醒: {instruction}");
         assert!(instruction.ends_with(".\n"), "和 schema 的 instruction 一樣以換行結尾: {instruction:?}");
+
+        let got_en = built("spec_locale: en\n", &EnvOverrides::default(), &schema, "specs");
+        let en_instruction = got_en.instruction.expect("引擎補上語言段落");
+        assert!(en_instruction.starts_with("Write spec prose in English."), "{en_instruction}");
+        assert!(!en_instruction.contains("Vague Chinese wording"), "{en_instruction}");
     }
 
     // --- 同一需求新增的名稱規則：三種規格語言都寫、四種例外逐一點名 ---
@@ -566,7 +592,13 @@ mod tests {
     #[test]
     fn specs_language_paragraph_states_the_name_rule() {
         let schema = crate::schema::spec_driven();
-        for (config, want) in [("spec_locale: tw\n", TW), ("spec_locale: ja\n", JA), ("locale: tw\n", EN)] {
+        for (config, want) in [
+            ("spec_locale: tw\n", TW),
+            ("spec_locale: cn\n", CN),
+            ("spec_locale: ja\n", JA),
+            ("spec_locale: en\n", EN),
+            ("locale: tw\n", CN),
+        ] {
             let specs = built(config, &EnvOverrides::default(), &schema, "specs");
             assert_eq!(specs.locale, want, "{config}");
             let instruction = specs.instruction.expect("specs 帶 instruction");
@@ -585,15 +617,15 @@ mod tests {
                 assert!(last.contains(needle), "{config}: 最後一段含 {needle}: {last}");
             }
             let note = last.find("Vague Chinese wording");
-            if want == TW {
-                let note = note.expect("tw 帶中文模糊用語的提醒");
+            if want == TW || want == CN {
+                let note = note.expect("tw/cn 帶中文模糊用語的提醒");
                 assert!(
                     last.find("a changed name fails validation").expect("名稱規則") < note,
                     "名稱規則在提醒之前: {last}"
                 );
                 assert!(last.trim_end().ends_with("state requirements with SHALL/MUST."), "提醒仍是結尾: {last}");
             } else {
-                assert!(note.is_none(), "{config}: 只有 tw 帶提醒: {last}");
+                assert!(note.is_none(), "{config}: 只有 tw/cn 帶提醒: {last}");
             }
         }
         for artifact in ["proposal", "design", "tasks"] {
@@ -615,8 +647,12 @@ mod tests {
         };
 
         let specs = appended("locale: tw\n", "specs");
-        assert!(specs.starts_with("\n\nWrite spec prose in English."), "{specs:?}");
+        assert!(specs.starts_with(&format!("\n\nWrite spec prose in {CN}.")), "{specs:?}");
         assert!(specs.ends_with(".\n") && !specs.ends_with("\n\n"), "{specs:?}");
+
+        let specs_en = appended("spec_locale: en\n", "specs");
+        assert!(specs_en.starts_with("\n\nWrite spec prose in English."), "{specs_en:?}");
+        assert!(specs_en.ends_with(".\n") && !specs_en.ends_with("\n\n"), "{specs_en:?}");
 
         assert_eq!(
             appended("tdd: true\naudit: true\n", "tasks"),
@@ -637,7 +673,12 @@ the checklist; you do not need it to write the tasks.\n"
         for code in ["zh-Hant", "ZH-Hant"] {
             let specs = built(&format!("spec_locale: {code}\n"), &EnvOverrides::default(), &schema, "specs");
             let instruction = specs.instruction.expect("instruction");
-            assert!(last_paragraph(&instruction).contains("Vague Chinese wording"), "{code}: {instruction}");
+            assert!(last_paragraph(&instruction).contains(TW_VAGUE), "{code}: {instruction}");
+        }
+        for code in ["cn", "zh-CN", "zh-Hans", "ZH-HANS", "zh-Hans-CN", "zh-Hans-SG", "zh-SG"] {
+            let specs = built(&format!("spec_locale: {code}\n"), &EnvOverrides::default(), &schema, "specs");
+            let instruction = specs.instruction.expect("instruction");
+            assert!(last_paragraph(&instruction).contains(CN_VAGUE), "{code}: {instruction}");
         }
         let env = EnvOverrides { spec_locale: Some("auto".to_string()), ..EnvOverrides::default() };
         let specs = built("locale: tw\nspec_locale: en\n", &env, &schema, "specs");

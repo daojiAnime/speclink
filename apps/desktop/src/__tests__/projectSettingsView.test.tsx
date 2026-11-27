@@ -172,10 +172,13 @@ describe("政策下拉未知值顯性呈現", () => {
     expect(specLocale.textContent).toContain("zh-Hant");
     expect(specLocale.textContent).toContain("無效");
     const localeHint = screen.getByTestId("locale-invalid-hint");
-    for (const code of ["tw", "ja", "en"]) {
+    for (const code of ["cn", "tw", "ja", "en"]) {
       expect(localeHint.textContent).toContain(code);
     }
-    expect(screen.getByTestId("spec-locale-invalid-hint").textContent).toContain("auto");
+    const specLocaleHint = screen.getByTestId("spec-locale-invalid-hint");
+    for (const code of ["cn", "tw", "ja", "en", "auto"]) {
+      expect(specLocaleHint.textContent).toContain(code);
+    }
     // 讀取不改寫：未按儲存前不得有任何寫入。
     expect(ws.writeWorkflowConfig).not.toHaveBeenCalled();
   });
@@ -186,6 +189,53 @@ describe("政策下拉未知值顯性呈現", () => {
     expect(screen.getByLabelText("spec_locale").textContent).not.toContain("無效");
     expect(screen.queryByTestId("locale-invalid-hint")).toBeNull();
     expect(screen.queryByTestId("spec-locale-invalid-hint")).toBeNull();
+  });
+
+  it("預設未設定文案為简体中文，且 cn（简体中文）可選取並儲存、無無效提示", async () => {
+    const ws = renderView(projectSnap({ locale: null, specLocale: null }), "workflow");
+    const localeBtn = await screen.findByLabelText("locale");
+    const specLocaleBtn = screen.getByLabelText("spec_locale");
+    expect(localeBtn.textContent).toContain("未設定（简体中文）");
+    expect(specLocaleBtn.textContent).toContain("未設定（简体中文）");
+    expect(screen.queryByTestId("locale-invalid-hint")).toBeNull();
+    expect(screen.queryByTestId("spec-locale-invalid-hint")).toBeNull();
+
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    await user.click(localeBtn);
+    const localeOptions = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(localeOptions).toEqual([
+      "未設定（简体中文）",
+      "cn（简体中文）",
+      "tw（繁體中文）",
+      "ja（日本語）",
+      "en（English）",
+    ]);
+    await user.click(await screen.findByRole("option", { name: "cn（简体中文）" }));
+
+    await user.click(specLocaleBtn);
+    const specLocaleOptions = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(specLocaleOptions).toEqual([
+      "未設定（简体中文）",
+      "auto",
+      "cn（简体中文）",
+      "tw（繁體中文）",
+      "ja（日本語）",
+      "en（English）",
+    ]);
+    await user.click(await screen.findByRole("option", { name: "cn（简体中文）" }));
+
+    expect(screen.queryByTestId("locale-invalid-hint")).toBeNull();
+    expect(screen.queryByTestId("spec-locale-invalid-hint")).toBeNull();
+    fireEvent.click(screen.getByTestId("save-workflow"));
+    await waitFor(() =>
+      expect(ws.writeWorkflowConfig).toHaveBeenCalledWith({
+        locale: "cn",
+        specLocale: "cn",
+        tdd: true,
+        audit: false,
+        worktree: false,
+      }),
+    );
   });
 });
 

@@ -29,7 +29,7 @@ import {
   type ProjectSettingsState,
 } from "./useProjectSettings";
 
-const LOCALE_LABEL: Record<string, string> = { tw: "tw（繁體中文）", ja: "ja（日本語）", en: "en（English）", auto: "auto" };
+const LOCALE_LABEL: Record<string, string> = { cn: "cn（简体中文）", tw: "tw（繁體中文）", ja: "ja（日本語）", en: "en（English）", auto: "auto" };
 
 /** 儲存值落在選項集外（手改 config.yaml）：下拉以停用項顯示原值，列與說明轉警示。 */
 const isInvalidLocale = (value: string, codes: readonly string[]) => value !== "" && !codes.includes(value);

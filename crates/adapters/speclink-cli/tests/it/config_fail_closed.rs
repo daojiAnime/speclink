@@ -124,7 +124,7 @@ fn missing_workflow_config_still_runs_with_defaults() {
     );
     let payload: serde_json::Value =
         serde_json::from_slice(&out.stdout).expect("stdout is JSON");
-    assert_eq!(payload["locale"].as_str().unwrap(), "English");
+    assert_eq!(payload["locale"].as_str().unwrap(), "Simplified Chinese (简体中文)");
 }
 
 // --- broken .speclink.yaml: mode resolution fails closed, never fs mode ---

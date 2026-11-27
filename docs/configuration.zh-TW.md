@@ -43,7 +43,7 @@ Speclink 的設定分三層：工作流政策寫在 `speclink/config.yaml`，跟
 | --- | --- | --- |
 | 1 | `SPECLINK_LOCALE`、`SPECLINK_SPEC_LOCALE`、`SPECLINK_TDD`、`SPECLINK_AUDIT`、`SPECLINK_WORKTREE` | 布林變數只認 `true`／`false`（不分大小寫）。`1`、`yes`、空字串都當成沒設，往下一層找 |
 | 2 | `speclink/config.yaml` | 專案的正式值 |
-| 3 | 內建預設 | `locale` 與 `spec_locale` 為 English；`tdd`、`audit`、`worktree` 為關閉；`schema` 為 `spec-driven` |
+| 3 | 內建預設 | `locale` 與 `spec_locale` 為簡體中文；`tdd`、`audit`、`worktree` 為關閉；`schema` 為 `spec-driven` |
 
 另外三件事：
 
@@ -73,7 +73,7 @@ Speclink 的設定分三層：工作流政策寫在 `speclink/config.yaml`，跟
 
 寫入規則：
 
-- `locale` 只收 `tw`、`ja`、`en`；`spec_locale` 另外收 `auto`（跟著 `locale`）。大小寫要相同。寫「繁體中文」這類名稱會被拒絕，錯誤訊息會列出可用的代碼。
+- `locale` 只收 `cn`、`tw`、`ja`、`en`（`cn` 為 Simplified Chinese (简体中文)、`tw` 為繁體中文、`ja` 為日文、`en` 為英文）；`spec_locale` 另外收 `auto`（跟著 `locale`）。大小寫要相同。寫「简体中文」或「繁體中文」這類名稱會被拒絕，錯誤訊息會列出可用的代碼。
 - `tdd`、`audit`、`worktree` 只收 `true`／`false`。設成 `false`（或把 `locale` 設成空字串）會刪掉那一行，回到預設值。
 - 所有寫入子指令都有 `--dry-run`：只印出差異，不寫檔。差異逐行比對新舊內容：只有被刪除、新增或移動位置的行會標 `-`／`+`；改動範圍內其餘沒改的行以前後文呈現，夾在兩處改動之間的也一樣。範圍前後另外最多各帶三行沒改的內容。
 - `review` 的寫入會整塊取代 `review` 區塊：`extend` 不寫 `baseline` 鍵、清單清空就移除該鍵、整塊沒有內容時移除 `review` 鍵。`review` 區塊內的註解不會保留。
@@ -217,8 +217,8 @@ tools:
 | 鍵 | 值 | 預設 | 用途 |
 | --- | --- | --- | --- |
 | `schema` | schema 名稱 | `spec-driven` | 新變更使用的產出流程（產出哪些文件、什麼順序） |
-| `locale` | `tw`、`ja`、`en` | English | AI 產出文件與報告的語言；review、verify 也用它呈現結果。其餘時候 Agent 用你的語言跟你對話 |
-| `spec_locale` | `tw`、`ja`、`en`、`auto` | English | 規格檔的語言；`auto` 跟著 `locale`。`speclink instructions specs` 的 `locale` 欄位回報解析後的規格語言（沒有設定時是 English，`auto` 時是 `locale` 的值），技能照這個欄位的語言寫規格。需求與情境的名稱也用這個語言寫；指向正式規格的名稱（MODIFIED 與 REMOVED 的需求名稱、RENAMED 的舊名稱、沿用的情境名稱）照正式規格的原文，`speclink instructions specs` 的指示會寫明這條規則 |
+| `locale` | `cn`、`tw`、`ja`、`en` | 簡體中文 | AI 產出文件與報告的語言（`cn` 為 Simplified Chinese (简体中文)、`tw` 為繁體中文、`ja` 為日文、`en` 為英文）；review、verify 也用它呈現結果。其餘時候 Agent 用你的語言跟你對話 |
+| `spec_locale` | `cn`、`tw`、`ja`、`en`、`auto` | 簡體中文 | 規格檔的語言；`auto` 跟著 `locale`。`speclink instructions specs` 的 `locale` 欄位回報解析後的規格語言（沒有設定時是簡體中文，`auto` 時是 `locale` 的值），技能照這個欄位的語言寫規格。需求與情境的名稱也用這個語言寫；指向正式規格的名稱（MODIFIED 與 REMOVED 的需求名稱、RENAMED 的舊名稱、沿用的情境名稱）照正式規格的原文，`speclink instructions specs` 的指示會寫明這條規則 |
 | `tdd` | `true`／`false` | `false` | 實作時先寫會失敗的測試，再寫程式（紅→綠） |
 | `audit` | `true`／`false` | `false` | 實作時對新 API 與參數處理做 sharp-edges 安全檢查 |
 | `worktree` | `true`／`false` | `false` | 開啟 worktree 平行實作流程，並產生兩個 worktree 技能 |

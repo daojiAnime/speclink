@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -88,7 +88,7 @@ Merge findings from all 3 lenses. For each finding:
 - False positive or not worth changing → skip without debate
 - Classify severity: Critical / High / Medium / Low
 
-**Report language**: run `speclink workflow-config show --json` and write the report, closing summary included, in the language of its `locale` field (`tw` Traditional Chinese, `ja` Japanese, `en` or null English; English when the command fails) — prose, headings, and table labels included. Keep severity labels (Critical/High/Medium/Low), file paths, command lines, and code references in English.
+**Report language**: run `speclink workflow-config show --json` and write the report, closing summary included, in the language of its `locale` field (`cn` or null Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English; Simplified Chinese when the command fails) — prose, headings, and table labels included. Keep severity labels (Critical/High/Medium/Low), file paths, command lines, and code references in English.
 
 End with a brief summary of the findings and their proposed fixes (or confirm the code is clean).
 

@@ -2,8 +2,8 @@ schema: spec-driven
 
 worktree: true
 
-locale: tw
-spec_locale: tw
+locale: cn
+spec_locale: auto
 tdd: true
 audit: true
 context: |

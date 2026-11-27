@@ -25,7 +25,7 @@ speclink workflow-config show --json
 The `workflow-config show --json` payload is the canonical workflow config for this workspace — the values `{{SPEC_DIR}}config.yaml` holds (the store's config document in remote mode), in the same shape either way. Environment overrides (`SPECLINK_*`) are not applied; that is the same reading the file itself gives. Read these fields from it:
 
 - `context` — the project context; carry it as background for the inventory and for every spec you write.
-- `specLocale` — the JSON name of `spec_locale`: the language for spec prose. `null` means English, `auto` means use the payload's `locale`, any other value is the locale code to write in. Structural markers and SHALL/MUST keywords stay in English regardless.
+- `specLocale` — the JSON name of `spec_locale`: the language for spec prose. `null` means Simplified Chinese, `auto` means use the payload's `locale`, any other value is the locale code to write in. Structural markers and SHALL/MUST keywords stay in English regardless.
 - `rules.specs` — the project's specs rules, a list of strings (absent when the project sets none). They bind every spec you write in Step 4 — see the last rule there. When the list is absent or empty, nothing changes.
 
 If `speclink workflow-config show --json` exits non-zero (a config that does not parse fails closed; a remote store that is offline or rejects the credentials does the same), report the error and STOP — never fall back to reading `{{SPEC_DIR}}config.yaml` by hand, and never parse the YAML yourself.

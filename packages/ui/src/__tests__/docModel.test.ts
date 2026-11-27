@@ -308,6 +308,8 @@ describe("splitTaskText", () => {
     ["Run the whole suite", null, "Run the whole suite", null, null, []],
     ["說明「Verify: 」標記：補測試。驗證：npm test", null, "說明「Verify: 」標記", "補測試。", "npm test", []],
     ["補日文標記：處理「検証：」。驗證：npm test", null, "補日文標記", "處理「検証：」。", "npm test", []],
+    ["导出 CSV：写出含表头的文件。验证：cargo test", null, "导出 CSV", "写出含表头的文件。", "cargo test", []],
+    ["补繁体标记：处理「驗證：」。验证：npm test", null, "补繁体标记", "处理「驗證：」。", "npm test", []],
   ])("%s", (text, number, title, body, verify, decisions) => {
     expect(splitTaskText(text)).toEqual({ number, title, body, verify, decisions, note: null });
   });

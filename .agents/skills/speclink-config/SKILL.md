@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -92,8 +92,8 @@ The policy fields are the user's decision, and so are the test scope and the rev
 
 | Item | What it decides | Not set |
 | --- | --- | --- |
-| `locale` | the language for generated prose | English |
-| `spec_locale` | the language for spec files (`auto` = follow `locale`) | English |
+| `locale` | the language for generated prose | Simplified Chinese |
+| `spec_locale` | the language for spec files (`auto` = follow `locale`) | Simplified Chinese |
 | `tdd` | whether apply enforces test-first discipline | `false` |
 | `audit` | whether apply enforces sharp-edges discipline | `false` |
 | `worktree` | whether apply works each change in its own git worktree | `false` |
@@ -111,7 +111,7 @@ A first run — a document with no policy field set yet — shows the same table
 
 Never infer any of these values from the repo, the test scope and the review rules mode included — a test directory does not mean `tdd: true`.
 
-**Locale fields take locale CODES, never display names.** `locale` accepts exactly `tw`, `ja`, `en`; `spec_locale` accepts `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — "Traditional Chinese" → `tw`, "Japanese" → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
+**Locale fields take locale CODES, never display names.** `locale` accepts exactly `cn`, `tw`, `ja`, `en`; `spec_locale` accepts `cn`, `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — "Simplified Chinese" → `cn`, "Traditional Chinese" → `tw`, "Japanese" → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
 
 **`worktree` also syncs the skill files, in local mode.** It lands like the other fields, through `speclink workflow-config set worktree <true|false>` and its `--dry-run` preview in Step 5. In local mode that write syncs the skill files: turning it on generates the worktree skills, and turning it off removes them. The CLI refuses to turn it off while a linked worktree is still active, and lists each one; relay the refusal to the user as it stands. The config stays as it was, and the refusal already says how to wrap those worktrees up — do not close or remove any worktree yourself. In remote mode the write changes only the server's config: it neither syncs the skill files nor checks for active worktrees, so tell the user that.
 
@@ -192,7 +192,7 @@ An existing review rule is dropped only for the reasons any other line is: it fa
 
 ## Step 5: Show the diff, then write
 
-**Draft language**: the lines you drafted or rewrote are in the language of `locale` as Step 3 confirmed it (`tw` Traditional Chinese, `ja` Japanese, `en` or not set English) — when Step 3 changed it, rewrite those lines before you produce the diff. Lines you leave unchanged keep their wording, and review rules keep the user's own words. Commands, file paths, test names, config keys and code identifiers stay as they are.
+**Draft language**: the lines you drafted or rewrote are in the language of `locale` as Step 3 confirmed it (`cn` or not set Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English) — when Step 3 changed it, rewrite those lines before you produce the diff. Lines you leave unchanged keep their wording, and review rules keep the user's own words. Commands, file paths, test names, config keys and code identifiers stay as they are.
 
 Produce the diff for each change with the write verb's own `--dry-run`, so the preview is byte-identical to what would land:
 

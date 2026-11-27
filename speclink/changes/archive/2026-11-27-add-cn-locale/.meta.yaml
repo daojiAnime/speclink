@@ -1,0 +1,207 @@
+schema: spec-driven
+created: 2026-11-27T17:42:04+08:00
+created_by: daoji <daoji.chang@gmail.com>
+created_with: claude
+depends_on: add-omp-tool, english-skill-prompts
+started_at: 2026-11-27T20:10:45+08:00
+started_by: daoji <daoji.chang@gmail.com>
+branch: main
+ready_at: 2026-11-27T20:28:25+08:00
+reviewed_at: 2026-11-27T21:38:49+08:00
+reviewed_by: daoji <daoji.chang@gmail.com>
+reviewed_tasks_total: 9
+reviewed_rounds: 2
+reviewed_commit: 16fce7b1195e5549e56ebe649e12b4d68e757536
+reviewed_scope:
+  - path: apps/desktop/src/__tests__/projectSettingsView.test.tsx
+    hash: 506d3264340386433cde278d5e6b93e669b7fb32e22714e855bafa9a8cd50cc3
+  - path: apps/desktop/src/i18n/messages.ts
+    hash: 7e46878309842976cabc6fe4a4293b1b520e041eb867e3b3db3381eb950f3331
+  - path: apps/desktop/src/views/project-settings/WorkflowPage.tsx
+    hash: 32902dcdae2a481940d00c4168f7d91a0b00abb827959dd5a8729e1aad4998e7
+  - path: apps/desktop/src/views/project-settings/useProjectSettings.ts
+    hash: f295d7f4c8043f0f418930b5bb77c9ac812989882dd09796eca22063b016c964
+  - path: crates/adapters/speclink-cli/tests/it/config_fail_closed.rs
+    hash: b5ca97c9450a0f106e454a381fe3d91d5b7e82c66272109de4e0eea2eefa6107
+  - path: crates/adapters/speclink-cli/tests/it/instructions_policy.rs
+    hash: 0b9fa45f568775c52ef2f40cef9508c15e98f2aa490a065b473699237978cb29
+  - path: crates/adapters/speclink-cli/tests/it/workflow_config.rs
+    hash: 775b35ba8fcdf74aa59d46c969ccfdc94f9e702333d69a8eaa324f52e4de9008
+  - path: crates/adapters/speclink-node/__test__/workflow-config-verbs.spec.ts
+    hash: 961edd821b28ce17e6c101746f1122e8ee99eb5d6625b3a96c8e690e7308ee32
+  - path: crates/adapters/speclink-verbs/src/render/mod.rs
+    hash: f94da6ce748c0cd2ebb2fbb65d309d1f3f788628ee49a039abb93c49dbc1fed1
+  - path: crates/adapters/speclink-verbs/src/render/workflow_config.rs
+    hash: 87499241219c41f71f1fc2bd896940d46f4d9bd9f905b76955b8272e0e578513
+  - path: crates/engine/speclink-core/assets/schema/no-spec-change/fork.schema.yaml
+    hash: 6057028cf15a8887447a10ccd1f316b92656b82f31a60f1452850a20267bcd08
+  - path: crates/engine/speclink-core/assets/schema/spec-driven/fork.schema.yaml
+    hash: 73d073c5227d2408078f4a15f6780cb9ef3515f8d4a5915ee5748b3c7cbee76c
+  - path: crates/engine/speclink-core/assets/skills/audit.md
+    hash: 3731ec414f9e1521b414bf0ff1b627da3bccf569797ca820d1500f14c81203ac
+  - path: crates/engine/speclink-core/assets/skills/baseline.md
+    hash: d2b0f1b226fd6421927c611dccdee8a7f9d5d6aa079a4e31fb147384f23c206a
+  - path: crates/engine/speclink-core/assets/skills/config.md
+    hash: 8391af5c2a1568615861ea6f1e9dd22e2e3086c0fcafb62e289e838159c91dd2
+  - path: crates/engine/speclink-core/assets/skills/discuss.md
+    hash: c3feb14bad512b84e1f2c5b7fea55f1e185348026899d1388ee55b2065df5b1a
+  - path: crates/engine/speclink-core/assets/skills/improve.md
+    hash: b333293927f711667b0494795f4455ca404ad113af6b1580c7ead969f5b54bd9
+  - path: crates/engine/speclink-core/src/command/workflow_config.rs
+    hash: 56fc89dfcb5c69f3e4dbd13ca366c9431a9b6c2bdb4424fc46647c5a5add7190
+  - path: crates/engine/speclink-core/src/quality/analyzer.rs
+    hash: 1e8bf2c957d7a4b79b85bcbde97572c97044ee50be75d52e0f8e6c26fd0700ea
+  - path: crates/engine/speclink-core/src/quality/analyzer/tests.rs
+    hash: 5966341e28f2c9aeba6c243809d4f161ceeb330f4c659efeae479afc377e2e7e
+  - path: crates/engine/speclink-core/src/workspace/config.rs
+    hash: b98c2e7bdd8cac1c057e47a70a053d9a36c51070a8ca9923247ebd91b92e133f
+  - path: crates/engine/speclink-core/src/workspace/config/tests.rs
+    hash: 1dc3577b4d61cf699aeef26f5f392d3d08f3e42659dfb4475ca2fda5bf7d5d03
+  - path: crates/engine/speclink-core/src/workspace/init.rs
+    hash: 2d168ac8d55836c5d79742301ada281546ca70ab15f1486f0f93c8abc2d90b1c
+  - path: crates/engine/speclink-core/src/workspace/instructions.rs
+    hash: 9b09f8a222531df89e35f3d48c935dbecb778fa93d70b74d6da0b5719aaab8ba
+  - path: crates/engine/speclink-core/src/workspace/schema.rs
+    hash: d13a565ba8908cdc350c2bbcfc09125a70f3f8c7ae2b8c30c107034a29ea4308
+  - path: crates/engine/speclink-core/tests/golden/agy.snapshot.md
+    hash: 0ad3bfafd2b8c32268dc8f43851446548cd78a7fa2615d9c4ebf9248231019f4
+  - path: crates/engine/speclink-core/tests/golden/assets.lock
+    hash: c59d94227086dfa0a3cf6b7602da5b94645483103102685ecd149efc99ec5cba
+  - path: crates/engine/speclink-core/tests/golden/claude-remote.snapshot.md
+    hash: f84610a9babcdda8fcdbb6a0075a02718ba0ee875f82a5a99564f8c491af4411
+  - path: crates/engine/speclink-core/tests/golden/claude-worktree.snapshot.md
+    hash: 281b482d732e548ca4565c828c3022888146e1b06f958b0ce6dbb2c90226009b
+  - path: crates/engine/speclink-core/tests/golden/claude.snapshot.md
+    hash: 717378d98e1a1d16d66ee9a164a87e9229a2931f3c77f4c090a06a9403050cd5
+  - path: crates/engine/speclink-core/tests/golden/codex.snapshot.md
+    hash: 56af5417c859054636089d7cd7425316b062db4ce33bb3f95cb5044473d70797
+  - path: crates/engine/speclink-core/tests/golden/copilot.snapshot.md
+    hash: 0c66e65dd781098c28698e87f341d1d026f6815d6bdd13116c6e0d95858e982a
+  - path: crates/engine/speclink-core/tests/golden/cursor.snapshot.md
+    hash: aa83efa680814ea7bc2eb184ed4cb0b8577c1976e290f7124b96d56e77553193
+  - path: crates/engine/speclink-core/tests/golden/neutral-cli.snapshot.md
+    hash: daee9437c0e004dcd4bc62f6400e41e5e0035e0c163482ff43d60d9f906280b8
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call-remote.snapshot.md
+    hash: c12eef2f6b82af41af94e6ee2a6950f59674c9457c62500f072a3639630758db
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call.snapshot.md
+    hash: 9cf452692c5eabb6ed4070cdd421f325618468a5041ef8f46e7a2091fc25d15d
+  - path: crates/engine/speclink-core/tests/golden/omp.snapshot.md
+    hash: aac0414a2c0e826e3da8f9a0c3bbaaceffe58a70995c1a422ffffdc3025a3362
+  - path: crates/engine/speclink-core/tests/golden/pi.snapshot.md
+    hash: a886eff13b626352ca423ac834c270ffbca78652516d8939da059e9135b6e2d1
+  - path: crates/engine/speclink-core/tests/it/render_golden.rs
+    hash: 8836e9d28d0a2386eaacbb0979ef47aa7f57d72514de632648a13ba18b855b6a
+  - path: docs/configuration.md
+    hash: 536eea9d031204fbbb30a0bc6884e2b4b12b7b59a402196266c5c52068b7456e
+  - path: docs/configuration.zh-TW.md
+    hash: 284d7e7e87b5d5c447833e027ab999559b8e4ce9891517319c343c2c45c9a18e
+  - path: docs/verb-contract.md
+    hash: 1863effe7eb16bb8b4d06d9077ec65672f4e6e06c262d8c166d9536e4582b45a
+  - path: docs/verb-contract.zh-TW.md
+    hash: e536145cb732c2aa766598ecc4c34ac02291e03ed6b1c1730304e77576092060
+  - path: packages/ui/src/__tests__/docModel.test.ts
+    hash: 6297df7020753bbc22d2b4f02208ce58c6b94e7e84cee092d8e7a173fcef785d
+  - path: packages/ui/src/__tests__/taskList.test.tsx
+    hash: 992647028dc913d5a4ef02ebbbde5d430c9b6cdebc7b9c37a5202d8b79465e8d
+  - path: packages/ui/src/docModel.ts
+    hash: 5b44bfc971822781995ca827f985939f129c56b5967cb9d3f466d15045926cde
+verified_at: 2026-11-27T21:38:49+08:00
+verified_by: daoji <daoji.chang@gmail.com>
+verified_tasks_total: 9
+verified_rounds: 2
+verified_commit: 16fce7b1195e5549e56ebe649e12b4d68e757536
+verified_scope:
+  - path: apps/desktop/src/__tests__/projectSettingsView.test.tsx
+    hash: 506d3264340386433cde278d5e6b93e669b7fb32e22714e855bafa9a8cd50cc3
+  - path: apps/desktop/src/i18n/messages.ts
+    hash: 7e46878309842976cabc6fe4a4293b1b520e041eb867e3b3db3381eb950f3331
+  - path: apps/desktop/src/views/project-settings/WorkflowPage.tsx
+    hash: 32902dcdae2a481940d00c4168f7d91a0b00abb827959dd5a8729e1aad4998e7
+  - path: apps/desktop/src/views/project-settings/useProjectSettings.ts
+    hash: f295d7f4c8043f0f418930b5bb77c9ac812989882dd09796eca22063b016c964
+  - path: crates/adapters/speclink-cli/tests/it/config_fail_closed.rs
+    hash: b5ca97c9450a0f106e454a381fe3d91d5b7e82c66272109de4e0eea2eefa6107
+  - path: crates/adapters/speclink-cli/tests/it/instructions_policy.rs
+    hash: 0b9fa45f568775c52ef2f40cef9508c15e98f2aa490a065b473699237978cb29
+  - path: crates/adapters/speclink-cli/tests/it/workflow_config.rs
+    hash: 775b35ba8fcdf74aa59d46c969ccfdc94f9e702333d69a8eaa324f52e4de9008
+  - path: crates/adapters/speclink-node/__test__/workflow-config-verbs.spec.ts
+    hash: 961edd821b28ce17e6c101746f1122e8ee99eb5d6625b3a96c8e690e7308ee32
+  - path: crates/adapters/speclink-verbs/src/render/mod.rs
+    hash: f94da6ce748c0cd2ebb2fbb65d309d1f3f788628ee49a039abb93c49dbc1fed1
+  - path: crates/adapters/speclink-verbs/src/render/workflow_config.rs
+    hash: 87499241219c41f71f1fc2bd896940d46f4d9bd9f905b76955b8272e0e578513
+  - path: crates/engine/speclink-core/assets/schema/no-spec-change/fork.schema.yaml
+    hash: 6057028cf15a8887447a10ccd1f316b92656b82f31a60f1452850a20267bcd08
+  - path: crates/engine/speclink-core/assets/schema/spec-driven/fork.schema.yaml
+    hash: 73d073c5227d2408078f4a15f6780cb9ef3515f8d4a5915ee5748b3c7cbee76c
+  - path: crates/engine/speclink-core/assets/skills/audit.md
+    hash: 3731ec414f9e1521b414bf0ff1b627da3bccf569797ca820d1500f14c81203ac
+  - path: crates/engine/speclink-core/assets/skills/baseline.md
+    hash: d2b0f1b226fd6421927c611dccdee8a7f9d5d6aa079a4e31fb147384f23c206a
+  - path: crates/engine/speclink-core/assets/skills/config.md
+    hash: 8391af5c2a1568615861ea6f1e9dd22e2e3086c0fcafb62e289e838159c91dd2
+  - path: crates/engine/speclink-core/assets/skills/discuss.md
+    hash: c3feb14bad512b84e1f2c5b7fea55f1e185348026899d1388ee55b2065df5b1a
+  - path: crates/engine/speclink-core/assets/skills/improve.md
+    hash: b333293927f711667b0494795f4455ca404ad113af6b1580c7ead969f5b54bd9
+  - path: crates/engine/speclink-core/src/command/workflow_config.rs
+    hash: 56fc89dfcb5c69f3e4dbd13ca366c9431a9b6c2bdb4424fc46647c5a5add7190
+  - path: crates/engine/speclink-core/src/quality/analyzer.rs
+    hash: 1e8bf2c957d7a4b79b85bcbde97572c97044ee50be75d52e0f8e6c26fd0700ea
+  - path: crates/engine/speclink-core/src/quality/analyzer/tests.rs
+    hash: 5966341e28f2c9aeba6c243809d4f161ceeb330f4c659efeae479afc377e2e7e
+  - path: crates/engine/speclink-core/src/workspace/config.rs
+    hash: b98c2e7bdd8cac1c057e47a70a053d9a36c51070a8ca9923247ebd91b92e133f
+  - path: crates/engine/speclink-core/src/workspace/config/tests.rs
+    hash: 1dc3577b4d61cf699aeef26f5f392d3d08f3e42659dfb4475ca2fda5bf7d5d03
+  - path: crates/engine/speclink-core/src/workspace/init.rs
+    hash: 2d168ac8d55836c5d79742301ada281546ca70ab15f1486f0f93c8abc2d90b1c
+  - path: crates/engine/speclink-core/src/workspace/instructions.rs
+    hash: 9b09f8a222531df89e35f3d48c935dbecb778fa93d70b74d6da0b5719aaab8ba
+  - path: crates/engine/speclink-core/src/workspace/schema.rs
+    hash: d13a565ba8908cdc350c2bbcfc09125a70f3f8c7ae2b8c30c107034a29ea4308
+  - path: crates/engine/speclink-core/tests/golden/agy.snapshot.md
+    hash: 0ad3bfafd2b8c32268dc8f43851446548cd78a7fa2615d9c4ebf9248231019f4
+  - path: crates/engine/speclink-core/tests/golden/assets.lock
+    hash: c59d94227086dfa0a3cf6b7602da5b94645483103102685ecd149efc99ec5cba
+  - path: crates/engine/speclink-core/tests/golden/claude-remote.snapshot.md
+    hash: f84610a9babcdda8fcdbb6a0075a02718ba0ee875f82a5a99564f8c491af4411
+  - path: crates/engine/speclink-core/tests/golden/claude-worktree.snapshot.md
+    hash: 281b482d732e548ca4565c828c3022888146e1b06f958b0ce6dbb2c90226009b
+  - path: crates/engine/speclink-core/tests/golden/claude.snapshot.md
+    hash: 717378d98e1a1d16d66ee9a164a87e9229a2931f3c77f4c090a06a9403050cd5
+  - path: crates/engine/speclink-core/tests/golden/codex.snapshot.md
+    hash: 56af5417c859054636089d7cd7425316b062db4ce33bb3f95cb5044473d70797
+  - path: crates/engine/speclink-core/tests/golden/copilot.snapshot.md
+    hash: 0c66e65dd781098c28698e87f341d1d026f6815d6bdd13116c6e0d95858e982a
+  - path: crates/engine/speclink-core/tests/golden/cursor.snapshot.md
+    hash: aa83efa680814ea7bc2eb184ed4cb0b8577c1976e290f7124b96d56e77553193
+  - path: crates/engine/speclink-core/tests/golden/neutral-cli.snapshot.md
+    hash: daee9437c0e004dcd4bc62f6400e41e5e0035e0c163482ff43d60d9f906280b8
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call-remote.snapshot.md
+    hash: c12eef2f6b82af41af94e6ee2a6950f59674c9457c62500f072a3639630758db
+  - path: crates/engine/speclink-core/tests/golden/neutral-tool-call.snapshot.md
+    hash: 9cf452692c5eabb6ed4070cdd421f325618468a5041ef8f46e7a2091fc25d15d
+  - path: crates/engine/speclink-core/tests/golden/omp.snapshot.md
+    hash: aac0414a2c0e826e3da8f9a0c3bbaaceffe58a70995c1a422ffffdc3025a3362
+  - path: crates/engine/speclink-core/tests/golden/pi.snapshot.md
+    hash: a886eff13b626352ca423ac834c270ffbca78652516d8939da059e9135b6e2d1
+  - path: crates/engine/speclink-core/tests/it/render_golden.rs
+    hash: 8836e9d28d0a2386eaacbb0979ef47aa7f57d72514de632648a13ba18b855b6a
+  - path: docs/configuration.md
+    hash: 536eea9d031204fbbb30a0bc6884e2b4b12b7b59a402196266c5c52068b7456e
+  - path: docs/configuration.zh-TW.md
+    hash: 284d7e7e87b5d5c447833e027ab999559b8e4ce9891517319c343c2c45c9a18e
+  - path: docs/verb-contract.md
+    hash: 1863effe7eb16bb8b4d06d9077ec65672f4e6e06c262d8c166d9536e4582b45a
+  - path: docs/verb-contract.zh-TW.md
+    hash: e536145cb732c2aa766598ecc4c34ac02291e03ed6b1c1730304e77576092060
+  - path: packages/ui/src/__tests__/docModel.test.ts
+    hash: 6297df7020753bbc22d2b4f02208ce58c6b94e7e84cee092d8e7a173fcef785d
+  - path: packages/ui/src/__tests__/taskList.test.tsx
+    hash: 992647028dc913d5a4ef02ebbbde5d430c9b6cdebc7b9c37a5202d8b79465e8d
+  - path: packages/ui/src/docModel.ts
+    hash: 5b44bfc971822781995ca827f985939f129c56b5967cb9d3f466d15045926cde
+archived_at: 2026-11-27T21:49:33+08:00
+archived_by: daoji <daoji.chang@gmail.com>

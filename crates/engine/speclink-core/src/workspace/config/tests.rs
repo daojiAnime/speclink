@@ -59,9 +59,9 @@ fn locale_canonical_value_applies_without_upper_layers() {
 }
 
 #[test]
-fn locale_defaults_to_english() {
+fn locale_defaults_to_simplified_chinese() {
     let p = resolve_policy(&env_of(NO_ENV), &wf("{}"));
-    assert_eq!(p.locale, "English");
+    assert_eq!(p.locale, "Simplified Chinese (简体中文)");
 }
 
 // --- spec_locale: env > config.yaml > default ---
@@ -692,7 +692,7 @@ fn config_without_remote_key_parses_with_section_absent() {
 #[test]
 fn resolve_locale_reads_the_canonical_config_only() {
     assert_eq!(resolve_locale(&wf("locale: ja")), "Japanese (日本語)");
-    assert_eq!(resolve_locale(&wf("{}")), "English");
+    assert_eq!(resolve_locale(&wf("{}")), "Simplified Chinese (简体中文)");
 }
 
 #[test]
@@ -701,7 +701,10 @@ fn resolve_spec_locale_keeps_auto_and_english_normalization() {
         resolve_spec_locale(&wf("spec_locale: auto\nlocale: tw")).as_deref(),
         Some("tw")
     );
-    assert_eq!(resolve_spec_locale(&wf("spec_locale: en")), None);
+    assert_eq!(resolve_spec_locale(&wf("spec_locale: auto")), None);
+    assert_eq!(resolve_spec_locale(&wf("spec_locale: en")).as_deref(), Some("en"));
+    assert_eq!(resolve_spec_locale(&wf("spec_locale: English")).as_deref(), Some("en"));
+    assert_eq!(resolve_spec_locale(&wf("spec_locale: cn")).as_deref(), Some("cn"));
     assert_eq!(resolve_spec_locale(&wf("{}")), None);
 }
 
@@ -827,8 +830,17 @@ fn workflow_update_matches_spec_example_table() {
 // --- policy locale 值域驗證（workflow-config-locale-validation，design D1／D3）---
 
 #[test]
+fn locale_display_maps_codes_and_defaults_to_simplified_chinese() {
+    assert_eq!(locale_display(Some("cn")), "Simplified Chinese (简体中文)");
+    assert_eq!(locale_display(Some("en")), "English");
+    assert_eq!(locale_display(None), "Simplified Chinese (简体中文)");
+    assert_eq!(locale_display(Some("CN")), "CN");
+    assert_eq!(locale_display(Some("zh-CN")), "zh-CN");
+}
+
+#[test]
 fn validate_policy_locales_accepts_codes_and_unset() {
-    for code in ["tw", "ja", "en"] {
+    for code in ["tw", "cn", "ja", "en"] {
         let f = WorkflowPolicyFields { locale: Some(code.into()), ..Default::default() };
         assert!(validate_policy_locales(&f).is_ok(), "locale {code} must pass");
         let f = WorkflowPolicyFields { spec_locale: Some(code.into()), ..Default::default() };
@@ -846,11 +858,11 @@ fn validate_policy_locales_accepts_codes_and_unset() {
 #[test]
 fn validate_policy_locales_rejects_display_names_and_case_variants() {
     // spec「locale 值域判定」Example 表的拒絕列
-    for bad in ["繁體中文", "TW", "Auto", ""] {
+    for bad in ["繁體中文", "简体中文", "TW", "CN", "Auto", ""] {
         let f = WorkflowPolicyFields { locale: Some(bad.into()), ..Default::default() };
         assert!(validate_policy_locales(&f).is_err(), "locale {bad:?} must be rejected");
     }
-    for bad in ["繁體中文", "zh-Hant", "AUTO"] {
+    for bad in ["繁體中文", "简体中文", "zh-Hant", "zh-CN", "CN", "AUTO"] {
         let f = WorkflowPolicyFields { spec_locale: Some(bad.into()), ..Default::default() };
         assert!(validate_policy_locales(&f).is_err(), "spec_locale {bad:?} must be rejected");
     }
@@ -860,12 +872,12 @@ fn validate_policy_locales_rejects_display_names_and_case_variants() {
 fn validate_policy_locales_error_names_field_value_and_codes() {
     let f = WorkflowPolicyFields { locale: Some("繁體中文".into()), ..Default::default() };
     let err = validate_policy_locales(&f).unwrap_err().to_string();
-    for needle in ["locale", "繁體中文", "tw", "ja", "en"] {
+    for needle in ["locale", "繁體中文", "tw", "cn", "ja", "en"] {
         assert!(err.contains(needle), "error must contain {needle:?}, got: {err}");
     }
     let f = WorkflowPolicyFields { spec_locale: Some("zh-Hant".into()), ..Default::default() };
     let err = validate_policy_locales(&f).unwrap_err().to_string();
-    for needle in ["spec_locale", "zh-Hant", "auto"] {
+    for needle in ["spec_locale", "zh-Hant", "cn", "auto"] {
         assert!(err.contains(needle), "error must contain {needle:?}, got: {err}");
     }
 }

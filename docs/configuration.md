@@ -43,7 +43,7 @@ Speclink checks the layers from top to bottom. The first layer with a value wins
 | --- | --- | --- |
 | 1 | `SPECLINK_LOCALE`, `SPECLINK_SPEC_LOCALE`, `SPECLINK_TDD`, `SPECLINK_AUDIT`, `SPECLINK_WORKTREE` | Boolean variables accept only `true` / `false` (any case). Speclink treats `1`, `yes`, and an empty value as unset and checks the next layer |
 | 2 | `speclink/config.yaml` | The project values |
-| 3 | Built-in defaults | `locale` and `spec_locale` are English. `tdd`, `audit`, and `worktree` are off. `schema` is `spec-driven` |
+| 3 | Built-in defaults | `locale` and `spec_locale` are Simplified Chinese. `tdd`, `audit`, and `worktree` are off. `schema` is `spec-driven` |
 
 Three more points:
 
@@ -73,7 +73,7 @@ Use `speclink workflow-config`. In local mode it changes `speclink/config.yaml`.
 
 Write rules:
 
-- `locale` accepts only `tw`, `ja`, `en`. `spec_locale` also accepts `auto` (follow `locale`). Case must match. A display name such as 「繁體中文」 is rejected, and the error lists the valid codes.
+- `locale` accepts only `cn`, `tw`, `ja`, `en` (`cn` is Simplified Chinese (简体中文), `tw` Traditional Chinese, `ja` Japanese, `en` English). `spec_locale` also accepts `auto` (follow `locale`). Case must match. A display name such as 「简体中文」 or 「繁體中文」 is rejected, and the error lists the valid codes.
 - `tdd`, `audit`, and `worktree` accept only `true` / `false`. A `false` value (or an empty `locale`) removes the line, so the default applies again.
 - All write subcommands accept `--dry-run`. It prints the diff and writes nothing. The diff compares the old and new text line by line. Only the lines that are removed, added, or moved get `-` or `+`. The other lines in the changed range show as context, also when they are between two changes. Up to three unchanged lines before and after that range are also shown.
 - A `review` write replaces the whole `review` block. `extend` writes no `baseline` key, an empty list removes its key, and a block with nothing left is removed. Comments inside the `review` block are not kept.
@@ -217,8 +217,8 @@ You cannot change the free fields of an archived change or discussion record, an
 | Key | Values | Default | Use |
 | --- | --- | --- | --- |
 | `schema` | A schema name | `spec-driven` | The workflow schema for new changes (which documents, in which order) |
-| `locale` | `tw`, `ja`, `en` | English | The language of AI-generated documents and reports; review and verify also present their results in it. Otherwise the agent talks to you in your own language |
-| `spec_locale` | `tw`, `ja`, `en`, `auto` | English | The language of spec files. `auto` follows `locale`. The `locale` field of `speclink instructions specs` gives the resolved spec language (English when this key is not set, the `locale` value for `auto`), and skills write specs in that language. Requirement and scenario names are written in this language too. A name that points at the canonical spec (a requirement name under MODIFIED or REMOVED, the old name of a RENAMED entry, a scenario name carried over) keeps the canonical spec's wording, and the instruction from `speclink instructions specs` states this rule |
+| `locale` | `cn`, `tw`, `ja`, `en` | Simplified Chinese (简体中文) | The language of AI-generated documents and reports (`cn` is Simplified Chinese (简体中文), `tw` Traditional Chinese, `ja` Japanese, `en` English); review and verify also present their results in it. Otherwise the agent talks to you in your own language |
+| `spec_locale` | `cn`, `tw`, `ja`, `en`, `auto` | Simplified Chinese (简体中文) | The language of spec files. `auto` follows `locale`. The `locale` field of `speclink instructions specs` gives the resolved spec language (Simplified Chinese when this key is not set, the `locale` value for `auto`), and skills write specs in that language. Requirement and scenario names are written in this language too. A name that points at the canonical spec (a requirement name under MODIFIED or REMOVED, the old name of a RENAMED entry, a scenario name carried over) keeps the canonical spec's wording, and the instruction from `speclink instructions specs` states this rule |
 | `tdd` | `true` / `false` | `false` | Write a failing test first, then the code (red to green) |
 | `audit` | `true` / `false` | `false` | Run a sharp-edges security check on new APIs and parameter handling |
 | `worktree` | `true` / `false` | `false` | Turn on the parallel worktree flow and make the two worktree skills |

@@ -451,6 +451,18 @@ fn cjk_weak_language_keeps_substring_matching() {
     // spec Scenario「CJK 樣式維持子字串——可能、應該、考慮」。
     assert_eq!(weak_pattern_in("系統盡可能鎖定").as_deref(), Some("可能"));
     assert_eq!(weak_pattern_in("這不可能發生"), None);
+    assert_eq!(weak_pattern_in("系统尽可能锁定").as_deref(), Some("可能"));
+    assert_eq!(weak_pattern_in("这不可能发生"), None);
+    for (line, want) in [
+        ("系统应该重试", "应该"),
+        ("系统也许超时", "也许"),
+        ("系统或许失败", "或许"),
+        ("系统考虑降级", "考虑"),
+        ("系统尽量保持可用", "尽量"),
+        ("系统应该在超时后尽量重试", "应该"),
+    ] {
+        assert_eq!(weak_pattern_in(line).as_deref(), Some(want), "{line}");
+    }
 }
 
 // --- D2：REMOVED 需求改查 Reason／Migration（spec「Ambiguity 的 scenario

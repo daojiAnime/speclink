@@ -293,6 +293,24 @@ describe("TaskList 群組卡與三層任務列", () => {
     expect(screen.getAllByText("cargo test -p demo export_csv")).toHaveLength(2);
   });
 
+  it("簡體中文任務同樣切成三層：標題、內文、驗證與展開收合鈕", () => {
+    const md =
+      "## 1. Export\n\n" +
+      "- [ ] 1.4 导出 CSV：写出含表头的文件。验证：cargo test -p demo export_csv\n";
+    const { container } = render(<TaskList markdown={md} onToggle={vi.fn()} />);
+    const titleRow = container.querySelector("[data-task-title-row]")!;
+    expect(titleRow.querySelector("[data-task-title]")!.textContent).toBe("导出 CSV");
+    const btn = titleRow.querySelector("[data-task-expand]")!;
+    expect(btn.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("写出含表头的文件。")).toBeTruthy();
+    expect(screen.getByText("驗證")).toBeTruthy();
+    expect(screen.getByText("cargo test -p demo export_csv")).toBeTruthy();
+    fireEvent.click(btn);
+    expect(btn.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("写出含表头的文件。")).toBeNull();
+    expect(screen.queryByText("cargo test -p demo export_csv")).toBeNull();
+  });
+
   it.each([
     ["可拖排", true],
     ["無拖排", false],

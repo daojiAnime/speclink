@@ -295,26 +295,27 @@ impl AppConfig {
 
 /// Map a locale code to its human-readable name (frozen mapping).
 ///
-/// Matching is case-SENSITIVE. Only `ja`/`tw`/`en` (and no locale) are mapped; any other code is
-/// echoed back verbatim.
+/// Matching is case-SENSITIVE. Only `cn`/`tw`/`ja`/`en` (and no locale) are mapped; any other code
+/// is echoed back verbatim.
 pub fn locale_display(code: Option<&str>) -> String {
     // No trimming and no case folding: any unmapped value is preserved verbatim (including
     // empty/whitespace and case-variants like "JA").
     match code {
-        None => "English".to_string(),
+        None => "Simplified Chinese (简体中文)".to_string(),
         Some("en") => "English".to_string(),
-        Some("ja") => "Japanese (日本語)".to_string(),
+        Some("cn") => "Simplified Chinese (简体中文)".to_string(),
         Some("tw") => "Traditional Chinese (繁體中文)".to_string(),
+        Some("ja") => "Japanese (日本語)".to_string(),
         Some(other) => other.to_string(),
     }
 }
 
 /// Locale codes the official write paths accept for `locale` — exactly the keys of
 /// `locale_display`'s frozen mapping. Matching is case-sensitive, like the mapping.
-pub const LOCALE_CODES: [&str; 3] = ["tw", "ja", "en"];
+pub const LOCALE_CODES: [&str; 4] = ["cn", "tw", "ja", "en"];
 
 /// Codes accepted for `spec_locale`: the `locale` set plus `auto` (follow `locale`).
-pub const SPEC_LOCALE_CODES: [&str; 4] = ["tw", "ja", "en", "auto"];
+pub const SPEC_LOCALE_CODES: [&str; 5] = ["cn", "tw", "ja", "en", "auto"];
 
 /// Validate the locale fields of a policy write. Write-side only: read paths stay
 /// lenient (`locale_display` echoes unknown codes verbatim), so pre-existing
@@ -650,9 +651,9 @@ fn parse_env_bool(v: &str) -> Option<bool> {
 /// env var > `openspec/config.yaml` > built-in default.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedPolicy {
-    /// Human-readable locale display name (e.g. "English"), see `locale_display`.
+    /// Human-readable locale display name (e.g. "Simplified Chinese (简体中文)"), see `locale_display`.
     pub locale: String,
-    /// Normalized spec-file language code; `None` = English.
+    /// Normalized spec-file language code; `None` = Simplified Chinese (`cn`).
     pub spec_locale: Option<String>,
     pub tdd: bool,
     pub audit: bool,
@@ -678,8 +679,9 @@ fn locale_code<'a>(env: &'a EnvOverrides, wf: &'a WorkflowConfig) -> Option<&'a 
     env.locale.as_deref().or(wf.locale.as_deref())
 }
 
-/// Layered spec-file language: unset / empty / "en" / "english" → `None` (specs default to
-/// English); `"auto"` follows the locale resolved through the same layers.
+/// Layered spec-file language: unset / empty → `None` (specs default to
+/// Simplified Chinese); `"en"` / `"english"` normalizes to `Some("en")`;
+/// `"auto"` follows the locale resolved through the same layers.
 fn spec_locale_code(env: &EnvOverrides, wf: &WorkflowConfig) -> Option<String> {
     let code = env
         .spec_locale
@@ -692,8 +694,11 @@ fn spec_locale_code(env: &EnvOverrides, wf: &WorkflowConfig) -> Option<String> {
     } else {
         code
     };
-    if code.is_empty() || code.eq_ignore_ascii_case("en") || code.eq_ignore_ascii_case("english") {
+    if code.is_empty() {
         return None;
+    }
+    if code.eq_ignore_ascii_case("en") || code.eq_ignore_ascii_case("english") {
+        return Some("en".to_string());
     }
     Some(code)
 }
@@ -705,9 +710,10 @@ pub fn resolve_locale(wf: &WorkflowConfig) -> String {
 }
 
 /// Resolve the spec-file language from the canonical `openspec/config.yaml` alone.
-/// Unset / empty / "en" / "english" → `None` (specs default to English); `"auto"` follows the
-/// project locale (again `None` when that resolves to English). Env-blind view —
-/// callers that honor `SPECLINK_*` use `resolve_policy` instead.
+/// Unset / empty → `None` (specs default to Simplified Chinese); `"en"` / `"english"`
+/// normalizes to `Some("en")`; `"auto"` follows the project locale (again `None` when
+/// that is unset). Env-blind view — callers that honor `SPECLINK_*` use `resolve_policy`
+/// instead.
 pub fn resolve_spec_locale(wf: &WorkflowConfig) -> Option<String> {
     spec_locale_code(&EnvOverrides::default(), wf)
 }

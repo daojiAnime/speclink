@@ -555,7 +555,7 @@ rules:
         let rows: Vec<(&str, WorkflowConfigEdit, ErrorCode, &str)> = vec![
             (DOC, policy("nope", "1"), ErrorCode::InvalidArgv, "Unknown key 'nope'. Use one of: locale, spec_locale, tdd, audit, worktree"),
             (DOC, policy("tdd", "yes"), ErrorCode::InvalidArgv, "Value for 'tdd' must be true or false (got 'yes')"),
-            (DOC, policy("locale", "fr"), ErrorCode::InvalidConfig, "Value for 'locale' must be one of tw, ja, en (got 'fr')"),
+            (DOC, policy("locale", "fr"), ErrorCode::InvalidConfig, "Value for 'locale' must be one of cn, tw, ja, en (got 'fr')"),
             (
                 DOC,
                 WorkflowConfigEdit::Rules { artifact: "nope".into(), body: "x\n".into() },
@@ -607,8 +607,8 @@ rules:
         // Spec scenario「不合法的內容在寫入前被拒絕」。
         for (content, needle) in [
             ("schema: [unterminated", "invalid speclink/config.yaml: "),
-            ("schema: spec-driven\nlocale: 繁體中文\n", "Value for 'locale' must be one of tw, ja, en"),
-            ("schema: spec-driven\nspec_locale: zh-Hant\n", "Value for 'spec_locale' must be one of tw, ja, en, auto"),
+            ("schema: spec-driven\nlocale: 繁體中文\n", "Value for 'locale' must be one of cn, tw, ja, en"),
+            ("schema: spec-driven\nspec_locale: zh-Hant\n", "Value for 'spec_locale' must be one of cn, tw, ja, en, auto"),
             ("review:\n  critcal:\n  - x\n", "critcal"),
         ] {
             let store = TestStore::with_workflow_config(DOC);

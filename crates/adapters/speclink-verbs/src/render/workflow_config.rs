@@ -60,8 +60,8 @@ pub fn show_human(file: &str, cfg: &WorkflowConfig, paint: &Paint) -> Text {
         None => format!("unset ({default})"),
     };
     outln!(t, "  {:<13}{}", "schema", or_unset(&cfg.schema, "spec-driven"));
-    outln!(t, "  {:<13}{}", "locale", or_unset(&cfg.locale, "English"));
-    outln!(t, "  {:<13}{}", "spec_locale", or_unset(&cfg.spec_locale, "specs in English"));
+    outln!(t, "  {:<13}{}", "locale", or_unset(&cfg.locale, "Simplified Chinese"));
+    outln!(t, "  {:<13}{}", "spec_locale", or_unset(&cfg.spec_locale, "specs in Simplified Chinese"));
     outln!(t, "  {:<13}{}", "tdd", toggle_display(cfg.tdd));
     outln!(t, "  {:<13}{}", "audit", toggle_display(cfg.audit));
     outln!(t, "  {:<13}{}", "worktree", toggle_display(cfg.worktree));
@@ -391,7 +391,7 @@ Workflow config: speclink/config.yaml
 
   schema       spec-driven
   locale       tw
-  spec_locale  unset (specs in English)
+  spec_locale  unset (specs in Simplified Chinese)
   tdd          on
   audit        unset (off)
   worktree     unset (off)
@@ -412,8 +412,8 @@ Workflow config: speclink/config.yaml
 Workflow config: speclink/config.yaml
 
   schema       unset (spec-driven)
-  locale       unset (English)
-  spec_locale  unset (specs in English)
+  locale       unset (Simplified Chinese)
+  spec_locale  unset (specs in Simplified Chinese)
   tdd          unset (off)
   audit        unset (off)
   worktree     unset (off)

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 /// 產物層的唯一版號：技能檔 frontmatter 的 version 同源於此，也是過期探測與
 /// 降級守門的比對基準。僅在內嵌資產（assets/skills）的 render 內容變動時遞增——
 /// 與 app／CLI 的發版號無關；`assets.lock` 鎖定測試把這條紀律變成紅燈。
-pub const ASSET_VERSION: &str = "v1.65.0";
+pub const ASSET_VERSION: &str = "v1.66.0";
 
 const APP_CONFIG_TEMPLATE: &str = concat!(
     "# Speclink application config
@@ -33,10 +33,10 @@ const WORKFLOW_CONFIG_TEMPLATE: &str = "schema: spec-driven
 # Workflow policy (optional)
 # Personal/CI overrides: SPECLINK_LOCALE, SPECLINK_SPEC_LOCALE, SPECLINK_TDD, SPECLINK_AUDIT, SPECLINK_WORKTREE
 #
-# Language for AI-generated artifacts (default: English)
-# locale: tw
+# Language for AI-generated artifacts (default: Simplified Chinese)
+# locale: cn
 #
-# Language for spec files (default: English; \"auto\" follows locale)
+# Language for spec files (default: Simplified Chinese; \"auto\" follows locale)
 # spec_locale: auto
 #
 # Workflow toggles (default: off)

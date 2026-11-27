@@ -906,7 +906,8 @@ artifacts:
     /// Example 的任務都是英文的形狀；共用範本的佔位文字是同一個形狀。
     #[test]
     fn tasks_instruction_describes_the_short_title_shape() {
-        const SHAPES: [&str; 3] = [
+        const SHAPES: [&str; 4] = [
+            "`<短标题>：<行为>。验证：<验证方式>`",
             "`<短標題>：<行為>。驗證：<驗證方式>`",
             "`<短いタイトル>：<振る舞い>。検証：<検証方法>`",
             "`<Short title>: <behavior>. Verify: <how it is verified>`",
@@ -916,7 +917,7 @@ artifacts:
                 .artifact("tasks")
                 .and_then(|a| a.instruction.clone())
                 .unwrap_or_else(|| panic!("{}: tasks 帶 instruction", s.name));
-            for marker in ["驗證：", "検証：", "Verify: "] {
+            for marker in ["验证：", "驗證：", "検証：", "Verify: "] {
                 assert!(instruction.contains(marker), "{}: tasks instruction 須含 {marker}", s.name);
             }
             for shape in SHAPES {

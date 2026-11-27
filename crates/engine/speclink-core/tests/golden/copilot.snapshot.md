@@ -6,7 +6,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -354,7 +354,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -708,7 +708,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -791,7 +791,7 @@ Merge findings from all 3 lenses. For each finding:
 - False positive or not worth changing → skip without debate
 - Classify severity: Critical / High / Medium / Low
 
-**Report language**: run `speclink workflow-config show --json` and write the report, closing summary included, in the language of its `locale` field (`tw` Traditional Chinese, `ja` Japanese, `en` or null English; English when the command fails) — prose, headings, and table labels included. Keep severity labels (Critical/High/Medium/Low), file paths, command lines, and code references in English.
+**Report language**: run `speclink workflow-config show --json` and write the report, closing summary included, in the language of its `locale` field (`cn` or null Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English; Simplified Chinese when the command fails) — prose, headings, and table labels included. Keep severity labels (Critical/High/Medium/Low), file paths, command lines, and code references in English.
 
 End with a brief summary of the findings and their proposed fixes (or confirm the code is clean).
 
@@ -957,7 +957,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -984,7 +984,7 @@ speclink workflow-config show --json
 The `workflow-config show --json` payload is the canonical workflow config for this workspace — the values `speclink/config.yaml` holds (the store's config document in remote mode), in the same shape either way. Environment overrides (`SPECLINK_*`) are not applied; that is the same reading the file itself gives. Read these fields from it:
 
 - `context` — the project context; carry it as background for the inventory and for every spec you write.
-- `specLocale` — the JSON name of `spec_locale`: the language for spec prose. `null` means English, `auto` means use the payload's `locale`, any other value is the locale code to write in. Structural markers and SHALL/MUST keywords stay in English regardless.
+- `specLocale` — the JSON name of `spec_locale`: the language for spec prose. `null` means Simplified Chinese, `auto` means use the payload's `locale`, any other value is the locale code to write in. Structural markers and SHALL/MUST keywords stay in English regardless.
 - `rules.specs` — the project's specs rules, a list of strings (absent when the project sets none). They bind every spec you write in Step 4 — see the last rule there. When the list is absent or empty, nothing changes.
 
 If `speclink workflow-config show --json` exits non-zero (a config that does not parse fails closed; a remote store that is offline or rejects the credentials does the same), report the error and STOP — never fall back to reading `speclink/config.yaml` by hand, and never parse the YAML yourself.
@@ -1083,7 +1083,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -1426,7 +1426,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -1513,8 +1513,8 @@ The policy fields are the user's decision, and so are the test scope and the rev
 
 | Item | What it decides | Not set |
 | --- | --- | --- |
-| `locale` | the language for generated prose | English |
-| `spec_locale` | the language for spec files (`auto` = follow `locale`) | English |
+| `locale` | the language for generated prose | Simplified Chinese |
+| `spec_locale` | the language for spec files (`auto` = follow `locale`) | Simplified Chinese |
 | `tdd` | whether apply enforces test-first discipline | `false` |
 | `audit` | whether apply enforces sharp-edges discipline | `false` |
 | `worktree` | whether apply works each change in its own git worktree | `false` |
@@ -1532,7 +1532,7 @@ A first run — a document with no policy field set yet — shows the same table
 
 Never infer any of these values from the repo, the test scope and the review rules mode included — a test directory does not mean `tdd: true`.
 
-**Locale fields take locale CODES, never display names.** `locale` accepts exactly `tw`, `ja`, `en`; `spec_locale` accepts `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — "Traditional Chinese" → `tw`, "Japanese" → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
+**Locale fields take locale CODES, never display names.** `locale` accepts exactly `cn`, `tw`, `ja`, `en`; `spec_locale` accepts `cn`, `tw`, `ja`, `en`, `auto`. Map the user's natural-language answer to its code before writing — "Simplified Chinese" → `cn`, "Traditional Chinese" → `tw`, "Japanese" → `ja`, "English" → `en` — the write verb rejects any value outside the code set, including display names.
 
 **`worktree` also syncs the skill files, in local mode.** It lands like the other fields, through `speclink workflow-config set worktree <true|false>` and its `--dry-run` preview in Step 5. In local mode that write syncs the skill files: turning it on generates the worktree skills, and turning it off removes them. The CLI refuses to turn it off while a linked worktree is still active, and lists each one; relay the refusal to the user as it stands. The config stays as it was, and the refusal already says how to wrap those worktrees up — do not close or remove any worktree yourself. In remote mode the write changes only the server's config: it neither syncs the skill files nor checks for active worktrees, so tell the user that.
 
@@ -1613,7 +1613,7 @@ An existing review rule is dropped only for the reasons any other line is: it fa
 
 ## Step 5: Show the diff, then write
 
-**Draft language**: the lines you drafted or rewrote are in the language of `locale` as Step 3 confirmed it (`tw` Traditional Chinese, `ja` Japanese, `en` or not set English) — when Step 3 changed it, rewrite those lines before you produce the diff. Lines you leave unchanged keep their wording, and review rules keep the user's own words. Commands, file paths, test names, config keys and code identifiers stay as they are.
+**Draft language**: the lines you drafted or rewrote are in the language of `locale` as Step 3 confirmed it (`cn` or not set Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English) — when Step 3 changed it, rewrite those lines before you produce the diff. Lines you leave unchanged keep their wording, and review rules keep the user's own words. Commands, file paths, test names, config keys and code identifiers stay as they are.
 
 Produce the diff for each change with the write verb's own `--dry-run`, so the preview is byte-identical to what would land:
 
@@ -1672,7 +1672,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -1968,7 +1968,7 @@ speclink discuss new "<topic>" --slug <english-kebab-slug>
 
 Always pass `--slug` with the English kebab-case slug you derived — the slug names the record file; the topic stays in the user's language verbatim. Without `--slug` the filename falls back to deriving from the topic, so non-English topics produce non-English filenames.
 
-**Record language**: run `speclink workflow-config show --json` and write the record's prose — the Context, every round and the conclusion — in the language of its `locale` field (`tw` Traditional Chinese, `ja` Japanese, `en` or null English; English when the command fails). The topic is the exception: it keeps the user's words, as above. These stay in English: the field labels (`**Focus**:`, `**Position**:`, `**Ruled out**:`, `**Open**:` and the conclusion's labels), the fixed markers (`Prior discussions:`, `Source doc:`, the word `none`, the ``**cut N `change-name`**:`` heads, the **Capture to** values), the slug, command lines and code. When you resume an existing record, keep the language it is written in.
+**Record language**: run `speclink workflow-config show --json` and write the record's prose — the Context, every round and the conclusion — in the language of its `locale` field (`cn` or null Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English; Simplified Chinese when the command fails). The topic is the exception: it keeps the user's words, as above. These stay in English: the field labels (`**Focus**:`, `**Position**:`, `**Ruled out**:`, `**Open**:` and the conclusion's labels), the fixed markers (`Prior discussions:`, `Source doc:`, the word `none`, the ``**cut N `change-name`**:`` heads, the **Capture to** values), the slug, command lines and code. When you resume an existing record, keep the language it is written in.
 
 Then fill the Context section once — the framing a future reader (or `propose`) needs before the rounds make sense:
 
@@ -2170,7 +2170,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -2304,7 +2304,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -2395,7 +2395,7 @@ Create the discussion record and write the scan into it as Round 1:
 speclink discuss new "<topic>" --slug improve-<scope> --kind improve
 ```
 
-**Record language**: run `speclink workflow-config show --json` and write the record — its topic, the Context, every round and the conclusion — in the language of its `locale` field (`tw` Traditional Chinese, `ja` Japanese, `en` or null English; English when the command fails). These stay in English: the field labels (`**Focus**:`, `**Position**:`, `**Ruled out**:`, `**Open**:` and the conclusion's labels), the fixed markers (the word `none`, the ``**cut N `change-name`**:`` heads, the **Capture to** values), the `improve-<scope>` slug, the `scan` mode label, command lines and code.
+**Record language**: run `speclink workflow-config show --json` and write the record — its topic, the Context, every round and the conclusion — in the language of its `locale` field (`cn` or null Simplified Chinese, `tw` Traditional Chinese, `ja` Japanese, `en` English; Simplified Chinese when the command fails). These stay in English: the field labels (`**Focus**:`, `**Position**:`, `**Ruled out**:`, `**Open**:` and the conclusion's labels), the fixed markers (the word `none`, the ``**cut N `change-name`**:`` heads, the **Capture to** values), the `improve-<scope>` slug, the `scan` mode label, command lines and code.
 
 `--kind improve` marks the record as an improvement discussion (it is what the board and the discussion drawer show a badge for). The slug convention is `improve-<scope>` — `improve-store-layer`, `improve-cli-commands`. Write the Context once (what prompted the scan, the scope you settled on in Step 2 and why, what Step 1 excluded), then record the candidates as Round 1 with the mode label `scan`:
 
@@ -2501,7 +2501,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -2843,7 +2843,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -3058,7 +3058,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -3554,7 +3554,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -3692,7 +3692,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -3993,7 +3993,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 
@@ -4081,7 +4081,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.65.0"
+  version: "v1.66.0"
   generatedBy: "Speclink"
 ---
 

@@ -26,8 +26,8 @@ import {
 export const LOCALE_UNSET = "__unset__";
 
 /** 官方合法語系代碼（引擎 LOCALE_CODES／SPEC_LOCALE_CODES 的前端鏡像）。 */
-export const LOCALE_OPTIONS: readonly string[] = ["tw", "ja", "en"];
-export const SPEC_LOCALE_OPTIONS: readonly string[] = ["auto", "tw", "ja", "en"];
+export const LOCALE_OPTIONS: readonly string[] = ["cn", "tw", "ja", "en"];
+export const SPEC_LOCALE_OPTIONS: readonly string[] = ["auto", "cn", "tw", "ja", "en"];
 
 type PendingRemoteWrite =
   | { kind: "policy"; fields: WorkflowFields }
