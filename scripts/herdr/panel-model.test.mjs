@@ -19,6 +19,7 @@ import {
   defaultAgent,
   hasSpeclinkSkills,
   missingSkillsPlan,
+  newTabRun,
   onlyClaude,
   pickerGroups,
   pickerStep,
@@ -29,6 +30,7 @@ import {
   skillUnsupported,
   skillUse,
   usableAgents,
+  waitingText,
   attachPlan,
   agentChange,
   batchPlan,
@@ -580,6 +582,27 @@ test('joinAgents：狀態用 core 的原始字（done 不會被 Herdr 改寫成 
   assert.equal(a.cwd, REPO);
   assert.equal(a.key, 'claude');
   assert.deepEqual(a.labels, { a: 'b' });
+  assert.equal(a.waiting, null);
+});
+
+test('等你的 agent：寫出它回報的原因，沒報就只說在等你回答', () => {
+  const join = (report) =>
+    joinAgents([{ address: 't1', status: 'blocked', program: { key: 'claude' }, pane: 'p1' }], [{ address: 't1', status: 'blocked', labels: {}, report }], [])[0];
+  // Claude Code 2.1.332 實測回報的兩種。
+  assert.equal(join({ state: 'blocked', kind: 'permission', msg: 'approve Bash: touch x' }).waiting, 'permission');
+  assert.equal(join({ state: 'blocked', kind: 'question', msg: 'answer: tea or coffee?' }).waiting, 'question');
+  assert.equal(join({ state: 'blocked' }).waiting, null);
+  assert.equal(join(undefined).waiting, null);
+
+  const texts = { permission: '等待你允许', question: '正在向你提问', auth: '等待你登录', other: '等待你回答' };
+  for (const [waiting, text] of Object.entries(texts)) assert.equal(waitingText({ waiting }), text);
+  assert.equal(waitingText({ waiting: null }), '等待你回答');
+  for (const text of Object.values(texts)) assert.ok(Object.hasOwn(TO_EN, text), `「${text}」沒有英文`);
+
+  const mine = (waiting) => agent({ address: 't9', status: 'blocked', waiting, labels: { 'speclink.change': 'add-a' } });
+  assert.equal(deliver({ agents: [mine('permission')] }).reason, '等待你允许');
+  assert.equal(deliveryHint(deliver({ agents: [mine('question')] })), '这个变更的 agent 正在向你提问');
+  assert.equal(attachPlan({ name: 'add-a', ...ctx({ agents: [agent({ status: 'blocked', waiting: 'permission' })] }) }).reason, '当前标签页的 agent 等待你允许');
 });
 
 // ---- 送達 ----
@@ -619,6 +642,29 @@ test('送達第三順位：都沒有就開新分頁，開在該去的資料夾',
     skill: 'apply',
     labels: ['speclink.skill=speclink-apply', 'speclink.change=add-a', 'speclink.discussion='],
   });
+});
+
+test('技能鈕開新分頁：用 hc run，標籤在建立時就貼好，清標籤的那幾項不帶', () => {
+  const d = deliver({ agents: [agent({ tab: 'other' })] });
+  assert.deepEqual(newTabRun(d, { space: 'sp1', on: null, agents: [] }), [
+    'run', '--bg', '--json', '--no-parent',
+    '--cwd', REPO,
+    '--label', 'herdr.space=sp1',
+    '--name', 'add-a',
+    '--label', 'speclink.skill=speclink-apply',
+    '--label', 'speclink.change=add-a',
+    'claude', '/speclink-apply add-a',
+  ]);
+  // 名稱已經被佔用時不取名（hc 會回 name_taken）；另一台機器帶 --on。
+  const taken = newTabRun(d, { space: 'sp1', on: 'vps', agents: [agent({ name: 'add-a' })] });
+  assert.ok(!taken.includes('--name'));
+  assert.deepEqual(taken.slice(4, 6), ['--on', 'vps']);
+  // 討論的技能貼討論的標籤，不取名。
+  const talk = planDelivery({ skill: 'propose', discussion: { slug: 'old-talk' }, args: '--from-discussion old-talk', ...ctx({ agents: [] }) });
+  const run = newTabRun(talk, { space: 'sp1', on: null, agents: [] });
+  assert.ok(!run.includes('--name'));
+  assert.ok(run.includes('speclink.discussion=old-talk'));
+  assert.ok(!run.some((x) => x.endsWith('=')));
 });
 
 test('新分頁選最常用且已安裝的 agent；Codex 要帶 --no-daemon', () => {
@@ -1762,6 +1808,16 @@ test('dock-panel：版面把 Cmd+點交給面板，mod.json 的規則和 linkTar
     assert.ok(pattern.test(path) && linkTarget(path), path);
   }
   assert.ok(!pattern.test('/a/speclink/specs/auth/spec.md'));
+});
+
+test('herdr-speclink 技能：名稱不會被當成 Speclink 的技能，貼的標籤是面板在讀的', () => {
+  const file = fileURLToPath(new URL('../../integrations/herdr/skills/herdr-speclink/SKILL.md', import.meta.url));
+  const text = readFileSync(file, 'utf8');
+  const name = text.match(/^name: (.+)$/m)[1];
+  // 開頭是 speclink- 的技能，面板會當成專案已經有 Speclink 技能，也不列在「我的技能」。
+  assert.equal(hasSpeclinkSkills([{ name }]), false);
+  assert.deepEqual(skillLabels('apply', 'add-a').slice(0, 2), ['speclink.skill=speclink-apply', 'speclink.change=add-a']);
+  for (const label of ['herdr.space=', 'speclink.change=', 'speclink.skill=', 'speclink.discussion=']) assert.ok(text.includes(label), label);
 });
 
 test('指令面板：mod.json 的項目開得到 repo 裡的 mod，名稱有中文', () => {

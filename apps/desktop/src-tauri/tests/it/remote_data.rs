@@ -58,36 +58,43 @@ fn seed_discussion(store: &dyn StorePort, slug: &str, topic: &str) {
 
 // --- 看板欄位由生命週期標記驅動（spec desktop-app）---
 
+/// 只有欄位判定讀到的欄位有值的清單項（其餘取空）。
+fn stage_summary(started_at: Option<&str>, completed: usize, total: usize, stage: Option<&str>) -> ChangeSummary {
+    ChangeSummary {
+        name: "demo".into(),
+        summary: String::new(),
+        status: "in-progress".into(),
+        completed_tasks: completed,
+        total_tasks: total,
+        restale_from: Vec::new(),
+        meta_error: None,
+        repo: None,
+        lifecycle: None,
+        claimed_by: None,
+        claimed_by_id: None,
+        claimed_at: None,
+        started_at: started_at.map(str::to_string),
+        created_by: None,
+        created: None,
+        from_discussions: Vec::new(),
+        delta_capabilities: Vec::new(),
+        modified_at: None,
+        review: None,
+        verify: None,
+        branch: None,
+        landed_commit: None,
+        fields: Default::default(),
+        why_excerpt: None,
+        stage: stage.map(str::to_string),
+        created_by_id: None,
+        ready_at: None,
+    }
+}
+
 #[test]
 fn change_stage_matrix_follows_the_lifecycle_markers() {
     // spec「欄位判定矩陣」Example：0=提案中、1=進行中、2=已就緒。
-    fn summary(started_at: Option<&str>, completed: usize, total: usize) -> ChangeSummary {
-        ChangeSummary {
-            name: "demo".into(),
-            summary: String::new(),
-            status: "in-progress".into(),
-            completed_tasks: completed,
-            total_tasks: total,
-            restale_from: Vec::new(),
-            meta_error: None,
-            repo: None,
-            lifecycle: None,
-            claimed_by: None,
-            claimed_by_id: None,
-            claimed_at: None,
-            started_at: started_at.map(str::to_string),
-            created_by: None,
-            created: None,
-            from_discussions: Vec::new(),
-            delta_capabilities: Vec::new(),
-            modified_at: None,
-            review: None,
-            verify: None,
-            branch: None,
-            landed_commit: None,
-            fields: Default::default(),
-        }
-    }
+    let summary = |started, completed, total| stage_summary(started, completed, total, None);
     let cases: [(Option<&str>, usize, usize, u8); 7] = [
         (None, 0, 0, 0),
         (None, 0, 28, 0),
@@ -104,6 +111,15 @@ fn change_stage_matrix_follows_the_lifecycle_markers() {
             "started={started:?} progress={completed}/{total}"
         );
     }
+}
+
+#[test]
+fn change_stage_takes_the_listed_stage_and_derives_without_a_known_one() {
+    // spec desktop-app「看板欄位以清單帶的階段為準」：回應帶 stage 時以它為準；
+    // 不認得的值視同沒有，照引擎的階段函式推導。
+    assert_eq!(remote::change_stage(&stage_summary(None, 1, 3, Some("ready"))), 2, "stage ready 以清單為準");
+    assert_eq!(remote::change_stage(&stage_summary(None, 0, 3, Some("paused"))), 0, "不認得的值照推導");
+    assert_eq!(remote::change_stage(&stage_summary(Some("2026-07-30"), 0, 3, Some("paused"))), 1);
 }
 
 #[test]
@@ -139,6 +155,50 @@ fn started_at_rides_the_remote_change_list_payload() {
     let unstarted = changes.iter().find(|c| c.summary.name == "demo").expect("demo listed");
     assert_eq!(unstarted.summary.started_at, None, "未開工 change 不帶 startedAt");
     assert_eq!(remote::change_stage(&unstarted.summary), 0, "未開工零進度停在提案中");
+}
+
+#[test]
+fn the_remote_list_items_carry_the_new_summary_fields_to_the_front_end() {
+    // client-protocol「變更、討論與已封存清單的回應帶識別、階段與時間欄位」Scenario
+    // 「遠端專案的卡片有描述列」的資料面：清單項把 ChangeSummary 攤平給前端。
+    let h = common::harness();
+    common::seed_change(h.store.as_ref(), FOUR_TASKS);
+    seed_docs(
+        h.store.as_ref(),
+        &[
+            (
+                change_meta("ready"),
+                "schema: spec-driven\ncreated: 2026-11-24\ncreated_by: Ann\ncreated_by_id: u_1\nready_at: 2026-11-25T09:00:00+08:00\n",
+            ),
+            ("changes/ready/proposal.md".to_string(), "## Why\n\nThe card shows this line.\n"),
+            ("changes/ready/tasks.md".to_string(), "- [x] 1.1 a\n"),
+        ],
+    );
+    let (credentials, manager) = runtime(&h);
+    let ws = open(&h, &credentials, &manager);
+    let list = ws.list_changes(&credentials, None).expect("list changes");
+    let item = |name: &str| {
+        let item = list.changes.iter().find(|c| c.summary.name == name).unwrap_or_else(|| panic!("{name} listed"));
+        serde_json::to_value(item).unwrap()
+    };
+    let ready = item("ready");
+    assert_eq!(ready["whyExcerpt"], "The card shows this line.", "{ready}");
+    assert_eq!(ready["stage"], "ready");
+    assert_eq!(ready["createdById"], "u_1");
+    assert_eq!(ready["readyAt"], "2026-11-25");
+    let demo = item("demo");
+    assert_eq!(demo["stage"], "proposed", "{demo}");
+    for key in ["whyExcerpt", "createdById", "readyAt"] {
+        assert!(demo.get(key).is_none(), "{key}: {demo}");
+    }
+
+    // A response without the fields (an older server): no key, no made-up value.
+    let mut old = list.changes.iter().find(|c| c.summary.name == "ready").unwrap().clone();
+    (old.summary.why_excerpt, old.summary.stage, old.summary.created_by_id, old.summary.ready_at) = (None, None, None, None);
+    let old = serde_json::to_value(&old).unwrap();
+    for key in ["whyExcerpt", "stage", "createdById", "readyAt"] {
+        assert!(old.get(key).is_none(), "{key}: {old}");
+    }
 }
 
 // --- 開啟入口：handshake fail-closed ---

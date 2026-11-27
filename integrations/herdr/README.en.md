@@ -31,7 +31,7 @@ What the panel contains:
 - **Current tab**: when the agent in the current tab works on a change or discussion, that row has a blue bar on the left and a pale blue background, and its agent line says "Current tab". You cannot see this mark when the row is scrolled away or its card is closed. Scroll to the row or open the card.
 - **Changes**: three permanent cards for proposed, in progress and ready. Each card title has a dot in the stage color and a count. Each row shows the wave, the name, the review and verify stamps, a worktree mark and the task progress. A blocked row is dimmed and names what it waits for.
 - **Discussions**: a discussions card and a promoted card. A promoted discussion that still has unpromoted cuts stays on the discussions card, because its next step is propose.
-- **The agent on this change or discussion**: the row shows the location and status of the agent. Click it to go there. The status looks the same as in the Agents list on the left: a turning arc for working, an empty ring for idle, a solid dot for done, and a pill when it waits for your answer. For a change, the panel matches the `speclink.change` label, then the worktree path, then the `speclink.focus` label that the Claude Code plugin reports. For a discussion, it matches only the `speclink.discussion` label. Start, the skill buttons, the Skills pop-up and the hook below set the labels. For what you type directly in an agent, the panel needs the hooks. An agent that wrote a proposal does not count for the change after it stops. When the proposal comes from a discussion, the agent stays on the row of that discussion, in the Discussions card or the Promoted card. Start the implementation separately.
+- **The agent on this change or discussion**: the row shows the location and status of the agent. Click it to go there. The status looks the same as in the Agents list on the left: a turning arc for working, an empty ring for idle, a solid dot for done, and a pill when it waits for your answer. The pill tells you what the agent waits for: "Needs your permission" (it wants to run a command or change a file), "Asks you a question", or "Needs you to sign in". The agent reports the reason itself. Claude Code reports the first two. For an agent that reports no reason, the pill shows "Waiting for you". The Agents list on the left does not show the reason. For a change, the panel matches the `speclink.change` label, then the worktree path, then the `speclink.focus` label that the Claude Code plugin reports. For a discussion, it matches only the `speclink.discussion` label. Start, the skill buttons, the Skills pop-up and the hooks below set the labels. The speclink CLI also sets them when an agent runs a speclink command that works on a change or discussion. See "Track what you type directly". An agent that wrote a proposal does not count for the change after it stops. When the proposal comes from a discussion, the agent stays on the row of that discussion, in the Discussions card or the Promoted card. Start the implementation separately.
 - **Discussions not recorded yet**: discuss looks into the code and asks its questions before it records the discussion, and this can take tens of minutes. Until then, the top of the Discussions card shows a row "Discussing, not recorded yet" with the agent's title, location and status. When the record exists, the agent moves to the real row. After the discussion is archived, the agent is no longer in the Discussions card.
 - **Skill buttons**: each row shows the suggested next step. See "Skills per stage" for how the panel selects it. `⋯` shows the other skills for this row. One click sends the skill, with the same rules as the suggested button. See "Where a skill goes". A row with no other skills has no `⋯`. A tooltip on the button tells where it goes.
 - **Start**: a button on a change row that starts a new agent for this change only, in the current space. See "Start" below.
@@ -106,7 +106,10 @@ The panel decides in the same way as `speclink archive`. A station with an open 
 
 ### Track what you type directly (optional)
 
-The panel knows about work that starts from the panel or the Skills pop-up. For what you type directly in an agent, the panel needs hooks. Without them, that row shows no agent and still has the Start button.
+The panel knows about work that starts from the panel or the Skills pop-up. For what you type directly in an agent, the panel learns it in two ways:
+
+- **The speclink CLI reports it** (versions released after 0.19.0, nothing to install): when any agent in a Herdr terminal runs a speclink command that works on a change or discussion, and the command succeeds, the CLI sets `speclink.change` or `speclink.discussion` on that terminal. The commands that count are `new change`, `instructions apply --change`, `task done` with `--change`, `in-progress add`, `review prepare`, `archive` with exactly one name, and `discuss new` with `--slug`, `discuss context`, `discuss add-round` and `discuss conclude`. Queries such as `show` and `status` do not count. The CLI connects to `HC_TERMINAL_SOCKET` directly and does not run `hc`. It waits 0.1 seconds at most and does not change the output of the command. Outside Herdr it does nothing. To turn it off, set `SPECLINK_TERMINAL_REPORT=false`. It was tested with hc 0.1.22. The default Codex sandbox blocks the report. See "Known limits".
+- **Hooks** (optional): the CLI does not know which skill runs, and it sets the label only after the agent runs the first command that counts. The hooks add three things: they set `speclink.skill`, they set the labels when you send the message, and they remove the labels on `/clear`. Without the hooks, work that you start by typing shows its agent on the row only after the first command that counts. Until then, the row still has the Start button.
 
 **Claude Code:** add this to `~/.claude/settings.json`. New sessions then use it:
 
@@ -166,13 +169,37 @@ Or add this hook group manually to `~/.gemini/config/hooks.json` (global) or `.a
 }
 ```
 
+### Let an agent start the work (optional)
+
+Claude Code does not know `hc`. When you tell it "start the next wave" in Herdr, it uses its own subagents, and the panel does not show them. With the `herdr-speclink` skill, it uses `hc` to open new tabs and sets the labels that the panel reads:
+
+```bash
+node scripts/herdr/install-skill.mjs
+```
+
+The script copies `integrations/herdr/skills/herdr-speclink` to `~/.claude/skills/`. New sessions load it. Run the script again to update. Then you can tell the agent "start the next wave" or "run quality on add-auth in a new tab". It opens one tab for each change and does not answer questions for those tabs. When the work belongs to another project, the tab opens in the space of that project. You can also tell it to wait for the results, for example "start them and tell me when they finish". The skill is for Claude Code only, and it only works in a Herdr terminal.
+
+When you start agents from your own script, set these labels and the panel knows them:
+
+| Label | Value | Effect |
+| --- | --- | --- |
+| `herdr.space` | the id of the space (`labels` in `hc get $HC_TERMINAL_ID --json`) | Herdr puts the terminal in a tab of that space. Without it the terminal stays hidden |
+| `speclink.change` | the change name | The agent shows on the row of that change, and the Start button goes away |
+| `speclink.discussion` | the slug of the discussion | The agent shows on the row of that discussion |
+| `speclink.skill` | the full skill name, for example `speclink-apply` | Tells the panel if an apply runs in the main folder, and which agent discusses something that has no record yet |
+
+```bash
+hc run --bg --json --no-parent --cwd "$PWD" \
+  --label herdr.space="$SPACE" --label speclink.change=add-auth --label speclink.skill=speclink-apply \
+  claude "/speclink-apply add-auth"
+```
 ### Where a skill goes
 
 The panel tries these in order and stops at the first match:
 
 1. The agent that works on this change.
 2. The agent in the current tab.
-3. A new tab with the agent that you last selected in the Skills pop-up. If you never selected one, the most used installed agent.
+3. A new tab with the agent that you last selected in the Skills pop-up. If you never selected one, the most used installed agent. The panel opens the tab with `hc run`, so the labels are set when the terminal starts, and the window moves to the new tab.
 
 Each step checks the folder of the agent. Skills for a change with a worktree run in the worktree. archive, worktree-merge and apply-with-worktree run in the main checkout. An agent in another folder does not match. When a change has a worktree with no agent in it, the apply button sends apply-with-worktree, which continues in the existing worktree. The button then shows apply-with-worktree.
 
@@ -180,7 +207,7 @@ The panel does not send to an agent that works, waits for your answer or shows a
 
 The buttons on the row always follow this order. If the change has a stopped agent and you want a new tab, use the Skills button at the top.
 
-Claude Code, GitHub Copilot, Cursor and Antigravity (`agy`) get `/speclink-<skill>`. Codex gets `$speclink-<skill>`. Pi gets `/skill:speclink-<skill>`. Pi uses `.pi/skills` from `speclink init --tools pi`. Cursor uses `.cursor/skills` from `speclink init --tools cursor`. Antigravity uses `.agents/skills` from `speclink init --tools agy`. In a project with only the Codex `.agents/skills`, Pi and Antigravity can read those files too, but they use `$speclink-`, so select pi or agy instead. Cursor also reads `.claude/skills` and `.agents/skills`. In a project with only Claude or Codex skills, the panel finds skills for Cursor and does not show the `--tools cursor` hint, but Cursor uses the Claude or Codex version (recorded as `--agent claude`, or written with `$speclink-`), so select cursor instead. The panel does not track labels for Cursor: Claude Code, Codex and Antigravity use a hook, Pi uses an extension, and Cursor has no such mechanism, so the panel only sends skills to it. Claude Code and Antigravity support `analyze`; the button stays hidden for other agents. Other agents have no speclink skills, so the panel does not send to them.
+Claude Code, GitHub Copilot, Cursor and Antigravity (`agy`) get `/speclink-<skill>`. Codex gets `$speclink-<skill>`. Pi gets `/skill:speclink-<skill>`. Pi uses `.pi/skills` from `speclink init --tools pi`. Cursor uses `.cursor/skills` from `speclink init --tools cursor`. Antigravity uses `.agents/skills` from `speclink init --tools agy`. In a project with only the Codex `.agents/skills`, Pi and Antigravity can read those files too, but they use `$speclink-`, so select pi or agy instead. Cursor also reads `.claude/skills` and `.agents/skills`. In a project with only Claude or Codex skills, the panel finds skills for Cursor and does not show the `--tools cursor` hint, but Cursor uses the Claude or Codex version (recorded as `--agent claude`, or written with `$speclink-`), so select cursor instead. Cursor has no hook to connect: the panel learns which change or discussion it works on only from the speclink CLI's own report. Claude Code, Codex and Antigravity also have a hook, and Pi also has an extension. Claude Code and Antigravity support `analyze`; the button stays hidden for other agents. Other agents have no speclink skills, so the panel does not send to them.
 
 ### Start
 
@@ -216,7 +243,7 @@ The pop-up has two pages: **Speclink** and **My skills**. Click a page name or p
 The bottom has two buttons, one for each result:
 
 - **Put in input (Enter).** The command is pasted into the input box of the agent in the current tab and is not sent. You can type more and press Enter yourself. This also works when the agent is working. It does not work when the agent waits for your answer, because the paste can answer its dialog.
-- **Start new tab (`⌘Enter`).** This works like the `herdr-dispatch` skill: `hc run` opens a new tab in the current space, the tab name is "skill · change", and the view stays on the current tab.
+- **Start new tab (`⌘Enter`).** This works like the `herdr-speclink` skill: `hc run` opens a new tab in the current space, the tab name is "skill · change", and the view stays on the current tab.
 
 When the skill uses a change, each row has a checkbox, so you can open many tabs at once, one tab for each change. Click the box or press `Space` to check a row. Use `⌘A` or "All" to check all rows. A click on the row only selects it and does not check it.
 
@@ -279,7 +306,8 @@ Work from the repo root, with Herdr open:
    node scripts/herdr/dock-panel.mjs
    ```
 
-4. To let the panel know the commands that you type in Claude Code, add the hooks. See "Track what you type directly".
+4. The speclink CLI reports changes and discussions itself. To let the panel also know the skills that you type in Claude Code, and know them when you send the message, add the hooks. See "Track what you type directly".
+5. To let Claude Code open tabs with `hc`, install the skill. See "Let an agent start the work".
 
 Use `⌘⇧L` to switch layouts.
 
@@ -323,6 +351,7 @@ After this, the panel column has its default width, and the other column widths 
 2. Delete `~/.config/herdr-app/layouts/speclink.json`, and `speclink`, `speclink-new`, `speclink-spaces`, `speclink-agents`, `speclink-files`, `speclink-changes` and `speclink-tabs` in `~/.config/herdr-app/mods/`.
 3. Remove the additions from `keys.json`.
 4. If Herdr added Cmd-click to other personal layouts, remove `speclink` from `link_handlers` in those layouts.
+5. If you installed the skill, delete `~/.claude/skills/herdr-speclink`.
 
 ### Why a cloned layout
 
@@ -345,7 +374,15 @@ Herdr's own `main` layout cannot dock a mod: `"place": "right"` in `mod.json` ha
 - **A changed file in the scope takes up to 10 seconds to change the color**: the panel does not watch those files, so it waits for the timer.
 - **No updates while the window is out of view**: when the Herdr window is minimized, fully covered or on another desktop, the panel does not ask the CLI. It catches up when the window shows again. The agent status is not affected, because Herdr gives it live.
 - **"Promoted" is approximate**: it uses `status` from `discuss list` and the unpromoted cuts from `plan`.
-- **What was tested with Codex and Pi**: status reports, paste into the input box, start and labels, with the real programs in an isolated Herdr window. Codex ran one turn and was stopped. Pi had no model login, so the test only shows that the command was sent. Neither finished a whole change. For Codex, only the `UserPromptSubmit` hook was tested. Cursor was not tested with the real program, only with the `model.js` tests.
+- **Codex's sandbox blocks the CLI report**: the default Codex sandbox does not let the commands that Codex runs connect to a Unix socket. With the default settings, the CLI report has no effect for Codex: the command finishes as usual, but the label is not set, so Codex still needs the hook. To make the CLI report work for Codex, add this to `~/.codex/config.toml`. The cost is that every command Codex runs in its sandbox can then use the network.
+
+  ```toml
+  [sandbox_workspace_write]
+  network_access = true
+  ```
+
+- **What the panel was tested with in Codex and Pi**: status reports, paste into the input box, start and labels, with the real programs in an isolated Herdr window. Codex ran one turn and was stopped. Pi had no model login, so the test only shows that the command was sent. Neither finished a whole change. For Codex, only the `UserPromptSubmit` hook was tested. Cursor was not tested with the real program, only with the `model.js` tests.
+- **What the CLI report was tested with**: a scratch project in the real Herdr. Codex finished one change with speclink-apply and ran one discussion command (all labels were correct after the sandbox network was turned on). Pi has no model login, so only commands typed with `!` in its input box were tested. Cursor was not tested.
 - **Opening many tabs can hit a git lock**: the same as starting a whole wave. An agent that hits a lock stops and reports it.
 - **The button and the folder have different names**: the button is "Skills" and the folder is still `speclink-new`, so `keys.json` does not change.
 - **Pasting into the input box works only on macOS and takes about 0.7 seconds**: Herdr has no command that pastes without Enter, so the panel uses `script` to run a hidden `hc attach`, sends the paste, and leaves. It is one paste, not typing. It does not touch the clipboard or change the terminal size. The attach button shows a turning arc while it pastes and a check mark when it finishes. `script` works differently on other systems, so the paste fails with a notice. In this case, use the button that opens a new tab.
