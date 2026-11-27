@@ -493,13 +493,19 @@ fn descriptor_validation_accepts_a_directory_next_to_the_copilot_one() {
 
 #[test]
 fn descriptor_validation_reserves_the_pi_and_cursor_names() {
-    // Scenario「名為 pi、cursor 或指向其目錄的既有描述子升級後被拒」的名稱分支：
+    // Scenario「名為 pi、cursor 或指向其目錄的既有描述子升級後被拒」與 omp 名稱分支：
     // 訊息列出所有內建名。
-    for (name, skills_dir) in [("pi", ".pi-skills"), ("cursor", ".my-cursor/skills"), ("agy", ".agy-skills")] {
+    for (name, skills_dir) in [
+        ("pi", ".pi-skills"),
+        ("cursor", ".my-cursor/skills"),
+        ("agy", ".agy-skills"),
+        ("omp", ".omp-custom"),
+        ("oh-my-pi", ".omp-custom"),
+    ] {
         let err = descriptor(name, skills_dir, "XYZ.md").validate().unwrap_err();
         assert!(err.contains(&format!("name '{name}'")), "must name the field: {err}");
         assert!(
-            err.contains("(claude, codex, copilot, pi, cursor, agy)"),
+            err.contains("(claude, codex, copilot, pi, cursor, agy, omp)"),
             "must list all built-ins: {err}"
         );
         assert!(!err.contains('\n'), "single line: {err:?}");
@@ -508,7 +514,7 @@ fn descriptor_validation_reserves_the_pi_and_cursor_names() {
 
 #[test]
 fn descriptor_validation_follows_the_pi_and_cursor_rows_of_the_skills_dir_table() {
-    // Example「skills_dir 的驗證結果」的 pi、cursor 列：等價拼法與大小寫同樣被拒，
+    // Example「skills_dir 的驗證結果」的 pi、cursor、omp 列：等價拼法與大小寫同樣被拒，
     // 旁邊的目錄照常接受。
     for (bad, builtin) in [
         (".pi/skills", "pi"),
@@ -516,6 +522,9 @@ fn descriptor_validation_follows_the_pi_and_cursor_rows_of_the_skills_dir_table(
         (".cursor/skills", "cursor"),
         (".cursor//skills", "cursor"),
         (".Cursor/skills", "cursor"),
+        (".omp/skills", "omp"),
+        ("./.omp/skills/.", "omp"),
+        (".OMP/skills", "omp"),
     ] {
         let err = descriptor("xyz-harness", bad, "XYZ.md").validate().unwrap_err();
         assert!(err.contains("skills_dir"), "must name the field for {bad:?}: {err}");
@@ -525,7 +534,7 @@ fn descriptor_validation_follows_the_pi_and_cursor_rows_of_the_skills_dir_table(
         );
         assert!(!err.contains('\n'), "single line: {err:?}");
     }
-    for ok in [".pi/agent", ".cursor/rules"] {
+    for ok in [".pi/agent", ".cursor/rules", ".omp/rules"] {
         let v = descriptor("xyz-harness", ok, "XYZ.md").validate();
         assert!(v.is_ok(), "{ok} 應被接受：{v:?}");
     }
@@ -1847,14 +1856,29 @@ fn subagent_model_unknown_top_level_keys_stay_ignored() {
 }
 
 #[test]
-fn builtin_subagent_models_list_claude_and_agy_tiers() {
+fn builtin_subagent_models_list_claude_agy_and_omp_tiers() {
     assert_eq!(
         BUILTIN_SUBAGENT_MODELS,
         &[
             ("claude", &["sonnet", "opus", "haiku", "fable"][..]),
             ("agy", &["inherit", "pro", "flash", "flash_lite"][..]),
+            ("omp", &["@default", "@slow", "@smol", "@task", "@plan"][..]),
         ]
     );
+}
+
+#[test]
+fn subagent_model_omp_at_role_aliases_round_trip_through_yaml_surgery() {
+    let block = subagent_cfg(&[("omp", "@slow")], &[("omp", "@smol")], &[]);
+    let out = update_workflow_config_text(
+        "schema: spec-driven\n",
+        &WorkflowPolicyFields::default(),
+        &ContentEdit { subagent_model: Some(&block), ..Default::default() },
+    )
+    .expect("@-prefixed omp roles must quote and round-trip cleanly");
+    let parsed = WorkflowConfig::from_text(Some(&out)).expect("reparses");
+    assert_eq!(parsed.subagent_model().review.get("omp").map(String::as_str), Some("@slow"));
+    assert_eq!(parsed.subagent_model().verify.get("omp").map(String::as_str), Some("@smol"));
 }
 
 #[test]

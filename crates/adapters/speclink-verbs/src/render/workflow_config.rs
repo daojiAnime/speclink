@@ -491,6 +491,13 @@ Workflow config: speclink/config.yaml
       "opus",
       "haiku",
       "fable"
+    ],
+    "omp": [
+      "@default",
+      "@slow",
+      "@smol",
+      "@task",
+      "@plan"
     ]
   }
 }

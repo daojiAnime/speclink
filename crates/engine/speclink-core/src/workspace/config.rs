@@ -384,11 +384,13 @@ pub struct SubagentModelConfig {
 }
 
 /// The engine's built-in sub-agent model lists. Claude Code's Agent tool takes
-/// short names without versions, while Antigravity (`agy`) takes fixed `invoke_subagent`
-/// model tiers. Tools whose names carry versions live in `choices`.
+/// short names without versions, Antigravity (`agy`) takes fixed `invoke_subagent`
+/// model tiers, and oh-my-pi (`omp`) takes versionless `@`-prefixed model role aliases.
+/// Tools whose names carry versions live in `choices`.
 pub const BUILTIN_SUBAGENT_MODELS: &[(&str, &[&str])] = &[
     ("claude", &["sonnet", "opus", "haiku", "fable"]),
     ("agy", &["inherit", "pro", "flash", "flash_lite"]),
+    ("omp", &["@default", "@slow", "@smol", "@task", "@plan"]),
 ];
 
 /// An AI tool name in `subagent_model`: kebab-case, the tool descriptor's rule.

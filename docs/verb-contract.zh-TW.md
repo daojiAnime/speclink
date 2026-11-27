@@ -437,6 +437,14 @@ speclink discuss new "看板搜尋列" --field owner=alice
 { "archived": false, "created": "2026-11-20", "createdBy": "Ann", "createdById": "u_1", "modifiedAt": "2026-11-25T14:50:00Z", "path": "discussions/auth-flow.md", "rounds": 2, "slug": "auth-flow", "status": "open", "topic": "登入流程" }
 ```
 
+#### <a id="workflow-config-builtin-subagent-models"></a>`workflow-config show --json` 的 `builtinSubagentModels`
+
+`workflow-config show --json` 帶出 `builtinSubagentModels`：以內建 AI 工具名稱為鍵，對應各工具與版本無關的子代理模型清單。`workflow-config show` 的人眼輸出不顯示 `subagentModel` 或 `builtinSubagentModels`，維持不變。
+
+- `claude`：`["sonnet", "opus", "haiku", "fable"]`
+- `agy`：`["inherit", "pro", "flash", "flash_lite"]`
+- `omp`：`["@default", "@slow", "@smol", "@task", "@plan"]`
+
 ### <a id="task-line-shape"></a>任務行的切分
 
 `show --json` 的 `tasks` 是 tasks.md 的全文。自己畫任務頁的程式，照這一節把一個任務行切成序號、標題、內文與驗證。Speclink Desktop 與網頁後台的任務列用的是同一套規則。

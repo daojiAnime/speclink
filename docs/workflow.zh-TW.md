@@ -54,11 +54,11 @@ worktree：apply-with-worktree ⇄ ingest → (quality? | review? ∥ verify?) �
 
 | 層 | 負責什麼 | 例子 |
 | --- | --- | --- |
-| 技能 | 寫給 Agent 讀的流程知識：什麼時候讀什麼、怎麼產生與檢查文件、什麼時候停下來問你。 | Claude、GitHub Copilot 與 Cursor `/speclink-propose`、Codex `$speclink-propose`、pi `/skill:speclink-propose` |
+| 技能 | 寫給 Agent 讀的流程知識：什麼時候讀什麼、怎麼產生與檢查文件、什麼時候停下來問你。 | Claude、GitHub Copilot 與 Cursor `/speclink-propose`、Codex `$speclink-propose`、pi 與 oh-my-pi `/skill:speclink-propose` |
 | `speclink` CLI | 真正執行動作的命令列。本地與遠端都用它。 | `speclink status --change add-csv-export` |
 | 引擎 | 執行動詞的程式：讀規格、跑流程、把結果寫回去。本機專案由 CLI 裡的引擎執行；遠端專案由 Server 上的引擎執行，CLI 經 HTTP 把動詞送過去。 | 內建在 CLI 裡；遠端專案時在 Server 上（示範用 server，或內嵌了引擎的宿主） |
 
-下面的技能名都用 Claude 的寫法，GitHub Copilot 與 Cursor 的寫法相同。Codex 把開頭的 `/` 換成 `$`，也可以輸入 `/skills` 從清單挑。pi 把開頭的 `/` 換成 `/skill:`。`analyze` 是例外：只有 Claude 有這個技能，Codex、GitHub Copilot、pi 與 Cursor 直接用 CLI。
+下面的技能名都用 Claude 的寫法，GitHub Copilot 與 Cursor 的寫法相同。Codex 把開頭的 `/` 換成 `$`，也可以輸入 `/skills` 從清單挑。pi 與 oh-my-pi（`omp`）把開頭的 `/` 換成 `/skill:`。`analyze` 是例外：Claude 與 oh-my-pi（`omp`）有這個技能，Codex、GitHub Copilot、pi 與 Cursor 直接用 CLI。
 
 升級 Speclink 之後，執行 `speclink update` 重新產生技能檔。
 
@@ -292,7 +292,7 @@ worktree：apply-with-worktree ⇄ ingest → (quality? | review? ∥ verify?) �
 交叉比對提案、設計、規格與任務，找出涵蓋、一致、模糊與缺漏四類問題。
 
 - **什麼時候用**：提案或 ingest 完成後（技能會自動跑）。它不是程式測試。
-- **技能**：`/speclink-analyze <變更名稱>`（只有 Claude 有；Codex、GitHub Copilot、pi 與 Cursor 直接用 CLI）。
+- **技能**：`/speclink-analyze <變更名稱>`（Claude 與 oh-my-pi 的 `/skill:speclink-analyze`；Codex、GitHub Copilot、pi 與 Cursor 直接用 CLI）。
 - **CLI**：`speclink analyze <名稱> [--json]`
 - **完成**：沒有 CRITICAL；WARNING 與 SUGGESTION 看過並決定是否處理。
 - **下一步**：修文件，或 `apply`。

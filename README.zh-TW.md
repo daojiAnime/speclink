@@ -33,7 +33,7 @@ Speclink 有兩條路徑：一個人用本機專案就夠；團隊要共用規�
 ## <a id="why"></a>為什麼用 Speclink
 
 - **規格就放在程式碼旁邊。** 規格是 repo 裡的 Markdown 與 YAML 純文字檔。不裝 Speclink 也讀得懂，每次修改都看得到 Git diff。
-- **AI Agent 知道每一步該做什麼。** Speclink 為 Claude Code、Codex、GitHub Copilot、pi 與 Cursor 產生技能。每個技能告訴 Agent 要讀什麼、要寫什麼、什麼時候停下來問你。
+- **AI Agent 知道每一步該做什麼。** Speclink 為 Claude Code、Codex、GitHub Copilot、pi、Cursor 與 oh-my-pi（`omp`）產生技能。每個技能告訴 Agent 要讀什麼、要寫什麼、什麼時候停下來問你。
 - **封存前先檢查。** 封存前有兩道選用的品質關卡：`review` 看程式碼寫得好不好，`verify` 看交付是否符合規格。
 - **一個人到整個團隊，同一套流程。** 先在自己的 repo 用本機專案開始。團隊要共用規格時改用遠端專案，流程與用語都不變。
 
@@ -53,9 +53,9 @@ Speclink 有兩條路徑：一個人用本機專案就夠；團隊要共用規�
    speclink init --tools claude,codex
    ```
 
-   `--tools` 列出你用的 Agent 工具：`claude`、`codex`、`copilot`、`pi`、`cursor`，用逗號任意組合。
+   `--tools` 列出你用的 Agent 工具：`claude`、`codex`、`copilot`、`pi`、`cursor`、`omp`（別名 `oh-my-pi`），用逗號任意組合。
 
-3. 請 Agent 開一個變更：在 Claude Code、GitHub Copilot 或 Cursor 輸入 `/speclink-propose <變更名稱>`，在 Codex 輸入 `$speclink-propose <變更名稱>`，在 pi 輸入 `/skill:speclink-propose <變更名稱>`。Agent 會寫出提案、規格與任務清單。
+3. 請 Agent 開一個變更：在 Claude Code、GitHub Copilot 或 Cursor 輸入 `/speclink-propose <變更名稱>`，在 Codex 輸入 `$speclink-propose <變更名稱>`，在 pi 或 oh-my-pi 輸入 `/skill:speclink-propose <變更名稱>`。Agent 會寫出提案、規格與任務清單。
 
 完整的第一輪（提案、實作、檢查、封存）見 [Local Repo 入門](docs/getting-started.zh-TW.md)。要用遠端專案，見 [Remote 入門](docs/remote-getting-started.zh-TW.md)。
 
@@ -79,7 +79,7 @@ Speclink 有兩條路徑：一個人用本機專案就夠；團隊要共用規�
 ## <a id="features"></a>特色
 
 - **純文字**：Local 模式的產物放在 repo 的 `speclink/` 底下：`specs/<capability>/spec.md`、`changes/<名稱>/`、`changes/archive/` 與 `config.yaml`。內容全是 Markdown 與 YAML，不裝 Speclink 也讀得懂、改得動，每次變動都看得到 Git diff。Speclink 只多放兩樣東西：`discussions/`（討論記錄）與每個變更的 `.meta.yaml`（生命週期資料）。這一點只適用本機專案（Local 模式），不適用遠端專案：遠端專案的正式規格由 Server 持有，checkout 裡沒有規格檔。已經在用 OpenSpec 的專案，在專案根執行 `speclink init` 就能匯入：`openspec/` 會搬到 `speclink/`，之後 OpenSpec CLI 就讀不到這個專案，所以這是單向的匯入，不能再轉回去。
-- **給 AI Agent 的技能**：`speclink init` 為 Claude Code、Codex、GitHub Copilot、pi 與 Cursor 產生技能檔。從討論、提案、實作、品質關卡到封存，每一站都有對應的 `/speclink-*` 指令（Codex 寫成 `$speclink-*`，pi 寫成 `/skill:speclink-*`）。
+- **給 AI Agent 的技能**：`speclink init` 為 Claude Code、Codex、GitHub Copilot、pi、Cursor 與 oh-my-pi（`omp`）產生技能檔。從討論、提案、實作、品質關卡到封存，每一站都有對應的 `/speclink-*` 指令（Codex 寫成 `$speclink-*`，pi 與 oh-my-pi 寫成 `/skill:speclink-*`）。
 - **桌面看板**：每個變更是一張卡片。你看得到它在哪一站、任務做到哪裡、規格改了什麼。
 - **品質關卡**：`review` 看程式碼寫得好不好，`verify` 看交付是否符合規格。兩道都是選用的。
 - **執行順序**：`speclink plan` 依宣告的依賴把變更分成一波一波，並指出下一個可以開工的變更。
@@ -261,7 +261,7 @@ Speclink 不做帳號、登入、權限與資料庫連線：這些都是宿主�
 
 ## <a id="status"></a>目前狀態
 
-- **可用**：本機專案的 CLI 與桌面 app、Agent 技能（Claude、Codex、GitHub Copilot、pi 與 Cursor）、品質關卡、執行順序、手冊與溯源、Node SDK 與宿主套件（`@speclink/engine`）、三個儲存接口的範例（SQLite、PostgreSQL、檔案系統）、示範用 server 與後台、遠端專案的 CLI、安裝通路、示範用 server 的營運（部署、備份還原）。
+- **可用**：本機專案的 CLI 與桌面 app、Agent 技能（Claude、Codex、GitHub Copilot、pi、Cursor 與 oh-my-pi）、品質關卡、執行順序、手冊與溯源、Node SDK 與宿主套件（`@speclink/engine`）、三個儲存接口的範例（SQLite、PostgreSQL、檔案系統）、示範用 server 與後台、遠端專案的 CLI、安裝通路、示範用 server 的營運（部署、備份還原）。
 - **部分可用**：桌面 app 的遠端專案、Claude Code 外掛、Herdr mod。
 - **規劃中**：MCP、SSO、runtime plugin、多節點部署。
 

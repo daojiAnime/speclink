@@ -85,6 +85,7 @@ fn renderings(location: SpecLocation) -> Vec<Rendering> {
         let forms = [
             ("claude", RenderTarget::Builtin(Tool::Claude), true),
             ("agy", RenderTarget::Builtin(Tool::Agy), skill.is_supported_by(RenderTarget::Builtin(Tool::Agy))),
+            ("omp", RenderTarget::Builtin(Tool::Omp), skill.is_supported_by(RenderTarget::Builtin(Tool::Omp))),
             ("tool-call", RenderTarget::Custom(&harness), skill.is_supported_by(RenderTarget::Custom(&harness))),
         ];
         for (form, target, generated) in forms {
@@ -502,6 +503,7 @@ fn a_neutral_skill_reference_is_the_skill_name_and_a_verb_stays_a_verb() {
             "/skill:speclink-apply <name>",
             "/speclink-apply <name>",
             "/speclink-apply <name>",
+            "/skill:speclink-apply <name>",
         ]
     );
 }

@@ -41,7 +41,10 @@ function snapshot(over: Partial<SettingsSnapshot> = {}): SettingsSnapshot {
       review: { baseline: "extend", critical: [], warning: [], suggestion: [] },
       reviewBaselineSmells: SMELLS,
       subagentModel: { review: {}, verify: {}, choices: {} },
-      builtinSubagentModels: { claude: ["sonnet", "opus", "haiku", "fable"] },
+      builtinSubagentModels: {
+        claude: ["sonnet", "opus", "haiku", "fable"],
+        omp: ["@default", "@slow", "@smol", "@task", "@plan"],
+      },
       schemaArtifacts: ["proposal", "design", "specs", "tasks"],
       schemaName: "spec-driven",
       schemaKnown: true,
@@ -137,9 +140,9 @@ describe("ProjectSettingsView 載入", () => {
     expect(screen.getByLabelText("claude").getAttribute("aria-checked")).toBe("true");
     expect(screen.getByLabelText("codex").getAttribute("aria-checked")).toBe("false");
     expect(screen.getByLabelText("copilot").getAttribute("aria-checked")).toBe("false");
-    // AI 工具卡的五個開關依 claude、codex、copilot、pi、cursor 順序出現。
-    const tools = ["claude", "codex", "copilot", "pi", "cursor"].map((name) => screen.getByLabelText(name));
-    expect(tools.map((el) => el.getAttribute("aria-checked"))).toEqual(["true", "false", "false", "false", "false"]);
+    // AI 工具卡的六個開關依 claude、codex、copilot、pi、cursor、omp 順序出現。
+    const tools = ["claude", "codex", "copilot", "pi", "cursor", "omp"].map((name) => screen.getByLabelText(name));
+    expect(tools.map((el) => el.getAttribute("aria-checked"))).toEqual(["true", "false", "false", "false", "false", "false"]);
     for (let i = 1; i < tools.length; i += 1) {
       expect(
         tools[i - 1].compareDocumentPosition(tools[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -202,13 +205,14 @@ describe("ProjectSettingsView 寫入", () => {
     await waitFor(() => expect(ws.writeAppTools).toHaveBeenCalledWith(["claude", "copilot"]));
   });
 
-  it("tools 加選 pi 與 cursor 後儲存 → writeAppTools 收到完整選集", async () => {
-    // spec「設定頁圖形化讀寫兩層設定」：AI 工具卡多選含 pi、cursor。
+  it("tools 加選 pi、cursor 與 omp 後儲存 → writeAppTools 收到完整選集", async () => {
+    // spec「設定頁圖形化讀寫兩層設定」：AI 工具卡多選含 pi、cursor、omp。
     const ws = renderView(snapshot(), "speclink");
     fireEvent.click(await screen.findByLabelText("pi"));
     fireEvent.click(screen.getByLabelText("cursor"));
+    fireEvent.click(screen.getByLabelText("omp"));
     fireEvent.click(screen.getByTestId("save-app"));
-    await waitFor(() => expect(ws.writeAppTools).toHaveBeenCalledWith(["claude", "pi", "cursor"]));
+    await waitFor(() => expect(ws.writeAppTools).toHaveBeenCalledWith(["claude", "pi", "cursor", "omp"]));
   });
 
   it("audit 切開後儲存 → writeWorkflowConfig 收到完整目標狀態（含讀入現值）", async () => {
@@ -1941,13 +1945,13 @@ describe("子代理模型頁（spec 需求「設定頁編輯子代理模型」�
   const written = (ws: WorkspaceSettingsProvider) =>
     (ws.writeWorkflowSubagentModel as ReturnType<typeof vi.fn>).mock.calls;
 
-  it("唯讀呈現：五列、來源小字、未啟用、pi 說明、自訂清單計數與檔案註記（spec Scenario「唯讀呈現」）", async () => {
+  it("唯讀呈現：六列、來源小字、未啟用、pi 說明、自訂清單計數與檔案註記（spec Scenario「唯讀呈現」）", async () => {
     const page = await openPage(fakeSettings(modelSnap()));
     expect(within(page).getByRole("heading", { level: 2, name: "子代理模型" })).toBeTruthy();
     expect(screen.getByTestId("file-note-config").textContent).toBe("speclink/config.yaml · subagent_model");
     const rows = within(page).getAllByTestId(/^subagent-row-/);
     expect(rows.map((row) => row.getAttribute("data-testid"))).toEqual(
-      ["claude", "codex", "copilot", "pi", "cursor"].map((tool) => `subagent-row-${tool}`),
+      ["claude", "codex", "copilot", "pi", "cursor", "omp"].map((tool) => `subagent-row-${tool}`),
     );
     expect(rows.map((row) => within(row).getByTestId("subagent-tool-name").textContent)).toEqual([
       "Claude Code",
@@ -1955,12 +1959,13 @@ describe("子代理模型頁（spec 需求「設定頁編輯子代理模型」�
       "Copilot",
       "pi",
       "Cursor",
+      "oh-my-pi",
     ]);
     expect(cellText("review", "claude")).toBe("opus內建");
     expect(cellText("verify", "claude")).toBe("sonnet內建");
     expect(cellText("review", "codex")).toBe("gpt-6.1-sol自訂清單");
     expect(cellText("verify", "codex")).toBe("沿用主對話");
-    for (const tool of ["copilot", "pi", "cursor"]) {
+    for (const tool of ["copilot", "pi", "cursor", "omp"]) {
       const row = within(page).getByTestId(`subagent-row-${tool}`);
       expect(within(row).getByText("未啟用")).toBeTruthy();
       expect(cellText("review", tool)).toBe("沿用主對話");
@@ -1987,6 +1992,15 @@ describe("子代理模型頁（spec 需求「設定頁編輯子代理模型」�
     expect(await openOptions("Claude Code · 審查")).toEqual(["沿用主對話", "sonnet", "opus", "haiku", "fable", "自行輸入…"]);
     expect(await openOptions("Codex · 審查")).toEqual(["沿用主對話", "gpt-6.1-sol", "gpt-6-astra", "自行輸入…"]);
     expect(await openOptions("Copilot · 審查")).toEqual(["沿用主對話", "自行輸入…"]);
+    expect(await openOptions("oh-my-pi · 審查")).toEqual([
+      "沿用主對話",
+      "@default",
+      "@slow",
+      "@smol",
+      "@task",
+      "@plan",
+      "自行輸入…",
+    ]);
     typeInEditor(within(page).getByTestId("subagent-list-input-claude"), "opus\nclaude-x");
     expect(await openOptions("Claude Code · 審查")).toEqual([
       "沿用主對話",

@@ -14,7 +14,7 @@ pub enum RenderTarget<'a> {
 }
 
 /// A tool target for generated skills. Speclink deliberately scopes the tool matrix to
-/// claude, codex, copilot, pi, cursor and agy.
+/// claude, codex, copilot, pi, cursor, agy and omp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
     Claude,
@@ -23,6 +23,7 @@ pub enum Tool {
     Pi,
     Cursor,
     Agy,
+    Omp,
 }
 
 impl Tool {
@@ -30,9 +31,17 @@ impl Tool {
     /// walks it for generation, deselection, the reserved descriptor names and
     /// directories, the asset lock and its error messages; the adapters (CLI hint, Node
     /// SDK, desktop) spell the set out in their own wording, pinned by their tests.
-    pub const ALL: [Tool; 6] = [Tool::Claude, Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy];
+    pub const ALL: [Tool; 7] = [
+        Tool::Claude,
+        Tool::Codex,
+        Tool::Copilot,
+        Tool::Pi,
+        Tool::Cursor,
+        Tool::Agy,
+        Tool::Omp,
+    ];
 
-    /// The built-in names as error messages list them: `claude, codex, copilot, pi, cursor, agy`.
+    /// The built-in names as error messages list them: `claude, codex, copilot, pi, cursor, agy, omp`.
     pub fn supported_names() -> String {
         Tool::ALL.map(|t| t.name()).join(", ")
     }
@@ -45,6 +54,7 @@ impl Tool {
             "pi" => Some(Tool::Pi),
             "cursor" => Some(Tool::Cursor),
             "agy" | "antigravity" => Some(Tool::Agy),
+            "omp" | "oh-my-pi" => Some(Tool::Omp),
             _ => None,
         }
     }
@@ -56,6 +66,7 @@ impl Tool {
             Tool::Pi => "pi",
             Tool::Cursor => "cursor",
             Tool::Agy => "agy",
+            Tool::Omp => "omp",
         }
     }
     /// Directory (relative to project root) that holds generated skill files.
@@ -67,13 +78,14 @@ impl Tool {
             Tool::Pi => ".pi/skills",
             Tool::Cursor => ".cursor/skills",
             Tool::Agy => ".agents/skills",
+            Tool::Omp => ".omp/skills",
         }
     }
     /// Where the tool keeps plan-mode files ({{PLAN_DIR}}); empty when the tool has none.
     fn plan_dir(&self) -> &'static str {
         match self {
             Tool::Claude => "~/.claude/plans/",
-            Tool::Codex | Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy => "",
+            Tool::Codex | Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy | Tool::Omp => "",
         }
     }
     /// The prefix that `/speclink:` becomes for this tool.
@@ -81,7 +93,7 @@ impl Tool {
         match self {
             Tool::Claude | Tool::Copilot | Tool::Cursor | Tool::Agy => "/speclink-",
             Tool::Codex => "$speclink-",
-            Tool::Pi => "/skill:speclink-",
+            Tool::Pi | Tool::Omp => "/skill:speclink-",
         }
     }
 }
@@ -105,11 +117,15 @@ pub struct Skill {
 }
 
 impl Skill {
-    /// Whether this skill is emitted for `target`. Antigravity (`agy`) unlocks `analyze`
-    /// alongside Claude Code, while Codex/Copilot/Pi/Cursor and custom descriptors keep
-    /// the narrower set.
+    /// Whether this skill is emitted for `target`. Antigravity (`agy`) and oh-my-pi (`omp`)
+    /// unlock `analyze` alongside Claude Code, while Codex/Copilot/Pi/Cursor and custom
+    /// descriptors keep the narrower set.
     pub fn is_supported_by(&self, target: RenderTarget) -> bool {
-        !self.claude_only || matches!(target, RenderTarget::Builtin(Tool::Claude | Tool::Agy))
+        !self.claude_only
+            || matches!(
+                target,
+                RenderTarget::Builtin(Tool::Claude | Tool::Agy | Tool::Omp)
+            )
     }
 }
 
@@ -539,6 +555,68 @@ instead of expecting a fixed plan directory.",
     )
 }
 
+/// The harness-adaptation preamble for oh-my-pi (`omp`): maps Claude-phrased tool instructions
+/// in the shared skill bodies onto oh-my-pi's native tools (`ask`, `task`, `scout`, `reviewer`,
+/// `security-reviewer`, `edit`/`write`/`ast_edit`, `todo`, `local://<slug>-plan.md`).
+fn omp_context(skill: &Skill) -> String {
+    let mut notes = vec![
+        "- **User prompts**: map **AskUserQuestion tool** instructions to `ask` \
+(when `ask` is unavailable, ask as plain text and wait for the user's reply).",
+    ];
+    if skill.disallow_edit {
+        notes.push(
+            "- **Read-only guarantee**: do not modify workspace source files (`edit`, `write`, \
+`ast_edit`); run only read-only inspections and the `speclink` CLI verbs this skill requires.",
+        );
+    }
+    if matches!(skill.name, "analyze" | "drift" | "trace") {
+        notes.push(
+            "- **Isolated read sweep**: execute without editing project files; when a parallel \
+read-only sweep helps, dispatch `scout` sub-agents via the `task` tool.",
+        );
+    }
+    match skill.name {
+        "audit" => notes.push(
+            "- **Parallel sub-agents**: launch all adversary lenses concurrently with the `task` \
+tool's batch dispatch (preferring `security-reviewer` or read-only `scout` agents, or custom \
+read-only agents under `.omp/agents/`).",
+        ),
+        "review" => notes.push(
+            "- **Checking sub-agents**: map `Agent tool` to parallel `task` tool calls for the \
+Standards and Correctness checks (preferring `reviewer`, read-only `scout`, or custom read-only \
+agents under `.omp/agents/`). Honor `subagentModel.review.omp` (model role aliases `@default`, \
+`@slow`, `@smol`, `@task`, `@plan`, or custom agent configuration under `.omp/agents/`).",
+        ),
+        "verify" => notes.push(
+            "- **Checking sub-agent**: map `Agent tool` to one read-only `task` tool call \
+(preferring `reviewer`, `scout`, a read-only-constrained `task` agent, or a custom read-only \
+agent under `.omp/agents/`). Honor `subagentModel.verify.omp` (model role aliases `@default`, \
+`@slow`, `@smol`, `@task`, `@plan`, or custom agent configuration under `.omp/agents/`).",
+        ),
+        "quality" => notes.push(
+            "- **Parallel stations**: dispatch the review Standards, review Correctness, and \
+verify checks in one turn via the `task` tool (preferring `reviewer`, read-only `scout`, or \
+custom read-only agents under `.omp/agents/`), mapping `subagentModel.<station>.omp` to model \
+role aliases (`@default`, `@slow`, `@smol`, `@task`, `@plan`) or custom agents.",
+        ),
+        "propose" | "ingest" => notes.push(
+            "- **Plan mode input**: when running in oh-my-pi plan mode, treat any \
+`local://<slug>-plan.md` plan file referenced in conversation as the plan source instead of \
+expecting a fixed plan directory.",
+        ),
+        "apply" | "apply-with-worktree" => notes.push(
+            "- **Live progress HUD**: you may mirror task checklist progress read-only into \
+oh-my-pi's `todo` tool while keeping `tasks.md` (`speclink task done`) as the single source \
+of truth.",
+        ),
+        _ => {}
+    }
+    format!(
+        "## oh-my-pi (omp) harness adaptation\n\n{}\n\n---\n\n",
+        notes.join("\n")
+    )
+}
+
 /// The invocation preamble that tells a custom harness how `speclink <verb>` references in
 /// the body are meant to be executed — and that `speclink-<name>` is not one of them: the
 /// body names another skill that way, and a skill sent as a verb either fails or, where a
@@ -703,6 +781,7 @@ pub fn render_skill_file_with_limits(
             }
         }
         RenderTarget::Builtin(Tool::Agy) => fm.push_str(&agy_context(skill)),
+        RenderTarget::Builtin(Tool::Omp) => fm.push_str(&omp_context(skill)),
         RenderTarget::Builtin(_) => {}
         RenderTarget::Custom(custom) => fm.push_str(invocation_note(custom.invocation)),
     }
@@ -808,8 +887,50 @@ mod tests {
                 "/skill:speclink-ingest",
                 "/speclink-ingest",
                 "/speclink-ingest",
+                "/skill:speclink-ingest",
             ]
         );
+    }
+
+    #[test]
+    fn omp_tool_parses_aliases_and_renders_harness_preamble_and_analyze() {
+        assert_eq!(Tool::parse("omp"), Some(Tool::Omp));
+        assert_eq!(Tool::parse("oh-my-pi"), Some(Tool::Omp));
+        assert_eq!(Tool::parse("  OH-MY-PI "), Some(Tool::Omp));
+        assert_eq!(Tool::Omp.name(), "omp");
+        assert_eq!(Tool::Omp.skills_dir(), ".omp/skills");
+
+        let reg = registry();
+        let analyze = reg.iter().find(|s| s.name == "analyze").unwrap();
+        let propose = reg.iter().find(|s| s.name == "propose").unwrap();
+        let review = reg.iter().find(|s| s.name == "review").unwrap();
+        let audit = reg.iter().find(|s| s.name == "audit").unwrap();
+        let apply = reg.iter().find(|s| s.name == "apply").unwrap();
+
+        assert!(analyze.is_supported_by(RenderTarget::Builtin(Tool::Omp)));
+        let omp_analyze = render_skill_file_for(RenderTarget::Builtin(Tool::Omp), analyze, "speclink", SpecLocation::InCheckout);
+        assert!(omp_analyze.contains("## oh-my-pi (omp) harness adaptation"));
+        assert!(omp_analyze.contains("`ask`"));
+        assert!(omp_analyze.contains("`edit`") && omp_analyze.contains("`ast_edit`"));
+        assert!(omp_analyze.contains("`scout`"));
+        assert!(!omp_analyze.contains("context: fork"));
+        assert!(!omp_analyze.contains("disallowedTools"));
+
+        let omp_propose = render_skill_file_for(RenderTarget::Builtin(Tool::Omp), propose, "speclink", SpecLocation::InCheckout);
+        assert!(omp_propose.contains("local://<slug>-plan.md"));
+        assert!(omp_propose.contains("/skill:speclink-apply"));
+        assert!(omp_propose.contains("--agent omp"));
+        assert!(!omp_propose.contains("$speclink-"));
+        assert!(!omp_propose.contains("/speclink-"));
+
+        let omp_review = render_skill_file_for(RenderTarget::Builtin(Tool::Omp), review, "speclink", SpecLocation::InCheckout);
+        assert!(omp_review.contains("`task`") && omp_review.contains("subagentModel.review.omp") && omp_review.contains("@slow"));
+
+        let omp_audit = render_skill_file_for(RenderTarget::Builtin(Tool::Omp), audit, "speclink", SpecLocation::InCheckout);
+        assert!(omp_audit.contains("security-reviewer"));
+
+        let omp_apply = render_skill_file_for(RenderTarget::Builtin(Tool::Omp), apply, "speclink", SpecLocation::InCheckout);
+        assert!(omp_apply.contains("`todo`"));
     }
 
     /// `skill_body` 是 registry 的查表加三個內部技能（tdd、clarify、sync）：每個對外
@@ -1266,6 +1387,8 @@ skipped for this reason.";
             (RenderTarget::Builtin(Tool::Copilot), "`/speclink-discuss`, `/speclink-propose`"),
             (RenderTarget::Builtin(Tool::Pi), "`/skill:speclink-discuss`, `/skill:speclink-propose`"),
             (RenderTarget::Builtin(Tool::Cursor), "`/speclink-discuss`, `/speclink-propose`"),
+            (RenderTarget::Builtin(Tool::Agy), "`/speclink-discuss`, `/speclink-propose`"),
+            (RenderTarget::Builtin(Tool::Omp), "`/skill:speclink-discuss`, `/skill:speclink-propose`"),
             (RenderTarget::Custom(&cli), "`speclink-discuss`, `speclink-propose`"),
         ] {
             let rendered =

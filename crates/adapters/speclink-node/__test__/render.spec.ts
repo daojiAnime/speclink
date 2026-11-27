@@ -14,6 +14,7 @@ let initedProject: string
 let copilotProject: string
 let piCursorProject: string
 let agyProject: string
+let ompProject: string
 
 beforeAll(() => {
   if (!existsSync(cliBin)) {
@@ -27,6 +28,8 @@ beforeAll(() => {
   execFileSync(cliBin, ['init', '.', '--tools', 'pi,cursor'], { cwd: piCursorProject })
   agyProject = mkdtempSync(join(tmpdir(), 'speclink-node-init-agy-'))
   execFileSync(cliBin, ['init', '.', '--tools', 'agy'], { cwd: agyProject })
+  ompProject = mkdtempSync(join(tmpdir(), 'speclink-node-init-omp-'))
+  execFileSync(cliBin, ['init', '.', '--tools', 'omp'], { cwd: ompProject })
 }, 600_000)
 
 afterAll(() => {
@@ -34,6 +37,7 @@ afterAll(() => {
   if (copilotProject) rmSync(copilotProject, { recursive: true, force: true })
   if (piCursorProject) rmSync(piCursorProject, { recursive: true, force: true })
   if (agyProject) rmSync(agyProject, { recursive: true, force: true })
+  if (ompProject) rmSync(ompProject, { recursive: true, force: true })
 })
 
 /** The golden snapshot of the remote neutral tool-call skill files, by file path. */
@@ -131,13 +135,37 @@ describe('skills.render — render matrix', () => {
     const rendered = skills.render('apply', { target: 'agy' })
     expect(normalize(rendered)).toBe(normalize(generated))
     expect(rendered).toContain('/speclink-')
-    expect(rendered).toContain('--agent agy')
+    expect(skills.render('propose', { target: 'agy' })).toContain('--agent agy')
     expect(rendered).toContain('## Antigravity (agy) harness adaptation')
     expect(rendered).toContain('ask_question')
     expect(rendered).not.toContain('$speclink-')
     expect(
       readFileSync(join(agyProject, '.agents', 'skills', 'speclink-analyze', 'SKILL.md'), 'utf8'),
     ).toContain('## Antigravity (agy) harness adaptation')
+  })
+
+  it('omp × cli matches the SKILL.md the CLI init generates under .omp/skills (propose + apply + analyze)', () => {
+    for (const skillName of ['propose', 'apply', 'analyze'] as const) {
+      const generated = readFileSync(
+        join(ompProject, '.omp', 'skills', `speclink-${skillName}`, 'SKILL.md'),
+        'utf8',
+      )
+      const rendered = skills.render(skillName, { target: 'omp' })
+      expect(normalize(rendered)).toBe(normalize(generated))
+      expect(rendered).toContain('## oh-my-pi (omp) harness adaptation')
+      expect(rendered).toContain('`ask`')
+      expect(rendered).not.toContain('$speclink-')
+      expect(rendered).not.toContain('/speclink-')
+    }
+    const proposeRendered = skills.render('propose', { target: 'omp' })
+    expect(proposeRendered).toContain('--agent omp')
+    expect(proposeRendered).toContain('/skill:speclink-')
+    const applyRendered = skills.render('apply', { target: 'omp' })
+    expect(applyRendered).toContain('/skill:speclink-')
+    expect(applyRendered).toContain('`todo`')
+    const remoteAnalyze = skills.render('analyze', { target: 'omp', specInCheckout: false })
+    expect(remoteAnalyze).toContain('## oh-my-pi (omp) harness adaptation')
+    expect(remoteAnalyze).not.toContain('speclink/changes/')
   })
 
   // spec node-sdk「渲染 API」：specInCheckout（規格資料夾是否在使用這份技能的 checkout）。
@@ -190,7 +218,7 @@ describe('skills.render — render matrix', () => {
 
   it('unknown target fails loud, listing every valid target', () => {
     expect(() => skills.render('apply', { target: 'github-copilot' as never })).toThrow(
-      /'github-copilot' must be 'claude', 'codex', 'copilot', 'pi', 'cursor', 'agy', or 'neutral'/,
+      /'github-copilot' must be 'claude', 'codex', 'copilot', 'pi', 'cursor', 'agy', 'omp', or 'neutral'/,
     )
   })
 

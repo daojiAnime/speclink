@@ -54,11 +54,11 @@ Answer these questions in order. The first "yes" gives your entry:
 
 | Layer | What it does | Example |
 | --- | --- | --- |
-| Skill | Workflow knowledge for the agent: what to read, how to write and check documents, and when to stop and ask you. | Claude, GitHub Copilot, and Cursor `/speclink-propose`, Codex `$speclink-propose`, pi `/skill:speclink-propose` |
+| Skill | Workflow knowledge for the agent: what to read, how to write and check documents, and when to stop and ask you. | Claude, GitHub Copilot, and Cursor `/speclink-propose`, Codex `$speclink-propose`, pi and oh-my-pi `/skill:speclink-propose` |
 | `speclink` CLI | The command line that does the actual work. Local and remote mode both use it. | `speclink status --change add-csv-export` |
 | Engine | The program that runs a verb: it reads the specs, runs the workflow, and writes the result. For a local project, the engine in the CLI runs the verb. For a remote project, the engine on the Server runs it, and the CLI sends the verb over HTTP. | Built into the CLI; for a remote project, on the Server (the demonstration server, or a host that embeds the engine) |
 
-The skill names below use the Claude syntax. GitHub Copilot and Cursor use the same syntax. In Codex, change the first `/` to `$`, or enter `/skills` and pick from the list. In pi, change the first `/` to `/skill:`. One exception: only Claude has the `analyze` skill. In Codex, GitHub Copilot, pi, and Cursor, use the CLI instead.
+The skill names below use the Claude syntax. GitHub Copilot and Cursor use the same syntax. In Codex, change the first `/` to `$`, or enter `/skills` and pick from the list. In pi and oh-my-pi (`omp`), change the first `/` to `/skill:`. One exception: Claude and oh-my-pi (`omp`) have the `analyze` skill. In Codex, GitHub Copilot, pi, and Cursor, use the CLI instead.
 
 After you upgrade Speclink, run `speclink update` to write the skill files again.
 
@@ -292,7 +292,7 @@ Check the format, the required sections, and the rules of a change or of the spe
 Compare the proposal, design, specs, and tasks, and find four types of problems: coverage, consistency, ambiguity, and gaps.
 
 - **When to use**: After a proposal or an ingest (the skills run it for you). It is not a code test.
-- **Skill**: `/speclink-analyze <change-name>` (Claude only; Codex, GitHub Copilot, pi, and Cursor use the CLI).
+- **Skill**: `/speclink-analyze <change-name>` (Claude and oh-my-pi `/skill:speclink-analyze`; Codex, GitHub Copilot, pi, and Cursor use the CLI).
 - **CLI**: `speclink analyze <name> [--json]`
 - **Done**: No CRITICAL. You read each WARNING and SUGGESTION and decide what to do.
 - **Next**: Fix the documents, or `apply`.

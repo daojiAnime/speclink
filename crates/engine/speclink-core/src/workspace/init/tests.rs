@@ -140,7 +140,9 @@ fn user_text(tool: Tool) -> &'static str {
     match tool {
         Tool::Claude => CLAUDE_USER_TEXT,
         Tool::Codex => CODEX_USER_TEXT,
-        Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy => unreachable!("{} 沒有指令檔", tool.name()),
+        Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy | Tool::Omp => {
+            unreachable!("{} 沒有指令檔", tool.name())
+        }
     }
 }
 
@@ -217,7 +219,7 @@ fn walk_snapshot(root: &TempRoot, skip_git: bool) -> Vec<(String, Vec<u8>)> {
 /// custom descriptor／未知頂層鍵／remote 原值保留，marker 不重複，使用者文字不動。
 #[test]
 fn reconcile_converts_builtin_selection_row_by_row() {
-    let rows: [(&[Tool], &[Tool]); 14] = [
+    let rows: [(&[Tool], &[Tool]); 16] = [
         (&[Tool::Claude], &[Tool::Codex]),
         (&[Tool::Claude, Tool::Codex], &[Tool::Claude]),
         (&[Tool::Codex], &[Tool::Claude, Tool::Codex]),
@@ -232,6 +234,8 @@ fn reconcile_converts_builtin_selection_row_by_row() {
         (&[Tool::Claude, Tool::Agy], &[Tool::Claude]),
         (&[Tool::Claude], &[Tool::Agy]),
         (&[Tool::Agy], &[Tool::Codex]),
+        (&[Tool::Claude], &[Tool::Claude, Tool::Omp]),
+        (&[Tool::Claude, Tool::Omp], &[Tool::Claude]),
     ];
     for (i, (from, to)) in rows.iter().enumerate() {
         let root = TempRoot::new(&format!("reconcile-row-{i}"));
@@ -1719,7 +1723,7 @@ fn tool_selection_notes_an_unknown_builtin_name() {
     assert_eq!(
         sel.notes,
         vec![
-            "unknown tool 'windsurf' in .speclink.yaml tools list (supported: claude, codex, copilot, pi, cursor, agy)"
+            "unknown tool 'windsurf' in .speclink.yaml tools list (supported: claude, codex, copilot, pi, cursor, agy, omp)"
                 .to_string()
         ]
     );
@@ -1824,7 +1828,7 @@ fn sync_plan_builds_one_target_per_selected_tool() {
     assert_eq!(plan.targets[0].skills_root, root.at(".agents/skills"));
     assert_eq!(
         plan.deselected_builtins,
-        vec![Tool::Claude, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy]
+        vec![Tool::Claude, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy, Tool::Omp]
     );
 }
 
@@ -1855,7 +1859,7 @@ fn sync_plan_adds_a_target_for_each_descriptor() {
     assert_eq!(plan.targets[1].skills_root, root.at(".xyz/skills"));
     assert_eq!(
         plan.deselected_builtins,
-        vec![Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy]
+        vec![Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy, Tool::Omp]
     );
 }
 
@@ -2003,7 +2007,7 @@ fn invocation_prefix(tool: Tool) -> &'static str {
     match tool {
         Tool::Claude | Tool::Copilot | Tool::Cursor | Tool::Agy => "/speclink-",
         Tool::Codex => "$speclink-",
-        Tool::Pi => "/skill:speclink-",
+        Tool::Pi | Tool::Omp => "/skill:speclink-",
     }
 }
 
@@ -2365,13 +2369,14 @@ fn pi_and_cursor_skills_differ_from_codex_only_by_prefix_and_tool_name() {
 fn builtin_render_differences_match_the_spec_table() {
     // Example「內建工具的渲染差異」逐列：skills 目錄、技能引用寫法、--agent 值、
     // Claude 專用 frontmatter、是否含 analyze。
-    let rows: [(Tool, &str, &str, &str, bool, bool); 6] = [
+    let rows: [(Tool, &str, &str, &str, bool, bool); 7] = [
         (Tool::Claude, ".claude/skills", "/speclink-apply", "claude", true, true),
         (Tool::Codex, ".agents/skills", "$speclink-apply", "codex", false, false),
         (Tool::Copilot, ".github/skills", "/speclink-apply", "copilot", false, false),
         (Tool::Pi, ".pi/skills", "/skill:speclink-apply", "pi", false, false),
         (Tool::Cursor, ".cursor/skills", "/speclink-apply", "cursor", false, false),
         (Tool::Agy, ".agents/skills", "/speclink-apply", "agy", false, true),
+        (Tool::Omp, ".omp/skills", "/skill:speclink-apply", "omp", false, true),
     ];
     assert_eq!(Tool::ALL.to_vec(), rows.map(|r| r.0).to_vec(), "內建工具的固定順序");
     for (tool, dir, reference, agent, claude, has_analyze) in rows {
@@ -2387,7 +2392,64 @@ fn builtin_render_differences_match_the_spec_table() {
         assert_eq!(drift.contains("context: fork\nagent: Explore\n"), claude, "{agent}: fork 欄位");
         assert_eq!(drift.contains("disallowedTools"), claude, "{agent}: 唯讀欄位");
         assert_eq!(propose.contains("## Antigravity (agy) harness adaptation"), tool == Tool::Agy, "{agent}: agy preamble");
+        assert_eq!(propose.contains("## oh-my-pi (omp) harness adaptation"), tool == Tool::Omp, "{agent}: omp preamble");
     }
+}
+
+#[test]
+fn omp_generates_isolated_skills_coexists_with_pi_and_cleans_up_safely() {
+    // 1. omp alone: writes only `.omp/skills/speclink-*` (including analyze), no instruction files.
+    let alone = TempRoot::new("omp-alone");
+    init(&alone.dir, &[Tool::Omp], false, "openspec").unwrap();
+    assert_eq!(Tool::Omp.skills_dir(), ".omp/skills");
+    assert_eq!(instructions_path(Tool::Omp), None);
+    for file in ["AGENTS.md", "CLAUDE.md"] {
+        assert!(!alone.exists(file), "omp must not write {file}");
+    }
+    assert_eq!(entry_names(&alone, ".omp"), ["skills"]);
+    assert!(alone.exists(".omp/skills/speclink-analyze/SKILL.md"));
+    let probe = probe_assets(&alone.dir);
+    assert_eq!(probe.status, AssetStatus::Current, "{probe:?}");
+    assert!(probe.differing_files.is_empty(), "{probe:?}");
+
+    // 2. omp + pi co-selected: independent directories, different content (omp preamble + analyze vs pi plain).
+    let both = TempRoot::new("omp-and-pi");
+    init(&both.dir, &[Tool::Pi, Tool::Omp], false, "openspec").unwrap();
+    assert!(both.exists(".pi/skills/speclink-propose/SKILL.md"));
+    assert!(both.exists(".omp/skills/speclink-propose/SKILL.md"));
+    assert!(!both.exists(".pi/skills/speclink-analyze"));
+    assert!(both.exists(".omp/skills/speclink-analyze/SKILL.md"));
+
+    // 3. Deselect omp while keeping user files under `.omp/`: only speclink-* removed.
+    both.write(".omp/skills/my-skill/SKILL.md", "---\nname: my-skill\n---\n");
+    both.write(".omp/agents/custom.md", "# custom\n");
+    reconcile_builtin_tools(&both.dir, &[Tool::Pi]).expect("reconcile removes omp only");
+    assert!(skill_dirs(&both, ".omp/skills").is_empty());
+    assert_eq!(both.read(".omp/skills/my-skill/SKILL.md"), "---\nname: my-skill\n---\n");
+    assert_eq!(both.read(".omp/agents/custom.md"), "# custom\n");
+    assert!(both.exists(".pi/skills/speclink-propose/SKILL.md"));
+
+    // 4. Deselect omp when `.omp/` has nothing else: `.omp/skills` and `.omp` both removed.
+    reconcile_builtin_tools(&alone.dir, &[Tool::Claude]).expect("reconcile empties .omp");
+    assert!(!alone.exists(".omp/skills"));
+    assert!(!alone.exists(".omp"));
+}
+
+#[test]
+fn footprint_detection_never_infers_omp() {
+    let root = TempRoot::new("omp-footprint");
+    root.write(".omp/settings.json", "{}\n");
+    root.write(".omp/skills/my-skill/SKILL.md", "---\nname: my-skill\n---\n");
+    std::fs::create_dir_all(root.at(".claude")).unwrap();
+
+    assert_eq!(detect_footprint_tools(&root.dir), vec![Tool::Claude]);
+
+    root.write(".speclink.yaml", "# Speclink application config\n");
+    update(&root.dir, false).expect("legacy update");
+    assert!(root.exists(&propose_skill(Tool::Claude)));
+    assert!(skill_dirs(&root, ".omp/skills").is_empty());
+    assert_eq!(root.read(".omp/settings.json"), "{}\n");
+    assert_eq!(root.read(".omp/skills/my-skill/SKILL.md"), "---\nname: my-skill\n---\n");
 }
 
 #[test]
@@ -2563,6 +2625,7 @@ fn update_never_prunes_through_a_symlinked_cursor_or_pi_skills_dir() {
     for (tool, own_dir, selected) in [
         (Tool::Cursor, ".cursor", Tool::Claude),
         (Tool::Pi, ".pi", Tool::Codex),
+        (Tool::Omp, ".omp", Tool::Claude),
     ] {
         let root = TempRoot::new(&format!("{}-symlink", tool.name()));
         init(&root.dir, &[selected], false, "openspec").unwrap();

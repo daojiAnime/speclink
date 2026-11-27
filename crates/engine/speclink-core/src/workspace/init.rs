@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 /// 產物層的唯一版號：技能檔 frontmatter 的 version 同源於此，也是過期探測與
 /// 降級守門的比對基準。僅在內嵌資產（assets/skills）的 render 內容變動時遞增——
 /// 與 app／CLI 的發版號無關；`assets.lock` 鎖定測試把這條紀律變成紅燈。
-pub const ASSET_VERSION: &str = "v1.63.0";
+pub const ASSET_VERSION: &str = "v1.64.0";
 
 const APP_CONFIG_TEMPLATE: &str = concat!(
     "# Speclink application config
@@ -1599,18 +1599,18 @@ fn managed_skill_dirs(skills_root: &Path) -> Vec<String> {
     dirs
 }
 
-/// 內建工具曾被注入 marker 的指令檔路徑（專案根相對）。copilot、pi、cursor、agy 從未有
+/// 內建工具曾被注入 marker 的指令檔路徑（專案根相對）。copilot、pi、cursor、agy、omp 從未有
 /// 指令檔，沒有遺留區塊要剝除。
 fn instructions_path(tool: Tool) -> Option<&'static str> {
     match tool {
         Tool::Claude => Some("CLAUDE.md"),
         Tool::Codex => Some("AGENTS.md"),
-        Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy => None,
+        Tool::Copilot | Tool::Pi | Tool::Cursor | Tool::Agy | Tool::Omp => None,
     }
 }
 
 /// Validate a comma-separated `--tools` value into a tool list. Speclink deliberately scopes
-/// the supported tools to claude, codex, copilot, pi, cursor and agy.
+/// the supported tools to claude, codex, copilot, pi, cursor, agy and omp.
 pub fn parse_tools(spec: &str) -> Result<Vec<Tool>> {
     parse_tool_names(&spec.split(',').collect::<Vec<&str>>())
 }

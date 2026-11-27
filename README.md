@@ -33,7 +33,7 @@ Speclink has two paths. One person needs only a local project. A team that wants
 ## <a id="why"></a>Why Speclink
 
 - **The specs live next to your code.** They are plain Markdown and YAML files in your repo. You can read them without Speclink, and every edit shows in the Git diff.
-- **Your AI agent knows each step.** Speclink writes skills for Claude Code, Codex, GitHub Copilot, pi, and Cursor. Each skill tells the agent what to read, what to write, and when to stop and ask you.
+- **Your AI agent knows each step.** Speclink writes skills for Claude Code, Codex, GitHub Copilot, pi, Cursor, and oh-my-pi (`omp`). Each skill tells the agent what to read, what to write, and when to stop and ask you.
 - **You check the work before it lands.** Two optional quality stations run before archive: `review` checks the code craft, and `verify` checks the delivery against the specs.
 - **One workflow from one person to a team.** Start in one repo with a local project. When the team wants shared specs, change to a remote project. The workflow and the terms stay the same.
 
@@ -53,9 +53,9 @@ Speclink has two paths. One person needs only a local project. A team that wants
    speclink init --tools claude,codex
    ```
 
-   `--tools` lists the agent tools that you use: `claude`, `codex`, `copilot`, `pi`, and `cursor`, in any comma-separated combination.
+   `--tools` lists the agent tools that you use: `claude`, `codex`, `copilot`, `pi`, `cursor`, and `omp` (alias `oh-my-pi`), in any comma-separated combination.
 
-3. Ask your agent to start a change. In Claude Code, GitHub Copilot, or Cursor, enter `/speclink-propose <change-name>`. In Codex, enter `$speclink-propose <change-name>`. In pi, enter `/skill:speclink-propose <change-name>`. The agent writes the proposal, the specs, and the task list.
+3. Ask your agent to start a change. In Claude Code, GitHub Copilot, or Cursor, enter `/speclink-propose <change-name>`. In Codex, enter `$speclink-propose <change-name>`. In pi or oh-my-pi, enter `/skill:speclink-propose <change-name>`. The agent writes the proposal, the specs, and the task list.
 
 For the full first round (propose, apply, check, archive), see [Getting started](docs/getting-started.md). To use a remote project, see [Remote getting started](docs/remote-getting-started.md).
 
@@ -79,7 +79,7 @@ For the full first round (propose, apply, check, archive), see [Getting started]
 ## <a id="features"></a>Features
 
 - **Plain text**: In Local mode, the files live under `speclink/` in your repo: `specs/<capability>/spec.md`, `changes/<name>/`, `changes/archive/`, and `config.yaml`. All content is Markdown and YAML. You can read and edit it without Speclink, and each change shows in the Git diff. Speclink adds only two items: `discussions/` (discussion records) and a `.meta.yaml` file in each change (lifecycle metadata). This applies to local projects only (Local mode), not to remote projects: the Server holds the specs of a remote project, and the checkout has no spec files. To import a project that uses OpenSpec, run `speclink init` in the project root. Speclink moves `openspec/` to `speclink/`, and after that the OpenSpec CLI cannot read the project. The import is one-way: you cannot convert the project back.
-- **Skills for AI agents**: `speclink init` writes skill files for Claude Code, Codex, GitHub Copilot, pi, and Cursor. Each stage, from discussion to archive, has a `/speclink-*` command (`$speclink-*` in Codex, `/skill:speclink-*` in pi).
+- **Skills for AI agents**: `speclink init` writes skill files for Claude Code, Codex, GitHub Copilot, pi, Cursor, and oh-my-pi (`omp`). Each stage, from discussion to archive, has a `/speclink-*` command (`$speclink-*` in Codex, `/skill:speclink-*` in pi and oh-my-pi).
 - **Desktop board**: Each change is a card. You can see its stage, its task progress, and the spec changes it makes.
 - **Quality stations**: `review` checks code craft. `verify` checks that the delivery matches the specs. Both stations are optional.
 - **Execution order**: `speclink plan` puts changes into waves from their declared dependencies and shows the next change that is ready to start.
@@ -261,7 +261,7 @@ On the first start, the server prints a one-time `/setup` link. A normal restart
 
 ## <a id="status"></a>Project status
 
-- **Available**: the CLI and the desktop app for local projects, agent skills (Claude, Codex, GitHub Copilot, pi, and Cursor), quality stations, execution order, manual and trace, the Node SDK and the host kit (`@speclink/engine`), three store port examples (SQLite, PostgreSQL, file system), the demonstration server and its admin console, the CLI for remote projects, install channels, operations of the demonstration server (deployment, backup, and restore).
+- **Available**: the CLI and the desktop app for local projects, agent skills (Claude, Codex, GitHub Copilot, pi, Cursor, and oh-my-pi), quality stations, execution order, manual and trace, the Node SDK and the host kit (`@speclink/engine`), three store port examples (SQLite, PostgreSQL, file system), the demonstration server and its admin console, the CLI for remote projects, install channels, operations of the demonstration server (deployment, backup, and restore).
 - **Partial**: Remote projects in the desktop app, the Claude Code plugin, the Herdr mod.
 - **Planned**: MCP, SSO, runtime plugins, multi-node deployment.
 

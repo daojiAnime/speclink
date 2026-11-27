@@ -1276,6 +1276,26 @@ mod tests {
     }
 
     #[test]
+    fn init_and_adopt_project_at_with_omp_generates_omp_skills_and_preserves_user_files() {
+        let plain = PlainDir::new("init-claude-omp");
+        init_project_at(plain.path(), &["claude".into(), "omp".into()]).expect("init omp ok");
+        let p = plain.path();
+        assert!(p.join(".omp/skills/speclink-propose/SKILL.md").is_file());
+        assert!(p.join(".omp/skills/speclink-analyze/SKILL.md").is_file());
+        assert!(read(&p.join(".speclink.yaml")).contains("tools: [claude, omp]"));
+
+        let fx = FixtureRoot::legacy("adopt-omp");
+        fx.write("openspec/specs/auth/spec.md", "## Purpose\n既有規格。\n");
+        fx.write(".omp/agents/custom.md", "# custom\n");
+        adopt_project_at(fx.root(), &["omp".into()]).expect("adopt omp ok");
+        let ap = fx.root();
+        assert!(read(&ap.join(".speclink.yaml")).contains("omp"));
+        assert!(ap.join(".omp/skills/speclink-propose/SKILL.md").is_file());
+        assert!(ap.join(".omp/skills/speclink-analyze/SKILL.md").is_file());
+        assert_eq!(read(&ap.join(".omp/agents/custom.md")), "# custom\n");
+    }
+
+    #[test]
     fn adopt_project_at_unknown_tool_is_rejected_with_zero_writes() {
         let fx = FixtureRoot::new("adopt-badtool");
         let before = entries(fx.root());

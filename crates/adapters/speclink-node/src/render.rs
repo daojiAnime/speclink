@@ -15,7 +15,7 @@ pub struct SkillInfo {
 }
 
 /// Options of `skills.render` — the render matrix: target (claude | codex |
-/// copilot | pi | cursor | agy | neutral), invocation (cli | tool-call, default
+/// copilot | pi | cursor | agy | omp | neutral), invocation (cli | tool-call, default
 /// cli) and `specInCheckout` (whether the spec folder is in the checkout the
 /// skill is used in; default true — a host that embeds the engine and has no
 /// local spec files passes false), plus the spec directory name and the neutral
@@ -71,7 +71,7 @@ fn resolve_matrix(opts: &RenderOptions) -> Result<Matrix> {
             Some(t) => TargetKind::Builtin(t),
             None => {
                 return Err(Error::from_reason(format!(
-                    "target '{other}' must be 'claude', 'codex', 'copilot', 'pi', 'cursor', 'agy', or 'neutral'"
+                    "target '{other}' must be 'claude', 'codex', 'copilot', 'pi', 'cursor', 'agy', 'omp', or 'neutral'"
                 )))
             }
         },

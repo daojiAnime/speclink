@@ -437,6 +437,14 @@ Each item of `discuss list --json` (also with `--archived`), the `info` of `disc
 { "archived": false, "created": "2026-11-20", "createdBy": "Ann", "createdById": "u_1", "modifiedAt": "2026-11-25T14:50:00Z", "path": "discussions/auth-flow.md", "rounds": 2, "slug": "auth-flow", "status": "open", "topic": "Sign-in flow" }
 ```
 
+#### <a id="workflow-config-builtin-subagent-models"></a>`builtinSubagentModels` in `workflow-config show --json`
+
+`workflow-config show --json` includes `builtinSubagentModels`: a map from built-in AI tool name to its versionless sub-agent model names. The human output of `workflow-config show` does not print `subagentModel` or `builtinSubagentModels` and stays unchanged.
+
+- `claude`: `["sonnet", "opus", "haiku", "fable"]`
+- `agy`: `["inherit", "pro", "flash", "flash_lite"]`
+- `omp`: `["@default", "@slow", "@smol", "@task", "@plan"]`
+
 ### <a id="task-line-shape"></a>The shape of a task line
 
 The `tasks` field of `show --json` is the full text of tasks.md. A program that draws its own task page cuts each task line into a number, a title, a body, and a verification with the rules in this section. The task rows of Speclink Desktop and of the web console use the same rules.

@@ -129,7 +129,7 @@ fn assert_rejected_with_zero_writes(env: &TempEnv, out: &Output, before: &[(Stri
 fn fs_init_explicit_tools_generate_exactly_the_selection() {
     // 每種顯式選法逐一：只有被選取的工具留下 Skills（沒選的工具連目錄都不留）；指令檔一律
     // 不生成；Generated files 行依記錄順序列出選集。
-    let cases: [(&str, &[&str]); 16] = [
+    let cases: [(&str, &[&str]); 21] = [
         ("claude", &["claude"]),
         ("codex", &["codex"]),
         ("claude,codex", &["claude", "codex"]),
@@ -144,9 +144,14 @@ fn fs_init_explicit_tools_generate_exactly_the_selection() {
         ("AGY", &["agy"]),
         ("antigravity", &["agy"]),
         ("codex,agy", &["codex", "agy"]),
+        ("omp", &["omp"]),
+        ("OMP", &["omp"]),
+        ("oh-my-pi", &["omp"]),
+        ("omp,oh-my-pi", &["omp"]),
+        ("pi,omp", &["pi", "omp"]),
         (
-            "claude,codex,copilot,pi,cursor,agy",
-            &["claude", "codex", "copilot", "pi", "cursor", "agy"],
+            "claude,codex,copilot,pi,cursor,agy,omp",
+            &["claude", "codex", "copilot", "pi", "cursor", "agy", "omp"],
         ),
         ("agy,codex", &["agy", "codex"]),
     ];
@@ -181,6 +186,7 @@ fn fs_init_explicit_tools_generate_exactly_the_selection() {
             (&["copilot"][..], ".github", ".github/skills/speclink-propose/SKILL.md"),
             (&["pi"][..], ".pi", ".pi/skills/speclink-propose/SKILL.md"),
             (&["cursor"][..], ".cursor", ".cursor/skills/speclink-propose/SKILL.md"),
+            (&["omp"][..], ".omp", ".omp/skills/speclink-propose/SKILL.md"),
         ] {
             let selected = tools.iter().any(|t| want.contains(t));
             assert_eq!(env.exists(skill), selected, "--tools {spec}: {skill}");
@@ -194,6 +200,11 @@ fn fs_init_explicit_tools_generate_exactly_the_selection() {
                 assert_eq!(entries, ["skills"], "--tools {spec}: {top}/ 下只能有 skills/");
             }
         }
+        assert_eq!(
+            env.exists(".omp/skills/speclink-analyze/SKILL.md"),
+            want.contains(&"omp"),
+            "--tools {spec}: omp unlocks speclink-analyze"
+        );
         assert!(env.exists("speclink/specs"), "--tools {spec}: filesystem spec tree");
     }
 }
@@ -268,7 +279,7 @@ fn init_workflow_config_template_documents_every_policy_key() {
 // --- 非互動缺少 --tools（spec Scenario「非互動 init 缺少 tools 零寫入失敗」） ---
 
 /// 缺選集的單行訊息：`pi` 是 `copilot` 的子字串，逐 token 比對測不到漏列，故比全文。
-const ALL_TOOLS_HINT: &str = "no AI tool selected — pass --tools with one or more of claude, codex, copilot, pi, cursor, agy (comma-separated, e.g. --tools claude,agy)";
+const ALL_TOOLS_HINT: &str = "no AI tool selected — pass --tools with one or more of claude, codex, copilot, pi, cursor, agy, omp (comma-separated, e.g. --tools claude,omp)";
 
 #[test]
 fn fs_init_without_tools_on_a_pipe_fails_with_zero_writes() {
@@ -333,7 +344,7 @@ fn explicit_tool_aliases_are_rejected_listing_the_supported_tools() {
         assert_rejected_with_zero_writes(&env, &out, &before);
         assert_eq!(
             stderr_of(&out).trim_end(),
-            format!("Error: unknown tool: {unknown} (supported: claude, codex, copilot, pi, cursor, agy)")
+            format!("Error: unknown tool: {unknown} (supported: claude, codex, copilot, pi, cursor, agy, omp)")
         );
     }
 }

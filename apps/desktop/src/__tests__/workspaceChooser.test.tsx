@@ -283,7 +283,7 @@ describe("WorkspaceChooser", () => {
     await chooseDesktopRepo();
     await reachCheckoutFolder();
 
-    // checkout 步驟的五個勾選依 claude、codex、copilot、pi、cursor 順序出現；
+    // checkout 步驟的六個勾選依 claude、codex、copilot、pi、cursor、omp 順序出現；
     // inspect 回傳 codex → 只有 codex 勾選。
     expectToolCheckboxes(document.body, ["codex"]);
     // inspect 回傳 codex → codex 勾選、claude 與 copilot 未勾。

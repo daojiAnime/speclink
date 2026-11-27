@@ -1074,6 +1074,28 @@ mod tests {
     }
 
     #[test]
+    fn write_tools_adds_then_prunes_omp_skills() {
+        let fx = FixtureRoot::new("tools-write-omp");
+        std::fs::remove_dir_all(fx.root().join("speclink")).unwrap();
+        crate::project::init_project_at(fx.root(), &["claude".into()]).expect("init ok");
+        let omp_skills = fx.root().join(".omp").join("skills");
+        let claude_propose = fx.root().join(".claude").join("skills").join("speclink-propose").join("SKILL.md");
+        let claude_before = read(&claude_propose);
+
+        write_tools_at(fx.root(), &["claude".into(), "omp".into()]).expect("add omp ok");
+        let app = read(&fx.root().join(".speclink.yaml"));
+        assert!(app.contains("- claude\n- omp"), "tools recorded: {app}");
+        assert!(omp_skills.join("speclink-propose").join("SKILL.md").is_file());
+        assert!(omp_skills.join("speclink-analyze").join("SKILL.md").is_file());
+
+        write_tools_at(fx.root(), &["claude".into()]).expect("remove omp ok");
+        let app = read(&fx.root().join(".speclink.yaml"));
+        assert!(app.contains("- claude") && !app.contains("- omp"), "tools recorded: {app}");
+        assert!(!omp_skills.exists(), ".omp/skills/ 下的 speclink- 目錄須全數移除");
+        assert_eq!(read(&claude_propose), claude_before, ".claude/skills/ 不得變動");
+    }
+
+    #[test]
     fn write_tools_strips_a_legacy_instruction_marker() {
         // spec Scenario「tools 變更後技能同步」的遺留面（design D2）：同步時把舊版
         // 引擎注入的區塊剝掉，使用者自己的段落原樣保留。
@@ -1790,7 +1812,11 @@ mod tests {
         );
         assert_eq!(
             json["builtinSubagentModels"],
-            serde_json::json!({"claude": ["sonnet", "opus", "haiku", "fable"]})
+            serde_json::json!({
+                "claude": ["sonnet", "opus", "haiku", "fable"],
+                "agy": ["inherit", "pro", "flash", "flash_lite"],
+                "omp": ["@default", "@slow", "@smol", "@task", "@plan"],
+            })
         );
         // 缺席（含遠端的 from-text 入口）＝三個鍵恆在、各為空物件，內建清單照樣帶出。
         let absent = serde_json::to_value(read_workflow_settings_from_text(Some("schema: spec-driven\n")))
@@ -1808,7 +1834,11 @@ mod tests {
         let msg = s.workflow.parse_error.expect("parse error surfaced");
         assert!(msg.contains("reveiw") && !msg.contains('\n'), "single line naming the key: {msg:?}");
         assert_eq!(s.workflow.subagent_model, SubagentModelConfig::default(), "no guessed values on a broken file");
-        assert_eq!(s.workflow.builtin_subagent_models.len(), 1, "the engine lists do not depend on the file");
+        assert_eq!(
+            s.workflow.builtin_subagent_models.len(),
+            speclink_core::config::BUILTIN_SUBAGENT_MODELS.len(),
+            "the engine lists do not depend on the file"
+        );
     }
 
     #[test]

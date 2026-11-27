@@ -145,6 +145,12 @@
 { "extensions": ["/Users/you/.config/herdr-app/mods/speclink/pi-labels.ts"] }
 ```
 
+**oh-my-pi（`omp`）：** 在 `~/.omp/agent/config.yml` 或專案設定載入 `omp-labels.ts` 擴充（或放進 `~/.omp/agent/extensions/`），路徑換成你的絕對路徑。它監聽 `input`、`tool_call`（`bash`）與 `session_switch`（切換新對話或恢復工作階段時清掉舊標籤）：
+
+```bash
+ln -sf /Users/you/.config/herdr-app/mods/speclink/omp-labels.ts ~/.omp/agent/extensions/omp-labels.ts
+```
+
 **Antigravity（`agy`）：** 建議直接安裝本倉庫隨附的外掛（會一併載入只讀 review/verify/audit 子代理、glob 規則與 Herdr 標籤 hook）：
 
 ```bash
@@ -207,7 +213,7 @@ agent 在做事、在等你回答或出錯時不送，按鈕變灰，滑鼠停�
 
 列上的鈕一定照這個順序。變更有停著的 agent 時，要讓它在新分頁跑，請用頂端的「技能」鈕。
 
-Claude Code、GitHub Copilot、Cursor 與 Antigravity（`agy`）送 `/speclink-<技能>`，Codex 送 `$speclink-<技能>`，Pi 送 `/skill:speclink-<技能>`。Pi 用 `speclink init --tools pi` 產生的 `.pi/skills`，Cursor 用 `speclink init --tools cursor` 產生的 `.cursor/skills`，Antigravity 用 `speclink init --tools agy` 產生的 `.agents/skills`。專案只有 Codex 的 `.agents/skills` 時，Pi 與 Antigravity 也讀得到，但那一份寫的是 `$speclink-`，建議改勾 pi 或 agy。Cursor 也讀 `.claude/skills` 與 `.agents/skills`：專案只有 Claude 或 Codex 的技能時，面板判定 Cursor 有技能、不提示 `--tools cursor`，但 Cursor 用的是 Claude 或 Codex 版（記成 `--agent claude`，或寫 `$speclink-`），建議改勾 cursor。Cursor 沒有 hook 可以接：它在做哪個變更或討論，只靠 speclink CLI 自己回報（Claude Code、Codex 與 Antigravity 另外有 hook，Pi 另外有 extension）。analyze 支援 Claude Code 與 Antigravity，送給其他 agent 時不顯示。其他 agent 沒有 speclink 技能，不會當送達對象。
+Claude Code、GitHub Copilot、Cursor 與 Antigravity（`agy`）送 `/speclink-<技能>`，Codex 送 `$speclink-<技能>`，Pi 與 oh-my-pi（`omp`）送 `/skill:speclink-<技能>`。Pi 用 `speclink init --tools pi` 產生的 `.pi/skills`，oh-my-pi 用 `speclink init --tools omp` 產生的 `.omp/skills`，Cursor 用 `speclink init --tools cursor` 產生的 `.cursor/skills`，Antigravity 用 `speclink init --tools agy` 產生的 `.agents/skills`。專案只有 Codex 的 `.agents/skills` 時，Pi、oh-my-pi 與 Antigravity 也讀得到，但那一份寫的是 `$speclink-`，建議改勾 pi、omp 或 agy。Cursor 也讀 `.claude/skills` 與 `.agents/skills`：專案只有 Claude 或 Codex 的技能時，面板判定 Cursor 有技能、不提示 `--tools cursor`，但 Cursor 用的是 Claude 或 Codex 版（記成 `--agent claude`，或寫 `$speclink-`），建議改勾 cursor。Cursor 沒有 hook 可以接：它在做哪個變更或討論，只靠 speclink CLI 自己回報（Claude Code、Codex 與 Antigravity 另外有 hook，Pi 與 oh-my-pi 另外有 extension）。analyze 支援 Claude Code、Antigravity 與 oh-my-pi，送給其他 agent 時不顯示。其他 agent 沒有 speclink 技能，不會當送達對象。
 
 ### 開工
 
@@ -255,13 +261,13 @@ Claude Code、GitHub Copilot、Cursor 與 Antigravity（`agy`）送 `/speclink-<
 
 **我的技能頁：** 列出你自己裝的技能，選中的列展開完整說明。這些技能不搭配變更，所以只有一個「補充說明」，會接在指令後面。
 
-- **列哪些**：Claude Code 是專案的 `.claude/skills`、`~/.claude/skills` 和已啟用外掛的技能；Codex 是專案的 `.agents/skills`、`~/.agents/skills`、`~/.codex/skills`；Pi 是專案的 `.pi/skills`、`.agents/skills`、`~/.pi/agent/skills`、`~/.agents/skills`；Cursor 是專案的 `.cursor/skills`、`.agents/skills`、`.claude/skills`、`.codex/skills`、`~/.cursor/skills`、`~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`；Antigravity（`agy`）是專案的 `.agents/skills`、`.agent/skills`、`~/.gemini/config/skills`、`~/.agents/skills`、`~/.gemini/antigravity-cli/skills`、`~/.gemini/skills`，以及工作區 `.agents/plugins/` 與 `agy plugin list` 中已啟用外掛的技能。
+- **列哪些**：Claude Code 是專案的 `.claude/skills`、`~/.claude/skills` 和已啟用外掛的技能；Codex 是專案的 `.agents/skills`、`~/.agents/skills`、`~/.codex/skills`；Pi 是專案的 `.pi/skills`、`.agents/skills`、`~/.pi/agent/skills`、`~/.agents/skills`；oh-my-pi（`omp`）是專案的 `.omp/skills`、`.agents/skills`、`.claude/skills`、`.codex/skills`、`~/.omp/agent/skills`、`~/.agents/skills`、`~/.claude/skills`；Cursor 是專案的 `.cursor/skills`、`.agents/skills`、`.claude/skills`、`.codex/skills`、`~/.cursor/skills`、`~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`；Antigravity（`agy`）是專案的 `.agents/skills`、`.agent/skills`、`~/.gemini/config/skills`、`~/.agents/skills`、`~/.gemini/antigravity-cli/skills`、`~/.gemini/skills`，以及工作區 `.agents/plugins/` 與 `agy plugin list` 中已啟用外掛的技能。
 - **不列哪些**：`speclink-*`（在另一頁）、agent 內建的技能、Anthropic 同步來的 `~/.claude/skills/synced`、`~/.codex/skills/.system`、標記 `user-invocable: false` 的技能。
 - **分組**：依名稱猜用途，分成開發、設計、提交與發版、影片、動畫、3D、內容、工具、其他，每組有自己的顏色。每一列右邊標來源（專案、個人、外掛）。
 - **系列**：同一組裡三個以上開頭相同的技能收成一列，例如 `gsap`，點開才列出來。一組超過 12 列時，整組預設收合。
 - **搜尋**：上面的搜尋框比對名稱和說明，有字時全部攤開。`→` 移到補充說明，`←` 移回來。
 
-**給哪個 agent：** 跳窗打開時預設目前分頁的 agent，再來是上次選的，最後是最常用的。你選的 agent 也會用在面板列上的鈕要開新分頁時。「放到輸入框」只能給目前分頁的 agent，選了別的 agent 時這顆鈕不能用，因為指令的寫法和技能都對不上。專案沒有這個 agent 用的 Speclink 技能時，Speclink 頁會寫要執行哪一行。analyze 只支援 Claude Code 與 Antigravity，選別的 agent 時會變淡。
+**給哪個 agent：** 跳窗打開時預設目前分頁的 agent，再來是上次選的，最後是最常用的。你選的 agent 也會用在面板列上的鈕要開新分頁時。「放到輸入框」只能給目前分頁的 agent，選了別的 agent 時這顆鈕不能用，因為指令的寫法和技能都對不上。專案沒有這個 agent 用的 Speclink 技能時，Speclink 頁會寫要執行哪一行。analyze 只支援 Claude Code、Antigravity 與 oh-my-pi，選別的 agent 時會變淡。
 
 ### 叫 Speclink 開頁面
 
@@ -277,7 +283,7 @@ Logo 送 `speclink://project` 網址：桌面 app 切到這個 space 的專案�
 - 要叫 Speclink 開頁面，或按 Logo 切專案時，桌面 app 要認得 `speclink://` 網址（v0.11.0 之後的版本）。v0.11.0 和更舊的發佈版沒有這個網址，Logo 只叫出 app。2026-11-03 之後自行建置、但還不認得 `speclink://project` 的版本，按 Logo 時 app 會到前景，專案不切換，並跳出「無法開啟這個 speclink 網址」，更新 app 後就不會再出現。
 - 要停靠或裝 hook 時需要 Node.js，用來執行複製版面的腳本和 hook。
 - 要判斷章有沒有過期、讀「我的技能」時需要 `perl`。macOS 內建。
-- 要用 Codex、Pi 或 Cursor 時，`codex`、`pi`、`agent`（Cursor 的 CLI）要在 PATH 上，Herdr 才選得到。專案要有對應的技能檔：Codex 是 `.agents/skills`（`speclink init --tools codex`），Pi 是 `.pi/skills`（`speclink init --tools pi`），Cursor 是 `.cursor/skills`（`speclink init --tools cursor`）。Pi 要先信任專案、登入模型。Codex 內建在 ChatGPT app 裡時，連一個到 PATH：`ln -s /Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex ~/.local/bin/codex`。Pi 用 `npm i -g @earendil-works/pi-coding-agent` 安裝。
+- 要用 Codex、Pi、oh-my-pi 或 Cursor 時，`codex`、`pi`、`omp`、`agent`（Cursor 的 CLI）要在 PATH 上，Herdr 才選得到。專案要有對應的技能檔：Codex 是 `.agents/skills`（`speclink init --tools codex`），Pi 是 `.pi/skills`（`speclink init --tools pi`），oh-my-pi 是 `.omp/skills`（`speclink init --tools omp`），Cursor 是 `.cursor/skills`（`speclink init --tools cursor`）。Pi 要先信任專案、登入模型。Codex 內建在 ChatGPT app 裡時，連一個到 PATH：`ln -s /Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex ~/.local/bin/codex`。Pi 用 `npm i -g @earendil-works/pi-coding-agent` 安裝。
 
 ## 安裝
 
@@ -409,4 +415,4 @@ herdr-app check ~/.config/herdr-app/mods/speclink
 herdr-app check ~/.config/herdr-app/mods/speclink-new
 ```
 
-`model.js` 是純邏輯：資料合併、技能表、章的判斷、送達決策，測試直接跑它。`i18n.js` 是介面文字的對照表。`shared.js` 放面板和跳窗共用、會碰 Herdr API 的小工具，包括讀章。`label-skill.mjs` 是追蹤指令的 hook。`main.js` 是面板畫面與 Herdr API，`my-skills.js` 是跳窗的「我的技能」頁，`pi-labels.ts` 是 Pi 用的追蹤標籤 extension。`skill-picker.js` 是技能跳窗（選擇的畫面，放到輸入框和開新分頁的規則在 `model.js`），`column-sync.js` 讓右邊那一欄每個 space 各自記住開關。它放在 `dock-panel.mjs` 加的隱形浮動區塊裡，因為那一欄收起來後面板不會重畫。`speclink-new` 只有設定：一個 mod 只能設定一種 overlay，Herdr 也不讓 mod 引用別的資料夾的程式，所以用它開出 `speclink` mod 的跳窗畫面。`scripts/herdr/panel-model.test.mjs` 也拿技能表對照 `.claude/skills/speclink-*`：speclink 新增或移除技能時，這個測試會提醒你同步。
+`model.js` 是純邏輯：資料合併、技能表、章的判斷、送達決策，測試直接跑它。`i18n.js` 是介面文字的對照表。`shared.js` 放面板和跳窗共用、會碰 Herdr API 的小工具，包括讀章。`label-skill.mjs` 是追蹤指令的 hook。`main.js` 是面板畫面與 Herdr API，`my-skills.js` 是跳窗的「我的技能」頁，`pi-labels.ts` 是 Pi 用的追蹤標籤 extension，`omp-labels.ts` 是 oh-my-pi（`omp`）用的追蹤標籤 extension。`skill-picker.js` 是技能跳窗（選擇的畫面，放到輸入框和開新分頁的規則在 `model.js`），`column-sync.js` 讓右邊那一欄每個 space 各自記住開關。它放在 `dock-panel.mjs` 加的隱形浮動區塊裡，因為那一欄收起來後面板不會重畫。`speclink-new` 只有設定：一個 mod 只能設定一種 overlay，Herdr 也不讓 mod 引用別的資料夾的程式，所以用它開出 `speclink` mod 的跳窗畫面。`scripts/herdr/panel-model.test.mjs` 也拿技能表對照 `.claude/skills/speclink-*`：speclink 新增或移除技能時，這個測試會提醒你同步。

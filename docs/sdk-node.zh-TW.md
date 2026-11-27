@@ -835,7 +835,7 @@ const skillMd = skills.render('propose', {
 
 | 選項 | 值 | 說明 |
 | --- | --- | --- |
-| `target` | `claude`、`codex`、`copilot`、`pi`、`cursor`、`neutral` | `neutral` 給自訂工具用：沒有 `/speclink-` 斜線指令，也不提 plan mode |
+| `target` | `claude`、`codex`、`copilot`、`pi`、`cursor`、`agy`、`omp`、`neutral` | `neutral` 給自訂工具用：沒有 `/speclink-` 斜線指令，也不提 plan mode |
 | `invocation` | `cli`（預設）、`tool-call` | `tool-call` 把動詞寫成「呼叫 speclink 工具，參數是 argv 陣列」，搭配 `agentTool`；`cli` 寫成 shell 指令 |
 | `specInCheckout` | `true`（預設）、`false` | 規格在不在使用技能的那個 checkout 裡。內嵌的宿主與遠端專案傳 `false`：技能不會提到規格資料夾的路徑，也沒有對規格檔的 git 步驟 |
 | `specDir` | 字串 | 技能內文裡的規格目錄名，預設 `speclink` |

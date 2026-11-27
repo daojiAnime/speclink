@@ -22,7 +22,7 @@ mod init_tui;
 pub(crate) struct InitArgs {
     /// Project path (defaults to current directory)
     path: Option<String>,
-    /// AI tools to generate files for (e.g., claude, codex, copilot, pi, cursor, agy)
+    /// AI tools to generate files for (e.g., claude, codex, copilot, pi, cursor, agy, omp)
     #[arg(long)]
     tools: Option<String>,
     /// Overwrite existing files
@@ -111,7 +111,7 @@ pub(crate) fn cmd_init(a: InitArgs) -> Result<()> {
 /// The single line every missing/empty selection ends on — it names the flag and every
 /// valid tool, so a failed non-interactive run is self-correcting.
 const TOOLS_HINT: &str = "no AI tool selected — pass --tools with one or more of claude, \
-codex, copilot, pi, cursor, agy (comma-separated, e.g. --tools claude,agy)";
+codex, copilot, pi, cursor, agy, omp (comma-separated, e.g. --tools claude,omp)";
 /// Resolve init's built-in tool selection. An explicit `--tools` is validated and used
 /// as-is (no prompt). Without the flag an interactive terminal opens the `npx skills`-style
 /// TUI multi-select picker on stderr; a non-interactive terminal fails before any core write.
@@ -343,7 +343,7 @@ mod init_tools_tests {
     }
 
     /// 缺選集的單行訊息：`pi` 是 `copilot` 的子字串，逐 token 比對測不到漏列，故比全文。
-    const ALL_TOOLS_HINT: &str = "no AI tool selected — pass --tools with one or more of claude, codex, copilot, pi, cursor, agy (comma-separated, e.g. --tools claude,agy)";
+    const ALL_TOOLS_HINT: &str = "no AI tool selected — pass --tools with one or more of claude, codex, copilot, pi, cursor, agy, omp (comma-separated, e.g. --tools claude,omp)";
 
     fn single_line_error(got: Result<Vec<Tool>>) -> String {
         let message = got.expect_err("must fail").to_string();
@@ -397,7 +397,7 @@ mod init_tools_tests {
 
     #[test]
     fn explicit_tools_accept_pi_and_cursor_in_any_case_and_combination() {
-        let cases: [(&str, &[Tool]); 12] = [
+        let cases: [(&str, &[Tool]); 17] = [
             ("pi", &[Tool::Pi]),
             ("Pi", &[Tool::Pi]),
             ("Cursor", &[Tool::Cursor]),
@@ -409,9 +409,14 @@ mod init_tools_tests {
             ("antigravity", &[Tool::Agy]),
             ("agy,agy", &[Tool::Agy]),
             ("codex,agy", &[Tool::Codex, Tool::Agy]),
+            ("omp", &[Tool::Omp]),
+            ("OMP", &[Tool::Omp]),
+            ("oh-my-pi", &[Tool::Omp]),
+            ("omp,oh-my-pi", &[Tool::Omp]),
+            ("pi,omp", &[Tool::Pi, Tool::Omp]),
             (
-                "claude,codex,copilot,pi,cursor,agy",
-                &[Tool::Claude, Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy],
+                "claude,codex,copilot,pi,cursor,agy,omp",
+                &[Tool::Claude, Tool::Codex, Tool::Copilot, Tool::Pi, Tool::Cursor, Tool::Agy, Tool::Omp],
             ),
         ];
         for (spec, want) in cases {
@@ -427,7 +432,7 @@ mod init_tools_tests {
             let (got, _) = resolve_without_picker(Some(unknown), true);
             assert_eq!(
                 single_line_error(got),
-                format!("unknown tool: {unknown} (supported: claude, codex, copilot, pi, cursor, agy)")
+                format!("unknown tool: {unknown} (supported: claude, codex, copilot, pi, cursor, agy, omp)")
             );
         }
     }
@@ -448,14 +453,23 @@ mod init_tools_tests {
         let ctx = init_tui::collect_context(&tmp, ".", "fs", None);
         let mut picker = init_tui::ToolPicker::new(ctx.options);
 
-        // Down -> Claude (1), Space toggles Claude; Up -> Select All, Up wraps -> Antigravity (6)
+        // Down -> Claude (1), Space toggles Claude; Up -> Select All, Up wraps -> oh-my-pi (7)
         assert_eq!(picker.handle_key(key(KeyCode::Down)), init_tui::PickerStatus::Active);
         assert_eq!(picker.handle_key(key(KeyCode::Char(' '))), init_tui::PickerStatus::Active);
         assert_eq!(picker.handle_key(key(KeyCode::Up)), init_tui::PickerStatus::Active);
         assert_eq!(picker.handle_key(key(KeyCode::Up)), init_tui::PickerStatus::Active);
         assert_eq!(picker.handle_key(key(KeyCode::Char(' '))), init_tui::PickerStatus::Active);
         assert_eq!(picker.handle_key(key(KeyCode::Enter)), init_tui::PickerStatus::Confirmed);
-        assert_eq!(picker.selected_tools(), vec![Tool::Claude, Tool::Agy]);
+        assert_eq!(picker.selected_tools(), vec![Tool::Claude, Tool::Omp]);
+
+        let omp_opt = init_tui::collect_context(&tmp, ".", "fs", None)
+            .options
+            .into_iter()
+            .find(|o| o.tool == Tool::Omp)
+            .expect("oh-my-pi option present in TUI picker");
+        assert_eq!(omp_opt.label, "oh-my-pi");
+        assert_eq!(omp_opt.skills_dir, ".omp/skills");
+        assert_eq!(omp_opt.invoke_hint, "/skill:speclink-*");
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -559,7 +573,8 @@ mod init_tools_tests {
         assert_eq!(picker.selected_tools(), vec![Tool::Claude, Tool::Pi]);
         let frame = picker.render_lines(Paint::new(false), 80).join("\n");
         assert!(!frame.contains('\x1b'), "no-color frame must have zero ANSI: {frame:?}");
-        assert!(frame.contains("Select All (2/6)"), "{frame}");
+        assert!(frame.contains("Select All (2/7)"), "{frame}");
+        assert!(frame.contains("oh-my-pi") && frame.contains(".omp/skills"), "{frame}");
         assert!(frame.contains("configured"), "{frame}");
 
         let _ = std::fs::remove_dir_all(&tmp);

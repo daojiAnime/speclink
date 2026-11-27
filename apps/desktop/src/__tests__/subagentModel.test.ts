@@ -33,7 +33,14 @@ describe("toDraft", () => {
     expect(draft.cells.review.pi).toEqual({ mode: "inherit" });
     expect(draft.cells.verify.claude).toEqual({ mode: "pick", value: "sonnet" });
     expect(draft.cells.verify.codex).toEqual({ mode: "inherit" });
-    expect(draft.lists).toEqual({ claude: "", codex: "gpt-6.1-sol\ngpt-6-astra", copilot: "", pi: "", cursor: "" });
+    expect(draft.lists).toEqual({
+      claude: "",
+      codex: "gpt-6.1-sol\ngpt-6-astra",
+      copilot: "",
+      pi: "",
+      cursor: "",
+      omp: "",
+    });
   });
 });
 

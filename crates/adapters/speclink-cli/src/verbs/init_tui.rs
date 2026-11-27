@@ -168,6 +168,16 @@ pub(crate) fn collect_context(root: &Path, display_base: &str, store: &str, remo
             "Generate .agents/skills/ (/speclink-*) for Antigravity IDE & agy CLI.",
             &["agy"],
         ),
+        build_option(
+            root,
+            has_app_cfg,
+            &configured_tools,
+            Tool::Omp,
+            "oh-my-pi",
+            "/skill:speclink-*",
+            "Generate .omp/skills/ (/skill:speclink-*) with oh-my-pi harness adaptation.",
+            &["omp"],
+        ),
     ];
 
     InitContext { display_project, store_summary, options }

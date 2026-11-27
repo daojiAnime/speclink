@@ -5,11 +5,11 @@
 
 import { tr } from "./i18n.js";
 
-// 有 speclink 技能的 agent（program.key）与叫用技能的前缀。Pi 有自己的 .pi/skills，Cursor 有自己的 .cursor/skills，Antigravity 与 Codex 共用 .agents/skills。
-const SKILL_PREFIX = { claude: "/", copilot: "/", codex: "$", pi: "/skill:", cursor: "/", antigravity: "/" };
+// 有 speclink 技能的 agent（program.key）与叫用技能的前缀。Pi 有 .pi/skills，oh-my-pi 有 .omp/skills，Cursor 有 .cursor/skills，Antigravity 与 Codex 共用 .agents/skills。
+const SKILL_PREFIX = { claude: "/", copilot: "/", codex: "$", pi: "/skill:", cursor: "/", antigravity: "/", omp: "/skill:" };
 const PREFIX = Object.fromEntries(Object.entries(SKILL_PREFIX).map(([key, prefix]) => [key, `${prefix}speclink-`]));
 // speclink init --tools 的名称。
-const SPECLINK_TOOL = { claude: "claude", copilot: "copilot", codex: "codex", pi: "pi", cursor: "cursor", antigravity: "agy" };
+const SPECLINK_TOOL = { claude: "claude", copilot: "copilot", codex: "codex", pi: "pi", cursor: "cursor", antigravity: "agy", omp: "omp" };
 // sending：hc send 要等 agent 开工才返回（约两秒），这段时间再点一次会重复发送。
 const BUSY = { working: "正在处理", error: "出错了", sending: "正在接收指令" };
 // agent 在等什么，是它自己回报的：Claude Code 要你允许指令时报 permission，问你问题时报 question。
@@ -20,7 +20,7 @@ const busyText = (agent) => (agent.status === "blocked" ? waitingText(agent) : (
 
 // 这些技能要在主文件夹运行；其余技能跟着变更走，有 worktree 就在 worktree 中运行。
 const MAIN_FOLDER = new Set(["archive", "archive+commit", "worktree-merge", "apply-with-worktree"]);
-const ANALYZE_TOOLS = new Set(["claude", "antigravity"]);
+const ANALYZE_TOOLS = new Set(["claude", "antigravity", "omp"]);
 export const skillUnsupported = (skill, key) => skill === "analyze" && !ANALYZE_TOOLS.has(key);
 export const onlyClaude = skillUnsupported;
 
@@ -577,6 +577,8 @@ const TOOL_TO_AGENT = {
   cursor: "cursor",
   agy: "antigravity",
   antigravity: "antigravity",
+  omp: "omp",
+  "oh-my-pi": "omp",
 };
 
 // 从 .speclink.yaml 原文解析已配置的内置工具并转为去重后的 Herdr agent key 列表。
@@ -793,7 +795,7 @@ export function placePlan({ skill, target, note, agents, focus, agentKey }) {
   if (left) return none("还有 {0} 个代码任务未完成", left);
   const agent = placeTarget(agents, focus, agentKey);
   if (agent.kind === "none") return agent;
-  if (skillUnsupported(skill, agent.key)) return none("{0} 仅支持 Claude Code 和 Antigravity", skill);
+  if (skillUnsupported(skill, agent.key)) return none("{0} 仅支持 Claude Code、Antigravity 和 oh-my-pi", skill);
   return {
     kind: "place",
     agent,
@@ -847,7 +849,7 @@ export function newTabPlan({ skill, target, note, root, agents, known, preferred
   const discussion = target?.kind === "discussion" ? { slug: target.name } : null;
   const d = newAgent({ name, args: joinArgs(target, note), folder, change, discussion, known, preferred, projectTools });
   if (d.kind === "none") return d;
-  if (skillUnsupported(skill, d.key)) return none("{0} 仅支持 Claude Code 和 Antigravity", skill);
+  if (skillUnsupported(skill, d.key)) return none("{0} 仅支持 Claude Code、Antigravity 和 oh-my-pi", skill);
   const labels = change
     ? [`speclink.change=${change.name}`, skillLabel(name)]
     : discussion
@@ -942,6 +944,15 @@ const SKILL_FOLDERS = {
     ["personal", "~/.agents/skills"],
     ["personal", "~/.gemini/antigravity-cli/skills"],
     ["personal", "~/.gemini/skills"],
+  ],
+  omp: [
+    ["project", ".omp/skills"],
+    ["project", ".agents/skills"],
+    ["project", ".claude/skills"],
+    ["project", ".codex/skills"],
+    ["personal", "~/.omp/agent/skills"],
+    ["personal", "~/.agents/skills"],
+    ["personal", "~/.claude/skills"],
   ],
 };
 export const skillFolders = (key) => (SKILL_FOLDERS[key] ?? []).map(([source, dir]) => ({ source, prefix: "", dir }));

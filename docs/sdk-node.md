@@ -835,7 +835,7 @@ const skillMd = skills.render('propose', {
 
 | Option | Values | Description |
 | --- | --- | --- |
-| `target` | `claude`, `codex`, `copilot`, `pi`, `cursor`, `neutral` | `neutral` is for custom tools: no `/speclink-` slash commands and no plan mode |
+| `target` | `claude`, `codex`, `copilot`, `pi`, `cursor`, `agy`, `omp`, `neutral` | `neutral` is for custom tools: no `/speclink-` slash commands and no plan mode |
 | `invocation` | `cli` (default), `tool-call` | `tool-call` writes each verb as "call the speclink tool with an argv array", for use with `agentTool`. `cli` writes shell commands |
 | `specInCheckout` | `true` (default), `false` | Whether the spec folder is in the checkout where the skill is used. An embedded host and a remote project pass `false`: the skill then names no spec folder path and has no git step on spec files |
 | `specDir` | string | The spec directory name in the skill text. The default is `speclink` |

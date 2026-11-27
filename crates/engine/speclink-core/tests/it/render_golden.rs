@@ -1,6 +1,6 @@
 //! Golden tests for skill rendering.
 //!
-//! Render targets: the built-in tools (claude, codex, copilot, pi, cursor, agy) and custom descriptors
+//! Render targets: the built-in tools (claude, codex, copilot, pi, cursor, agy, omp) and custom descriptors
 //! (neutral body, wording decided by `invocation`). The built-in snapshots lock their
 //! output BIT-FOR-BIT — the neutral work must not drift them. The neutral snapshots pin
 //! the cli and tool-call wordings. Two more snapshots pin what a project gets when the
@@ -140,6 +140,13 @@ fn agy_rendering_is_bit_identical_to_golden() {
     let root = TempRoot::new("agy");
     init::init(&root.dir, &[Tool::Agy], true, "speclink").unwrap();
     assert_matches_golden("agy.snapshot.md", &snapshot(&root.dir, ".agents/skills"));
+}
+
+#[test]
+fn omp_rendering_is_bit_identical_to_golden() {
+    let root = TempRoot::new("omp");
+    init::init(&root.dir, &[Tool::Omp], true, "speclink").unwrap();
+    assert_matches_golden("omp.snapshot.md", &snapshot(&root.dir, ".omp/skills"));
 }
 
 /// The second policy dimension. The snapshots above lock the DEFAULT generation set
@@ -593,7 +600,7 @@ fn every_product_skill_carries_conversation_language_once() {
             let tag = format!("conversation-{locale}-{}", tool.name());
             let root = workspace_for(&tag, tool, Some(&config));
             for skill in skills::registry() {
-                if skill.claude_only && tool != Tool::Claude {
+                if !skill.is_supported_by(skills::RenderTarget::Builtin(tool)) {
                     continue;
                 }
                 let rel = format!("{skills_dir}/speclink-{}/SKILL.md", skill.name);

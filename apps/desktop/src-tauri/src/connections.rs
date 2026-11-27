@@ -139,7 +139,7 @@ pub fn upsert_connection(
 }
 
 /// `inspect_checkout` 的零寫入結果：確認過的 checkout 根路徑，以及要在 picker
-/// 中預選的既有 built-in 工具選集（claude／codex／copilot／pi／cursor，順序穩定）。IPC 序列化為
+/// 中預選的既有 built-in 工具選集（claude／codex／copilot／pi／cursor／omp，順序穩定）。IPC 序列化為
 /// camelCase `{ root, tools }`——不攜帶任何 credential 或 Server 資料。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -189,9 +189,9 @@ fn validate_checkout(
 }
 
 /// 決定 picker 的預選：`.speclink.yaml` 記錄了 built-in 選集就用它（claude／codex／copilot／
-/// pi／cursor，去重、順序穩定）；缺清單、或清單裡沒有任何可解析的內建名（只有描述子／未知名）
-/// 時，只依實際 Claude／Codex footprint 預選（`.github/`、`.pi/`、`.cursor/` 不算 Copilot、Pi、
-/// Cursor 的 footprint），絕不補 Claude fallback。
+/// pi／cursor／omp，去重、順序穩定）；缺清單、或清單裡沒有任何可解析的內建名（只有描述子／未知名）
+/// 時，只依實際 Claude／Codex footprint 預選（`.github/`、`.pi/`、`.cursor/`、`.omp/` 不算 Copilot、Pi、
+/// Cursor、oh-my-pi 的 footprint），絕不補 Claude fallback。
 fn preselected_tools(root: &Path) -> Vec<String> {
     let app = match speclink_core::config::AppConfig::load(&root.join(".speclink.yaml")) {
         Ok(app) => app,
@@ -237,7 +237,7 @@ pub fn bind_checkout(
     let selected =
         speclink_core::init::parse_tool_names(tools).map_err(|e| single_line(&e.to_string()))?;
     if selected.is_empty() {
-        return Err("請至少選擇一個內建工具：claude、codex、copilot、pi、cursor".to_string());
+        return Err("請至少選擇一個內建工具：claude、codex、copilot、pi、cursor、omp".to_string());
     }
     let root_str = validate_checkout(root, selected_origin, selected_repo)?;
 
@@ -820,18 +820,50 @@ mod checkout_tests {
     }
 
     #[test]
-    fn inspect_without_a_tools_list_never_preselects_pi_or_cursor() {
-        // spec「checkout 綁定驗證與 marker 寫入」：`.pi/`、`.cursor/` 的存在不預選 Pi、Cursor。
+    fn inspect_reports_an_omp_only_marker() {
+        // spec Scenario「只選 omp 的 checkout 直達 remote tab」的判定面：
+        // [omp] 是有效的 built-in 選集。
+        let dir = git_checkout();
+        write_full_marker(dir.path(), &["omp"]);
+
+        assert_eq!(inspect(dir.path()).expect("omp marker").tools, vec!["omp"]);
+    }
+
+    #[test]
+    fn inspect_without_a_tools_list_never_preselects_pi_cursor_or_omp() {
+        // spec「checkout 綁定驗證與 marker 寫入」：`.pi/`、`.cursor/`、`.omp/` 的存在不預選。
         let dir = git_checkout();
         write_marker(dir.path(), ORIGIN, REPO);
         write(dir.path(), ".cursor/rules/style.mdc", "---\nalwaysApply: true\n---\n");
         write(dir.path(), ".pi/settings.json", "{}\n");
-        // 兩個工具的 skills 目錄本身存在（放著使用者自己的技能）也不預選。
-        for skills in [".cursor/skills", ".pi/skills"] {
+        write(dir.path(), ".omp/settings.json", "{}\n");
+        // skills 目錄本身存在（放著使用者自己的技能）也不預選。
+        for skills in [".cursor/skills", ".pi/skills", ".omp/skills"] {
             write(dir.path(), &format!("{skills}/my-skill/SKILL.md"), "---\nname: my-skill\n---\n");
         }
 
-        assert!(inspect(dir.path()).expect("cursor checkout").tools.is_empty());
+        assert!(inspect(dir.path()).expect("cursor/pi/omp checkout").tools.is_empty());
+    }
+
+    #[test]
+    fn bind_claude_and_omp_generates_both_skill_sets() {
+        let dir = git_checkout();
+        write(dir.path(), ".omp/agents/custom.md", "# custom\n");
+
+        bind(dir.path(), &["claude", "omp"]).expect("new omp binding");
+
+        for skill in [
+            ".claude/skills/speclink-propose/SKILL.md",
+            ".omp/skills/speclink-propose/SKILL.md",
+            ".omp/skills/speclink-analyze/SKILL.md",
+        ] {
+            assert!(exists(dir.path(), skill), "{skill} 須生成");
+        }
+        assert_eq!(read(dir.path(), ".omp/agents/custom.md"), "# custom\n");
+        assert_eq!(
+            inspect(dir.path()).expect("re-inspect").tools,
+            vec!["claude", "omp"]
+        );
     }
 
     #[test]
@@ -894,7 +926,10 @@ mod checkout_tests {
         let err = bind(dir.path(), &[]).expect_err("空選集必須被拒");
 
         // `pi` 是 `copilot` 的子字串：比對完整清單，逐名比對測不到漏列。
-        assert!(err.contains("claude、codex、copilot、pi、cursor"), "must list the five tools: {err}");
+        assert!(
+            err.contains("claude、codex、copilot、pi、cursor、omp"),
+            "must list the six tools: {err}"
+        );
         assert_eq!(snapshot(dir.path()), before, "拒絕時磁碟不變");
     }
 

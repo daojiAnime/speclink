@@ -10,7 +10,7 @@
 
 範例需求是「新增 CSV 匯出」，而且需求已經清楚。如果你還在比較做法、需要做決定，先跑 `discuss`（見[工作流](workflow.zh-TW.md#discuss)）。
 
-你可以用六種方式操作，效果相同：
+你可以用七種方式操作，效果相同：
 
 | 方式 | 寫法 | 說明 |
 | --- | --- | --- |
@@ -19,9 +19,10 @@
 | GitHub Copilot | `/speclink-propose add-csv-export` | 斜線指令，寫法和 Claude Code 相同 |
 | pi | `/skill:speclink-propose add-csv-export` | `/skill:` 加技能名 |
 | Cursor | `/speclink-propose add-csv-export` | 斜線指令，寫法和 Claude Code 相同 |
+| oh-my-pi（`omp`） | `/skill:speclink-propose add-csv-export` | `/skill:` 加技能名，附 oh-my-pi harness 適配前言 |
 | 直接用 CLI | `speclink new change add-csv-export` | 不經 Agent，自己寫每份文件 |
 
-技能（skill）是寫給 Agent 讀的流程說明：什麼時候讀什麼、怎麼產生文件、什麼時候停下來。真正執行動作的是 `speclink` CLI。一般使用者用技能就好。`/speclink-analyze` 只有 Claude Code 有；Codex、GitHub Copilot、pi 與 Cursor 直接用 CLI 的 `speclink analyze`。
+技能（skill）是寫給 Agent 讀的流程說明：什麼時候讀什麼、怎麼產生文件、什麼時候停下來。真正執行動作的是 `speclink` CLI。一般使用者用技能就好。Claude Code 與 oh-my-pi（`omp`）提供 `analyze` 技能（Claude Code 為 `/speclink-analyze`，oh-my-pi 為 `/skill:speclink-analyze`）；Codex、GitHub Copilot、pi 與 Cursor 直接用 CLI 的 `speclink analyze`。
 
 ## <a id="install"></a>1. 安裝
 
@@ -91,15 +92,15 @@ speclink init --tools claude,codex
 Generated files for: claude, codex
 ```
 
-`--tools` 選要產生技能的 Agent 工具：`claude`、`codex`、`copilot`、`pi`、`cursor`，用逗號任意組合。只用 GitHub Copilot 就寫 `--tools copilot`。
+`--tools` 選要產生技能的 Agent 工具：`claude`、`codex`、`copilot`、`pi`、`cursor`、`omp`（別名 `oh-my-pi`），用逗號任意組合。只用 oh-my-pi 就寫 `--tools omp`。
 
 這一步會：
 
 - 建立 `speclink/` 與 `.speclink.yaml`。
-- 產生所選工具的技能檔：Claude 在 `.claude/skills/`，Codex 在 `.agents/skills/`，GitHub Copilot 在 `.github/skills/`，pi 在 `.pi/skills/`，Cursor 在 `.cursor/skills/`。
+- 產生所選工具的技能檔：Claude 在 `.claude/skills/`，Codex 在 `.agents/skills/`，GitHub Copilot 在 `.github/skills/`，pi 在 `.pi/skills/`，Cursor 在 `.cursor/skills/`，oh-my-pi 在 `.omp/skills/`。
 - 把 `.speclink/`（本機工作資料）加進 `.gitignore`。
 
-它不會改你的 `CLAUDE.md`、`AGENTS.md` 或 `.github/copilot-instructions.md`，也不會建立 `.cursor/rules/`。Agent 靠技能檔自己的說明判斷什麼時候用哪個技能。用 pi 時要先信任這個專案，pi 才會讀專案裡的技能。同時選了 `codex` 與 `pi` 時，pi 啟動會對每個同名技能顯示一則警告；pi 用的是 `.pi/skills/` 的 pi 版，功能不受影響。
+它不會改你的 `CLAUDE.md`、`AGENTS.md` 或 `.github/copilot-instructions.md`，也不會建立 `.cursor/rules/` 或 `.omp/agents/`。Agent 靠技能檔自己的說明判斷什麼時候用哪個技能。用 pi 時要先信任這個專案，pi 才會讀專案裡的技能。同時選了 `codex` 與 `pi` 時，pi 啟動會對每個同名技能顯示一則警告；pi 用的是 `.pi/skills/` 的 pi 版，功能不受影響。在 oh-my-pi 中，`.omp/skills/` 的優先序高於 `.agents/skills/` 與 `.claude/skills/`，因此 `omp` 可與 `claude` 或 `codex` 安全共存於同一個 repo。
 
 `speclink/` 的目錄結構：
 
@@ -125,7 +126,7 @@ speclink validate --specs --all --strict
 
 **預期輸出**：`list` 印出 `No active changes.`。`validate` 在還沒有任何正式規格時不印任何東西，並以 0 結束。沒有輸出就是通過。
 
-如果 repo 已經有很多程式碼卻沒有規格，先跑 `/speclink-baseline`（Codex 為 `$speclink-baseline`，pi 為 `/skill:speclink-baseline`），依現在的行為建立規格，再開新變更。
+如果 repo 已經有很多程式碼卻沒有規格，先跑 `/speclink-baseline`（Codex 為 `$speclink-baseline`，pi 與 oh-my-pi 為 `/skill:speclink-baseline`），依現在的行為建立規格，再開新變更。
 
 ## <a id="propose"></a>3. 提案
 
@@ -141,7 +142,7 @@ speclink validate --specs --all --strict
 $speclink-propose add-csv-export
 ```
 
-在 pi：
+在 pi 或 oh-my-pi：
 
 ```text
 /skill:speclink-propose add-csv-export
@@ -218,7 +219,7 @@ speclink new artifact tasks --change add-csv-export --stdin < tasks.md
 $speclink-apply add-csv-export
 ```
 
-在 pi：
+在 pi 或 oh-my-pi：
 
 ```text
 /skill:speclink-apply add-csv-export
@@ -291,7 +292,7 @@ Change: add-csv-export
 $speclink-archive add-csv-export
 ```
 
-在 pi：
+在 pi 或 oh-my-pi：
 
 ```text
 /skill:speclink-archive add-csv-export

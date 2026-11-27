@@ -733,15 +733,19 @@ describe("App (kanban primary + rich detail)", () => {
     expect(claude.getAttribute("aria-checked")).toBe("true");
     expect(codex.getAttribute("aria-checked")).toBe("false");
     expect(copilot.getAttribute("aria-checked")).toBe("false");
-    // 五個勾選依 claude、codex、copilot、pi、cursor 順序出現，預設只勾 claude。
+    // 六個勾選依 claude、codex、copilot、pi、cursor、omp 順序出現，預設只勾 claude。
     expectToolCheckboxes(dialog, ["claude"]);
-    // 可獨立切換：勾 codex 不影響 claude；取消 claude 不影響 codex。
+    // 可獨立切換：勾 codex 與 omp 不影響 claude；取消 claude 不影響已勾選項目。
+    const omp = within(dialog).getByRole("checkbox", { name: "omp" });
     fireEvent.click(codex);
+    fireEvent.click(omp);
     expect(codex.getAttribute("aria-checked")).toBe("true");
+    expect(omp.getAttribute("aria-checked")).toBe("true");
     expect(claude.getAttribute("aria-checked")).toBe("true");
     fireEvent.click(claude);
     expect(claude.getAttribute("aria-checked")).toBe("false");
     expect(codex.getAttribute("aria-checked")).toBe("true");
+    expect(omp.getAttribute("aria-checked")).toBe("true");
   });
 
   // spec「未啟用資料夾經確認後補齊啟用」：啟用確認框與初始化框同型、獨立狀態（決策 3）
@@ -774,11 +778,12 @@ describe("App (kanban primary + rich detail)", () => {
     // 多選含 copilot、預設未勾。
     const copilot = within(dialog).getByRole("checkbox", { name: "copilot" });
     expect(copilot.getAttribute("aria-checked")).toBe("false");
-    // 五個勾選依 claude、codex、copilot、pi、cursor 順序出現，預設只勾 claude。
+    // 六個勾選依 claude、codex、copilot、pi、cursor、omp 順序出現，預設只勾 claude。
     expectToolCheckboxes(dialog, ["claude"]);
-    // 確認 → 以所選工具呼叫 adopt（而非 init）。
+    // 勾選 omp 後確認 → 以 ["claude", "omp"] 呼叫 adopt（而非 init）。
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "omp" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "啟用" }));
-    await waitFor(() => expect(ws.adoptProject).toHaveBeenCalledWith("D:/migrated", ["claude"]));
+    await waitFor(() => expect(ws.adoptProject).toHaveBeenCalledWith("D:/migrated", ["claude", "omp"]));
     expect(ws.initProject).not.toHaveBeenCalled();
   });
 

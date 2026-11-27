@@ -194,6 +194,11 @@ fn show_json_payload_is_camel_case_with_null_for_unset() {
     );
     let keys: Vec<&str> = payload.as_object().unwrap().keys().map(|k| k.as_str()).collect();
     assert!(!keys.contains(&"spec_locale"), "no snake_case keys: {keys:?}");
+    assert_eq!(
+        payload["builtinSubagentModels"]["omp"],
+        serde_json::json!(["@default", "@slow", "@smol", "@task", "@plan"]),
+        "builtinSubagentModels.omp carries oh-my-pi role aliases: {payload}"
+    );
 }
 
 #[test]
@@ -922,11 +927,30 @@ fn show_json_carries_empty_subagent_model_and_the_builtin_list_by_default() {
         payload["builtinSubagentModels"],
         serde_json::json!({
             "claude": ["sonnet", "opus", "haiku", "fable"],
-            "agy": ["inherit", "pro", "flash", "flash_lite"]
+            "agy": ["inherit", "pro", "flash", "flash_lite"],
+            "omp": ["@default", "@slow", "@smol", "@task", "@plan"]
         })
     );
     let keys: Vec<&str> = payload.as_object().unwrap().keys().map(|k| k.as_str()).collect();
     assert!(!keys.contains(&"subagent_model"), "no snake_case keys: {keys:?}");
+}
+
+#[test]
+fn show_json_returns_omp_role_aliases_after_setting_review_and_verify() {
+    // Spec Scenario「--json 正確回傳 omp 角色別名設定」
+    let p = TempProject::new("show-subagent-omp-roles", WF_YAML);
+    let r1 = p.run(&["workflow-config", "subagent-model", "review", "omp", "@slow"]);
+    assert!(r1.status.success(), "stderr: {}", stderr_of(&r1));
+    let r2 = p.run(&["workflow-config", "subagent-model", "verify", "omp", "@smol"]);
+    assert!(r2.status.success(), "stderr: {}", stderr_of(&r2));
+
+    let payload = show_json_of(&p);
+    assert_eq!(payload["subagentModel"]["review"]["omp"], "@slow");
+    assert_eq!(payload["subagentModel"]["verify"]["omp"], "@smol");
+    assert_eq!(
+        payload["builtinSubagentModels"]["omp"],
+        serde_json::json!(["@default", "@slow", "@smol", "@task", "@plan"])
+    );
 }
 
 #[test]

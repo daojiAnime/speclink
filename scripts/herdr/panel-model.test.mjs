@@ -2241,3 +2241,79 @@ test('我的技能開新分頁：用選的 agent，分頁取技能的名字', ()
   assert.equal(customTabPlan({ ...base, known: null, agentKey: 'claude' }).kind, 'none');
   assert.equal(customTabPlan({ ...base, known: [], agentKey: 'claude' }).kind, 'none');
 });
+
+test('oh-my-pi (omp)：指令前綴、解鎖 analyze、技能目錄、設定解析與標籤追蹤事件', () => {
+  assert.equal(commandText('omp', 'apply', 'x'), '/skill:speclink-apply x');
+  assert.equal(skillUnsupported('analyze', 'omp'), false);
+  assert.equal(onlyClaude('analyze', 'omp'), false);
+  assert.match(missingSkillsPlan('oh-my-pi', 'omp').reason, /oh-my-pi.*--tools omp/);
+
+  const dirs = skillFolders('omp').map((f) => f.dir);
+  assert.ok(dirs.includes('.omp/skills'), `missing .omp/skills in ${dirs}`);
+  assert.ok(dirs.includes('~/.omp/agent/skills'), `missing ~/.omp/agent/skills in ${dirs}`);
+  assert.equal(dirs[0], '.omp/skills', '.omp/skills should have highest project priority');
+
+  const known = [
+    { key: 'omp', name: 'oh-my-pi', run: ['omp'], installed: true },
+    { key: 'pi', name: 'Pi', run: ['pi'], installed: true },
+  ];
+  assert.deepEqual(usableAgents(known).map((a) => a.key), ['omp', 'pi']);
+  assert.deepEqual(parseConfigTools('tools: [omp]\n'), ['omp']);
+  assert.deepEqual(parseConfigTools('tools:\n  - oh-my-pi\n'), ['omp']);
+
+  const tab = newTabPlan({
+    skill: 'analyze',
+    target: { kind: 'change', name: 'add-a', args: 'add-a', row: row({ name: 'add-a' }) },
+    note: '',
+    root: REPO,
+    agents: [],
+    known,
+    preferred: 'omp',
+    worktreePolicy: false,
+    space: 's1',
+    on: null,
+    board: { stages: { 'in-progress': [row({ name: 'add-a' })] } },
+  });
+  assert.equal(tab.kind, 'tab');
+  assert.deepEqual(tab.argv, ['omp']);
+  assert.equal(tab.text, '/skill:speclink-analyze add-a');
+  assert.deepEqual(tab.hc.slice(-2), ['omp', '/skill:speclink-analyze add-a']);
+
+  // omp-labels.ts 轉換後的事件：input、tool_call(bash)、session_switch(new/resume)
+  assert.deepEqual(
+    hookLabels({ hook_event_name: 'UserPromptSubmit', prompt: '/skill:speclink-apply add-a' }),
+    ['speclink.skill=speclink-apply', 'speclink.change=add-a', 'speclink.discussion='],
+  );
+  assert.deepEqual(
+    hookLabels({ tool_name: 'Bash', tool_input: { command: 'speclink task done --change add-a 1' } }),
+    ['speclink.change=add-a', 'speclink.discussion='],
+  );
+  assert.deepEqual(
+    hookLabels({ hook_event_name: 'SessionStart', source: 'clear' }),
+    ['speclink.change=', 'speclink.discussion=', 'speclink.skill='],
+  );
+
+  // 鎖定 omp-labels.ts 監聽的是 oh-my-pi 的 session_switch（而非無 reason 的 session_start）
+  const ompLabelsSrc = readFileSync(path.join(ROOT, 'integrations/herdr/mods/speclink/omp-labels.ts'), 'utf8');
+  assert.match(ompLabelsSrc, /pi\.on\("input"/);
+  assert.match(ompLabelsSrc, /pi\.on\("tool_call"/);
+  assert.match(ompLabelsSrc, /pi\.on\("session_switch"/);
+  assert.doesNotMatch(ompLabelsSrc, /pi\.on\("session_start"/);
+});
+
+test('設定頁 worktree 流程開關：走 workflow-config set worktree、含點擊與鍵盤切換及中英 i18n', () => {
+  const sharedSrc = readFileSync(path.join(ROOT, 'integrations/herdr/mods/speclink/shared.js'), 'utf8');
+  assert.match(sharedSrc, /export async function setWorktreePolicy\(/);
+  assert.match(sharedSrc, /\["workflow-config",\s*"set",\s*"worktree",\s*value,\s*"--no-color"\]/);
+
+  const pickerSrc = readFileSync(path.join(ROOT, 'integrations/herdr/mods/speclink/skill-picker.js'), 'utf8');
+  assert.match(pickerSrc, /\.id\("toggle-worktree"\)/);
+  assert.match(pickerSrc, /this\.toggleWorktree\(cx\)/);
+  assert.match(pickerSrc, /setWorktreePolicy\(next,\s*this\.root,\s*this\.on\)/);
+  assert.match(pickerSrc, /this\.worktreeError/);
+
+  const i18nSrc = readFileSync(path.join(ROOT, 'integrations/herdr/mods/speclink/i18n.js'), 'utf8');
+  for (const key of ['"worktree 流程"', '"保存中…"', '"此项目尚未初始化 Speclink。"']) {
+    assert.ok(i18nSrc.includes(key), `i18n.js missing English entry for ${key}`);
+  }
+});
