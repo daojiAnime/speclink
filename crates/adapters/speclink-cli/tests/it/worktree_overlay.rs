@@ -664,3 +664,104 @@ fn artifact_cat_still_reads_the_main_copy_of_a_mapped_change() {
     assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
     assert_eq!(stdout_of(&out), TASKS);
 }
+
+#[test]
+fn submodule_main_checkout_overlays_linked_worktree_progress() {
+    // Submodule layout: `.git` is a file (`gitdir: ../.git/modules/sub`) without `commondir`.
+    // Worktree overlay must still activate in the submodule's main checkout and stay off
+    // inside its linked worktree (whose gitdir carries `commondir`).
+    let dir = std::env::temp_dir().join(format!(
+        "speclink-wt-submodule-overlay-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    let super_repo = dir.join("super");
+    let sub_origin = dir.join("sub-origin");
+    std::fs::create_dir_all(&super_repo).unwrap();
+    std::fs::create_dir_all(&sub_origin).unwrap();
+
+    let run_git = |cwd: &Path, args: &[&str]| {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .output()
+            .expect("spawn git");
+        assert!(
+            out.status.success(),
+            "git {:?} in {} failed: {}",
+            args,
+            cwd.display(),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+
+    // Build origin repo for submodule with a speclink change and worktree policy enabled.
+    run_git(&sub_origin, &["init", "-q", "-b", "main"]);
+    run_git(&sub_origin, &["config", "user.name", "Sandbox Tester"]);
+    run_git(&sub_origin, &["config", "user.email", "sandbox@example.com"]);
+    run_git(&sub_origin, &["config", "core.autocrlf", "false"]);
+    let change = sub_origin.join("speclink").join("changes").join("add-dark-mode");
+    std::fs::create_dir_all(&change).unwrap();
+    std::fs::write(sub_origin.join("speclink").join("config.yaml"), "schema: spec-driven\nworktree: true\n").unwrap();
+    std::fs::write(sub_origin.join(".speclink.yaml"), "tools:\n  - claude\n").unwrap();
+    std::fs::write(change.join(".meta.yaml"), META).unwrap();
+    std::fs::write(change.join("proposal.md"), PROPOSAL).unwrap();
+    std::fs::write(change.join("tasks.md"), TASKS).unwrap();
+    run_git(&sub_origin, &["add", "-A"]);
+    run_git(&sub_origin, &["commit", "-q", "-m", "init"]);
+
+    // Add it as a real git submodule inside super_repo.
+    run_git(&super_repo, &["init", "-q", "-b", "main"]);
+    run_git(&super_repo, &["config", "user.name", "Sandbox Tester"]);
+    run_git(&super_repo, &["config", "user.email", "sandbox@example.com"]);
+    run_git(
+        &super_repo,
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-q",
+            sub_origin.to_str().unwrap(),
+            "sub",
+        ],
+    );
+    let sub = super_repo.join("sub");
+    assert!(sub.join(".git").is_file(), "submodule .git must be a file");
+
+    // Create a linked worktree from the submodule and complete all tasks there.
+    let wt = dir.join("sub.worktrees").join("add-dark-mode");
+    std::fs::create_dir_all(wt.parent().unwrap()).unwrap();
+    run_git(
+        &sub,
+        &["worktree", "add", "-q", "-b", "speclink/add-dark-mode", wt.to_str().unwrap()],
+    );
+    let wt_tasks = wt.join("speclink").join("changes").join("add-dark-mode").join("tasks.md");
+    std::fs::write(&wt_tasks, "- [x] 1.1 one\n- [x] 1.2 two\n").unwrap();
+
+    let run_speclink = |cwd: &Path, args: &[&str]| -> Output {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_speclink"));
+        cmd.args(args).current_dir(cwd).env("NO_COLOR", "1");
+        for key in ["SPECLINK_WORKTREE", "SPECLINK_STORE_URL", "SPECLINK_TOKEN"] {
+            cmd.env_remove(key);
+        }
+        cmd.output().expect("run speclink binary")
+    };
+
+    // `list --json` and `plan --json` in the submodule main checkout must overlay the worktree copy.
+    let list_out = run_speclink(&sub, &["list", "--json"]);
+    assert!(list_out.status.success(), "stderr: {}", String::from_utf8_lossy(&list_out.stderr));
+    let item = first_change(&list_out);
+    assert_eq!(item["completedTasks"], 2, "overlay must see worktree progress: {item}");
+    assert_eq!(item["totalTasks"], 2, "{item}");
+    assert!(item.get("worktree").is_some(), "worktree object must be present: {item}");
+
+    let plan_out = json_of(&run_speclink(&sub, &["plan", "--json"]));
+    assert_eq!(plan_out["changes"][0]["stage"], "ready", "{plan_out}");
+
+    // Inside the linked worktree itself, `list --json` must NOT attach a worktree overlay object.
+    let wt_list = first_change(&run_speclink(&wt, &["list", "--json"]));
+    assert!(wt_list.get("worktree").is_none(), "linked worktree must not overlay itself: {wt_list}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

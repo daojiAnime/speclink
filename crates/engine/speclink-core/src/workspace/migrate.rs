@@ -232,8 +232,8 @@ fn worktree_blocker(root: &Path) -> Option<DeferReason> {
         (Some(git_dir), Some(common_dir)) => {
             canonical(PathBuf::from(git_dir)) != canonical(root.join(common_dir))
         }
-        // An older git without --absolute-git-dir: a linked worktree's `.git` is a file.
-        _ => root.join(".git").is_file(),
+        // An older git without --absolute-git-dir: fall back to the commondir check.
+        _ => util::is_linked_worktree(root),
     };
     if linked {
         return Some(DeferReason::LinkedWorktree);

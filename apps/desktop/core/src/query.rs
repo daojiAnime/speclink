@@ -294,12 +294,13 @@ pub fn watch_targets_at(root: &Path) -> Vec<PathBuf> {
                 .join(change),
         );
     }
-    let git_dir = ctx.workspace.root.join(".git");
-    let registry = git_dir.join("worktrees");
-    if registry.is_dir() {
-        targets.push(registry);
-    } else if git_dir.is_dir() {
-        targets.push(git_dir);
+    if let Some(git_dir) = speclink_core::util::main_git_dir(&ctx.workspace.root) {
+        let registry = git_dir.join("worktrees");
+        if registry.is_dir() {
+            targets.push(registry);
+        } else {
+            targets.push(git_dir);
+        }
     }
     targets
 }

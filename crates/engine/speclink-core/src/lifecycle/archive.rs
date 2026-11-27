@@ -152,7 +152,7 @@ fn guard_linked_worktree(ws: &Workspace) -> Result<()> {
     if !ws.is_local() {
         return Ok(());
     }
-    if !ws.root.join(".git").is_file() {
+    if !util::is_linked_worktree(&ws.root) {
         return Ok(());
     }
     let Some(branch) = util::git(&ws.root, &["branch", "--show-current"]) else {

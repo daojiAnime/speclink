@@ -186,6 +186,56 @@ pub fn git_available(root: &Path) -> bool {
     git(root, &["rev-parse", "--is-inside-work-tree"]).as_deref() == Some("true")
 }
 
+/// Resolve `<root>/.git` to its git directory:
+/// - Regular repo: `<root>/.git` is a directory.
+/// - Submodule or linked worktree: `<root>/.git` is a file containing `gitdir: <path>`.
+fn resolve_dot_git(root: &Path) -> Option<PathBuf> {
+    let dot_git = root.join(".git");
+    if dot_git.is_dir() {
+        return Some(dot_git);
+    }
+    if !dot_git.is_file() {
+        return None;
+    }
+    let content = std::fs::read_to_string(&dot_git).ok()?;
+    let raw = content.trim().strip_prefix("gitdir:")?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let target = PathBuf::from(raw);
+    let resolved = if target.is_absolute() {
+        target
+    } else {
+        root.join(target)
+    };
+    resolved.is_dir().then_some(resolved)
+}
+
+/// Return the resolved git directory when `root` is a MAIN git checkout (either a
+/// regular repo or a git submodule), and `None` for non-git directories and linked
+/// worktrees.
+///
+/// Per `gitrepository-layout(5)`, a linked worktree's `$GIT_DIR` always contains a
+/// `commondir` file pointing back to the shared repository, while a regular repo or
+/// submodule main checkout never does. Pure filesystem check — no git subprocess.
+pub fn main_git_dir(root: &Path) -> Option<PathBuf> {
+    let dir = resolve_dot_git(root)?;
+    if dir.join("commondir").is_file() {
+        return None;
+    }
+    Some(dir)
+}
+
+/// True when `root` is a linked git worktree (`.git` file pointing to a gitdir that
+/// carries a `commondir` file); false for both regular main checkouts and submodules.
+pub fn is_linked_worktree(root: &Path) -> bool {
+    let dot_git = root.join(".git");
+    if !dot_git.is_file() {
+        return false;
+    }
+    resolve_dot_git(root).is_some_and(|dir| dir.join("commondir").is_file())
+}
+
 /// Today's date as YYYY-MM-DD (local time).
 pub fn today() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
@@ -638,5 +688,44 @@ mod tests {
             "reader observed a partial document of {} bytes",
             torn.unwrap_or(0)
         );
+    }
+
+    #[test]
+    fn main_git_dir_distinguishes_regular_submodule_and_linked_worktree() {
+        let d = TempDir::new("git-dir-kind");
+
+        // Non-git directory
+        let plain = d.path.join("plain");
+        std::fs::create_dir_all(&plain).unwrap();
+        assert_eq!(main_git_dir(&plain), None);
+        assert!(!is_linked_worktree(&plain));
+
+        // Regular main checkout: `.git/` is a directory
+        let regular = d.path.join("regular");
+        std::fs::create_dir_all(regular.join(".git")).unwrap();
+        assert_eq!(main_git_dir(&regular), Some(regular.join(".git")));
+        assert!(!is_linked_worktree(&regular));
+
+        // Submodule main checkout: `.git` file pointing to superproject `.git/modules/sub` (no commondir)
+        let sub_gitdir = d.path.join("super").join(".git").join("modules").join("sub");
+        let sub = d.path.join("super").join("sub");
+        std::fs::create_dir_all(&sub_gitdir).unwrap();
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join(".git"), "gitdir: ../.git/modules/sub\n").unwrap();
+        assert_eq!(
+            std::fs::canonicalize(main_git_dir(&sub).expect("submodule is a main checkout")).unwrap(),
+            std::fs::canonicalize(&sub_gitdir).unwrap()
+        );
+        assert!(!is_linked_worktree(&sub));
+
+        // Linked worktree of that submodule: gitdir has `commondir`
+        let wt_gitdir = sub_gitdir.join("worktrees").join("feat");
+        let wt = d.path.join("super").join("sub.worktrees").join("feat");
+        std::fs::create_dir_all(&wt_gitdir).unwrap();
+        std::fs::create_dir_all(&wt).unwrap();
+        std::fs::write(wt_gitdir.join("commondir"), "../..\n").unwrap();
+        std::fs::write(wt.join(".git"), format!("gitdir: {}\n", wt_gitdir.display())).unwrap();
+        assert_eq!(main_git_dir(&wt), None);
+        assert!(is_linked_worktree(&wt));
     }
 }

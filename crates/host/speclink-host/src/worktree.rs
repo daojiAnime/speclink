@@ -46,11 +46,12 @@ pub fn discover(ws: &Workspace, store: &dyn Store) -> WorktreeFacts {
 
 /// The observation facts for a main checkout, or an empty map.
 ///
-/// Three gates, all of which must hold before git is spawned at all (D3): the
-/// workspace root's `.git` is a DIRECTORY (a main checkout — inside a linked
-/// worktree it is a file), `.speclink.yaml` loads, and the effective `worktree`
-/// policy is true. A config that cannot load or parse counts as "off": the
-/// observation surface must never start failing a read that used to succeed.
+/// Three gates, all of which must hold before git is spawned at all (D3): `ws.root`
+/// is a MAIN git checkout (regular repo `.git/` directory OR git submodule `.git`
+/// file whose gitdir has no `commondir` — never a linked worktree), `.speclink.yaml`
+/// loads, and the effective `worktree` policy is true. A config that cannot load or
+/// parse counts as "off": the observation surface must never start failing a read
+/// that used to succeed.
 ///
 /// Every local surface that shows worktree facts (the CLI's `list`, the desktop
 /// board) goes through this one gate, so they can never disagree about when the
@@ -61,7 +62,7 @@ pub fn observed_facts(
     store: &dyn Store,
     get_env: impl Fn(&str) -> Option<String>,
 ) -> WorktreeFacts {
-    if !ws.root.join(".git").is_dir() {
+    if util::main_git_dir(&ws.root).is_none() {
         return WorktreeFacts::new();
     }
     let policy =
