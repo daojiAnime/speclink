@@ -125,6 +125,14 @@
         "integrations/herdr/README.en.md",
         "integrations/herdr/README.md"
       ]
+    },
+    {
+      "task_id": "12",
+      "task_desc": "6.2 在真實 oh-my-pi（`omp`）工作階段與 Herdr 面板手動驗收：於測試專案執行 speclink init --tools omp（同時勾選 claude 驗證 `.omp/skills/` 優先於 `.claude/skills/`），在 `omp` 中驗證 `/skill:speclink-propose` 與 `/skill:speclink-analyze` 可正常載入並套用 `ask`/`task` 前言，並於 Herdr 載入 `omp-labels.ts` 確認送出技能、執行 `speclink` bash 指令與切換工作階段（`session_switch`）時終端標籤正確貼上與清除。",
+      "files": [
+        "integrations/herdr/mods/speclink/shared.js",
+        "integrations/herdr/mods/speclink/skill-picker.js"
+      ]
     }
   ],
   "entries": [
@@ -295,6 +303,18 @@
         "integrations/herdr/README.md"
       ],
       "recordedAt": "2026-11-27T09:14:07Z"
+    },
+    {
+      "taskId": "tsk_01M8DZW0E3J4ZQRXV8Z87F6WNY",
+      "taskDesc": "6.2 在真實 oh-my-pi（`omp`）工作階段與 Herdr 面板手動驗收：於測試專案執行 speclink init --tools omp（同時勾選 claude 驗證 `.omp/skills/` 優先於 `.claude/skills/`），在 `omp` 中驗證 `/skill:speclink-propose` 與 `/skill:speclink-analyze` 可正常載入並套用 `ask`/`task` 前言，並於 Herdr 載入 `omp-labels.ts` 確認送出技能、執行 `speclink` bash 指令與切換工作階段（`session_switch`）時終端標籤正確貼上與清除。",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "557f0dcde10ce8d1b60dfe1366e3c3ce29c98dab",
+      "touchedFiles": [
+        "integrations/herdr/mods/speclink/shared.js",
+        "integrations/herdr/mods/speclink/skill-picker.js"
+      ],
+      "recordedAt": "2026-11-27T10:11:42Z"
     }
   ]
 }

@@ -108,27 +108,37 @@ updated: 2026-11-15T22:20:32+08:00
 ---
 ### Requirement: 渲染 API
 
-SDK SHALL 提供 skills.list()（回傳技能名與描述清單）與 skills.render(name, options)——options 涵蓋渲染矩陣：target（claude｜codex｜copilot｜pi｜cursor｜neutral）、invocation（cli｜tool-call，只對 neutral 有作用）、specInCheckout（布林，預設 true：規格資料夾是否位於使用這份技能的 checkout；不是布林值時——包含 null——SHALL 拋出錯誤，SHALL NOT 靜默當成預設值）、specDir 與 toolName；內嵌引擎而沒有本機規格檔的宿主 SHALL 以 specInCheckout 為 false 渲染給自己 Agent 的技能；回傳字串內容 SHALL 與 CLI 以對等參數生成的內容一致。target 不在值域內時 SHALL 拋出錯誤，訊息 SHALL 列出 claude、codex、copilot、pi、cursor、neutral 六個合法值。
+SDK SHALL 提供 skills.list()（回傳技能名與描述清單）與 skills.render(name, options)——options 涵蓋渲染矩陣：target（`claude`｜`codex`｜`copilot`｜`pi`｜`cursor`｜`agy`｜`omp`｜`neutral`）、invocation（`cli`｜`tool-call`，只對 neutral 有作用）、specInCheckout（布林，預設 true：規格資料夾是否位於使用這份技能的 checkout；不是布林值時——包含 null——SHALL 拋出錯誤，SHALL NOT 靜默當成預設值）、specDir 與 toolName；內嵌引擎而沒有本機規格檔的宿主 SHALL 以 specInCheckout 為 false 渲染給自己 Agent 的技能；回傳字串內容 SHALL 與 CLI 以對等參數生成的內容一致。target 不在值域內時 SHALL 拋出錯誤，訊息 SHALL 列出 `claude`、`codex`、`copilot`、`pi`、`cursor`、`agy`、`omp`、`neutral` 八個合法值。
 
 #### Scenario: 中性 tool-call 渲染
+
 - **WHEN** 執行 skills.render('propose', { target: 'neutral', invocation: 'tool-call', specInCheckout: false })
 - **THEN** 回傳字串以「呼叫 speclink 工具」措辭表述動詞、不含 /speclink- 前綴與本地規格路徑句
 
 #### Scenario: 與 CLI 生成一致
+
 - **WHEN** 以 target claude（不傳 specInCheckout）呼叫 skills.render('apply', …)，並與 speclink init 於本機專案生成的 .claude/skills/speclink-apply/SKILL.md 比對
 - **THEN** 兩者內容一致
 
 #### Scenario: copilot target 與 CLI 生成一致
+
 - **WHEN** 以 target copilot（不傳 specInCheckout）呼叫 skills.render('apply', …)，並與 speclink init --tools copilot 於本機專案生成的 .github/skills/speclink-apply/SKILL.md 比對
 - **THEN** 兩者內容一致，且回傳字串的技能引用為 `/speclink-` 形式、不含 `$speclink-`
 
 #### Scenario: pi 與 cursor target 與 CLI 生成一致
+
 - **WHEN** 以 target pi 與 target cursor（不傳 specInCheckout）呼叫 skills.render('apply', …)，並分別與 speclink init --tools pi,cursor 於本機專案生成的 .pi/skills/speclink-apply/SKILL.md、.cursor/skills/speclink-apply/SKILL.md 比對
 - **THEN** 兩組內容各自一致；pi 的技能引用為 `/skill:speclink-` 形式，cursor 的技能引用為 `/speclink-` 形式，兩者都不含 `$speclink-`
 
+#### Scenario: omp target 與 CLI 生成一致
+
+- **WHEN** 以 target omp（不傳 specInCheckout）呼叫 skills.render('apply', …) 與 skills.render('analyze', …)，並與 speclink init --tools omp 於本機專案生成的 .omp/skills/speclink-apply/SKILL.md 與 .omp/skills/speclink-analyze/SKILL.md 比對
+- **THEN** 兩組內容各自一致；回傳字串開頭含 `## oh-my-pi (omp) harness adaptation`、技能引用為 `/skill:speclink-` 形式、帶 `--agent omp`，不含 `$speclink-` 與 `/speclink-`
+
 #### Scenario: 未知 target 被拒
+
 - **WHEN** 執行 skills.render('apply', { target: 'github-copilot' })
-- **THEN** 呼叫拋出錯誤，訊息含 `github-copilot` 與 claude、codex、copilot、pi、cursor、neutral 六個合法值
+- **THEN** 呼叫拋出錯誤，訊息含 `github-copilot` 與 `claude`、`codex`、`copilot`、`pi`、`cursor`、`agy`、`omp`、`neutral` 八個合法值
 
 #### Scenario: specInCheckout 為 false 的渲染
 
@@ -147,8 +157,8 @@ SDK SHALL 提供 skills.list()（回傳技能名與描述清單）與 skills.ren
 
 
 <!-- @trace
-source: skills-verbs-second-wave
-updated: 2026-11-12T16:54:51+08:00
+source: add-omp-tool
+updated: 2026-11-27T19:03:43+08:00
 -->
 
 ---

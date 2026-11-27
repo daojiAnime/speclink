@@ -34,7 +34,7 @@ updated: 2026-10-25T21:44:20+08:00
 ---
 ### Requirement: 未初始化目錄經確認後自動初始化
 
-所選目錄向上探索未命中任何 speclink 專案時，app SHALL NOT 逕行寫入，而 SHALL 顯示初始化確認對話框（含 AI 工具多選 claude／codex／copilot／pi／cursor，預設只勾選 claude；說明文字寫明會建立 `speclink/`）。使用者確認後 app SHALL 執行與 speclink init 等效的初始化（speclink/ 骨架含 specs/、changes/archive/ 與 config.yaml、專案根的 .speclink.yaml 記錄所選 tools、為每個所選工具生成 skills 檔），隨即切換至該專案；使用者取消時 app SHALL 維持原專案，且目標目錄 SHALL NOT 產生任何寫入。初始化失敗時 app SHALL 顯示單行錯誤訊息且 SHALL NOT 切換 root。
+所選目錄向上探索未命中任何 speclink 專案時，app SHALL NOT 逕行寫入，而 SHALL 顯示初始化確認對話框（含 AI 工具多選 claude／codex／copilot／pi／cursor／omp，預設只勾選 claude；說明文字寫明會建立 `speclink/`）。使用者確認後 app SHALL 執行與 speclink init 等效的初始化（speclink/ 骨架含 specs/、changes/archive/ 與 config.yaml、專案根的 .speclink.yaml 記錄所選 tools、為每個所選工具生成 skills 檔），隨即切換至該專案；使用者取消時 app SHALL 維持原專案，且目標目錄 SHALL NOT 產生任何寫入。初始化失敗時 app SHALL 顯示單行錯誤訊息且 SHALL NOT 切換 root。
 
 #### Scenario: 確認後初始化並切入新專案
 
@@ -61,10 +61,17 @@ updated: 2026-10-25T21:44:20+08:00
 - **WHEN** 使用者於確認對話框加勾 pi 與 cursor 後確認
 - **THEN** 目標目錄除 claude 對應檔案外，另產生 .pi/skills/ 與 .cursor/skills/ 技能檔，不產生 .cursor/agents/、.cursor/rules/、AGENTS.md，.speclink.yaml 的 tools 依 claude、pi、cursor 記錄
 
+#### Scenario: 勾選 omp 時生成對應工具檔
+
+- **WHEN** 使用者於確認對話框加勾 omp 後確認
+- **THEN** 目標目錄除 claude 對應檔案外，另產生 .omp/skills/ 技能檔（含 `speclink-analyze`），不產生 .omp/agents/、.omp/rules/、AGENTS.md，.speclink.yaml 的 tools 依 claude、omp 記錄
+
+---
+
 
 <!-- @trace
-source: add-pi-cursor-tools
-updated: 2026-11-10T21:23:31+08:00
+source: add-omp-tool
+updated: 2026-11-27T19:03:43+08:00
 -->
 
 ---
@@ -119,7 +126,7 @@ updated: 2026-10-25T21:44:20+08:00
 - **審查規則**頁 SHALL 含預設清單卡與專案規則卡（行為見需求「設定頁編輯審查規則」）。
 - **子代理模型**頁 SHALL 含「各站使用的模型」卡與「自訂清單」卡（行為見需求「設定頁編輯子代理模型」）。
 - **產出流程**頁 SHALL 含「產出政策」卡——locale、spec_locale（列右側下拉）與 tdd、audit、worktree（列右側開關）——與「產出流程」卡（行為見需求「產出流程頁」）。
-- **AI 工具**頁（頁標題「AI 工具」，頁標題下等寬註記 `.speclink.yaml · tools`）SHALL 含「AI 工具」卡——內建工具 claude／codex／copilot／pi／cursor 每個一列附開關，自訂工具描述子原樣呈現為不可編輯列；SHALL NOT 含「設定檔」卡或「檔案」列。
+- **AI 工具**頁（頁標題「AI 工具」，頁標題下等寬註記 `.speclink.yaml · tools`）SHALL 含「AI 工具」卡——內建工具 claude／codex／copilot／pi／cursor／omp 每個一列附開關，自訂工具描述子原樣呈現為不可編輯列；SHALL NOT 含「設定檔」卡或「檔案」列。
 
 應用程式設定的分類欄 SHALL 為「應用程式」組：一般、更新、CLI、伺服器，其後為「關於」組：關於 Speclink（行為見 desktop-app 需求「關於頁」）；預設落在一般；零專案時 SHALL 照常可進入且分類欄照常呈現。
 
@@ -192,6 +199,11 @@ updated: 2026-10-25T21:44:20+08:00
 - **WHEN** .speclink.yaml 原 tools 僅 codex，使用者開啟 pi 並儲存，之後再關閉 pi 並儲存
 - **THEN** 第一次儲存後 tools 記錄 codex 與 pi、專案根新增 .pi/skills/ 技能檔；第二次儲存後 tools 僅含 codex，.pi/skills/ 下 speclink- 前綴目錄全數移除，.agents/skills/ 下的 Codex 技能檔仍在
 
+#### Scenario: 加選與取消 omp 後技能同步
+
+- **WHEN** .speclink.yaml 原 tools 僅 claude，使用者於 AI 工具頁開啟 omp 並儲存，之後再關閉 omp 並儲存
+- **THEN** 第一次儲存後 tools 記錄 claude 與 omp、專案根新增 .omp/skills/ 技能檔（含 `speclink-analyze`）；第二次儲存後 tools 僅含 claude，.omp/skills/ 下 speclink- 前綴目錄全數移除，.claude/skills/ 下的 Claude 技能檔仍在
+
 #### Scenario: 自訂工具描述子原樣保留
 
 - **WHEN** .speclink.yaml 的 tools 含一個自訂描述子物件，使用者於 AI 工具頁變更內建工具開關並儲存
@@ -202,10 +214,12 @@ updated: 2026-10-25T21:44:20+08:00
 - **WHEN** config.yaml 被外部改壞為無法解析，使用者開啟專案設定
 - **THEN** 分類欄的專案說明、產出規則、審查規則、子代理模型、產出流程五項帶警示點，上層分類「品質關卡」不帶；進入任一頁可見解析失敗說明，產出政策卡表單與專案說明、產出規則、審查規則、子代理模型四頁的編輯鈕停用；應用程式設定的顯示語言列仍可正常使用
 
+---
+
 
 <!-- @trace
-source: desktop-subagent-model-page
-updated: 2026-11-10T23:06:26+08:00
+source: add-omp-tool
+updated: 2026-11-27T19:03:43+08:00
 -->
 
 ---
@@ -440,7 +454,7 @@ updated: 2026-10-10T23:13:14+08:00
 ---
 ### Requirement: 未啟用資料夾經確認後補齊啟用
 
-所選目錄向上探索命中 workspace、store mode 為本地檔案、且該 workspace root 不存在 `.speclink.yaml` 時，app SHALL 判定為未啟用 speclink，SHALL NOT 逕行寫入亦 SHALL NOT 直接以既有專案開啟，而 SHALL 顯示啟用確認對話框（含 AI 工具多選 claude／codex／copilot／pi／cursor，預設只勾選 claude；文案為啟用語意，遵循 LANGUAGE.md、不出現工程詞）。規格資料夾為舊佈局的 `openspec/` 時，對話框 SHALL 另寫明確認後資料夾會改名為 `speclink/`、之後 OpenSpec CLI 讀不到這個專案。判定與寫入 SHALL 錨定向上命中的 workspace root，而非使用者所選的子目錄。
+所選目錄向上探索命中 workspace、store mode 為本地檔案、且該 workspace root 不存在 `.speclink.yaml` 時，app SHALL 判定為未啟用 speclink，SHALL NOT 逕行寫入亦 SHALL NOT 直接以既有專案開啟，而 SHALL 顯示啟用確認對話框（含 AI 工具多選 claude／codex／copilot／pi／cursor／omp，預設只勾選 claude；文案為啟用語意，遵循 LANGUAGE.md、不出現工程詞）。規格資料夾為舊佈局的 `openspec/` 時，對話框 SHALL 另寫明確認後資料夾會改名為 `speclink/`、之後 OpenSpec CLI 讀不到這個專案。判定與寫入 SHALL 錨定向上命中的 workspace root，而非使用者所選的子目錄。
 
 使用者確認後 app SHALL 經引擎的工作區補齊入口執行啟用（必要時先把 `openspec/` 匯入為 `speclink/`、補骨架缺件、專案根 `.speclink.yaml` 記錄所選 tools、為每個所選工具生成 skills 檔，不生成指令檔），既有規格文件的內容 SHALL 不被改寫，隨即切換至該專案；使用者取消時 app SHALL 維持原專案，目標目錄 SHALL NOT 產生任何寫入。啟用失敗（包含因有其他 worktree 或未提交修改而拒絕匯入）時 app SHALL 顯示單行錯誤訊息說明原因且 SHALL NOT 切換 root。`.speclink.yaml` 存在的專案 SHALL 照舊直接開啟，SHALL NOT 出現啟用對話框；向上探索完全未命中的目錄 SHALL 照舊走初始化確認流程。
 
@@ -479,6 +493,11 @@ updated: 2026-10-10T23:13:14+08:00
 - **WHEN** 使用者選定含 openspec/ 與 .cursor/rules/、但無 .speclink.yaml、已 commit 的資料夾，於啟用確認對話框改為只勾 cursor 並確認
 - **THEN** 專案根產生 .speclink.yaml（tools 僅含 cursor）與 .cursor/skills/ 技能檔，.cursor/rules/ 下既有檔案位元級不變，不產生 .claude/、.agents/、CLAUDE.md、AGENTS.md
 
+#### Scenario: 啟用時勾選 omp
+
+- **WHEN** 使用者選定含 openspec/ 與 .omp/rules/、但無 .speclink.yaml、已 commit 的資料夾，於啟用確認對話框改為只勾 omp 並確認
+- **THEN** 專案根產生 .speclink.yaml（tools 僅含 omp）與 .omp/skills/ 技能檔，.omp/rules/ 下既有檔案位元級不變，不產生 .claude/、.agents/、.omp/agents/、CLAUDE.md、AGENTS.md
+
 #### Scenario: 有未提交修改時啟用失敗
 
 - **WHEN** 使用者選定的 OpenSpec 資料夾中 openspec/ 有未提交修改，於啟用確認對話框確認
@@ -486,8 +505,8 @@ updated: 2026-10-10T23:13:14+08:00
 
 
 <!-- @trace
-source: add-pi-cursor-tools
-updated: 2026-11-10T21:23:31+08:00
+source: add-omp-tool
+updated: 2026-11-27T19:03:43+08:00
 -->
 
 ---
