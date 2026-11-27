@@ -2317,3 +2317,17 @@ test('設定頁 worktree 流程開關：走 workflow-config set worktree、含�
     assert.ok(i18nSrc.includes(key), `i18n.js missing English entry for ${key}`);
   }
 });
+
+test('skillRows：大量技能時單次線性分組分系列不退化為 O(N²)，且保留冒號與連字號前綴語意', () => {
+  const skills = [];
+  for (let i = 0; i < 60; i += 1) {
+    skills.push(skill(`gsap-s${i}`, 'personal', '動畫'));
+    skills.push(skill(`plugin:item-${i}`, 'plugin', '外掛'));
+  }
+  skills.push(skill('solo-tool', 'project', '獨立工具'));
+  const t0 = performance.now();
+  const rows = skillRows({ skills, groupOpen: { anim: true, other: true } });
+  const elapsed = performance.now() - t0;
+  assert.ok(elapsed < 50, `skillRows 應在 50ms 內完成，實測 ${elapsed.toFixed(2)}ms`);
+  assert.ok(rows.some((r) => r.kind === 'family' && r.name === 'plugin' && r.count === 60));
+});

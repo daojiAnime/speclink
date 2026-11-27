@@ -36,6 +36,7 @@ import {
   readProjectTools,
   savePreferredAgent,
   sendError,
+  setWorktreePolicy,
   speclinkJson,
 } from "./shared.js";
 
@@ -63,6 +64,8 @@ export default class SkillPicker {
     this.root = null;
     this.known = null;
     this.worktreePolicy = false;
+    this.worktreeSaving = false;
+    this.worktreeError = null;
     this.uninitialized = false;
     this.sending = false;
     this.error = null;
@@ -635,10 +638,38 @@ export default class SkillPicker {
     if (resolved) this.selectAgent(resolved.key, cx);
   }
 
+  canToggleWorktree() {
+    return !this.uninitialized && Boolean(this.root);
+  }
+
+  toggleWorktree(cx) {
+    if (!this.canToggleWorktree() || this.worktreeSaving) return;
+    const next = !this.worktreePolicy;
+    this.worktreeSaving = true;
+    this.worktreeError = null;
+    cx.notify();
+    cx.spawn(async (cx) => {
+      const res = await setWorktreePolicy(next, this.root, this.on);
+      if (res.ok) {
+        this.worktreePolicy = next;
+        this.worktreeError = null;
+        if (this.agentKey) this.mine.load(this.agentKey, cx);
+      } else {
+        this.worktreeError = res.error;
+      }
+      this.worktreeSaving = false;
+      cx.notify();
+    });
+  }
+
   settingsPage(t) {
     const options = this.settingsOptions();
     const active = this.preferredAgent;
     const toolsText = this.projectTools.length > 0 ? this.projectTools.join(", ") : tr("未在 .speclink.yaml 配置");
+    const canToggle = this.canToggleWorktree();
+    const worktreeIdx = options.length;
+    const worktreeFocused = canToggle && this.settingsCursor === worktreeIdx;
+    const worktreeStatus = this.worktreeSaving ? tr("保存中…") : this.worktreePolicy ? tr("已开启") : tr("未开启");
     return v_flex()
       .id("settings-page")
       .flex_1()
@@ -723,19 +754,80 @@ export default class SkillPicker {
       )
       .child(
         v_flex()
-          .gap(4)
-          .pt(6)
+          .gap(6)
+          .pt(8)
           .border_t_1()
           .border_color(t.border)
           .child(div().text_size(11.5).font_semibold().text_color(t.muted).child(tr("当前项目")))
-          .child(div().truncate().text_size(11).text_color(t.dim).child(tr("路径：{0}", this.root ?? "-")))
-          .child(div().truncate().text_size(11).text_color(t.dim).child(tr("已配置工具：{0}", toolsText)))
           .child(
-            div()
-              .text_size(11)
-              .text_color(t.dim)
-              .child(tr("worktree 流程：{0}", this.worktreePolicy ? tr("已开启") : tr("未开启"))),
-          ),
+            h_flex()
+              .id("toggle-worktree")
+              .flex_none()
+              .px(10)
+              .py(7)
+              .gap(8)
+              .items_center()
+              .rounded(6)
+              .border_1()
+              .border_color(this.worktreePolicy ? t.accent : t.border)
+              .when(canToggle && !this.worktreeSaving, (el) => el.cursor_pointer())
+              .when(worktreeFocused, (el) => el.bg(t.selected))
+              .when(!worktreeFocused && canToggle && !this.worktreeSaving, (el) => el.hover((s) => s.bg(t.hover)))
+              .on_click((_e, cx) => {
+                if (!canToggle || this.worktreeSaving) return;
+                this.settingsCursor = worktreeIdx;
+                this.toggleWorktree(cx);
+                this.focusKeys();
+              })
+              .child(
+                v_flex()
+                  .flex_1()
+                  .min_w_0()
+                  .gap(1)
+                  .child(div().truncate().text_size(12).font_medium().child(tr("worktree 流程")))
+                  .child(
+                    div()
+                      .truncate()
+                      .text_size(11)
+                      .text_color(t.muted)
+                      .child(
+                        this.uninitialized
+                          ? tr("此项目尚未初始化 Speclink。")
+                          : tr("在独立 git worktree 中并行实现变更，切换时自动同步 worktree 技能。"),
+                      ),
+                  ),
+              )
+              .child(
+                h_flex()
+                  .flex_none()
+                  .gap(6)
+                  .items_center()
+                  .child(
+                    div()
+                      .text_size(11)
+                      .text_color(this.worktreePolicy ? t.accent : t.dim)
+                      .child(worktreeStatus),
+                  )
+                  .child(
+                    h_flex()
+                      .w(32)
+                      .h(18)
+                      .px(2)
+                      .items_center()
+                      .rounded_full()
+                      .bg(this.worktreePolicy ? t.accent : t.raised)
+                      .border_1()
+                      .border_color(this.worktreePolicy ? t.accent : t.border)
+                      .when(this.worktreePolicy, (el) => el.child(div().flex_1()))
+                      .child(div().size(12).flex_none().rounded_full().bg(this.worktreePolicy ? t.background : t.muted)),
+                  ),
+              ),
+          )
+          .when(Boolean(this.worktreeError), (el) =>
+            el.child(div().px(2).text_size(11).text_color(t.blocked).child(this.worktreeError)),
+          )
+          .child(div().truncate().text_size(11).text_color(t.dim).child(tr("路径：{0}", this.root ?? "-")))
+          .child(div().truncate().text_size(11).text_color(t.dim).child(tr("已配置工具：{0}", toolsText))),
       );
   }
 
@@ -815,11 +907,14 @@ export default class SkillPicker {
     }
     if (this.page === "settings") {
       const options = this.settingsOptions();
-      if (options.length === 0) return;
-      if (e.key === "down") this.settingsCursor = (this.settingsCursor + 1) % options.length;
-      else if (e.key === "up") this.settingsCursor = (this.settingsCursor - 1 + options.length) % options.length;
-      else if (e.key === "enter" || e.key === "space") this.applyDefaultAgent(options[this.settingsCursor].key, cx);
-      else return;
+      const total = options.length + (this.canToggleWorktree() ? 1 : 0);
+      if (total === 0) return;
+      if (e.key === "down") this.settingsCursor = (this.settingsCursor + 1) % total;
+      else if (e.key === "up") this.settingsCursor = (this.settingsCursor - 1 + total) % total;
+      else if (e.key === "enter" || e.key === "space") {
+        if (this.settingsCursor < options.length) this.applyDefaultAgent(options[this.settingsCursor].key, cx);
+        else this.toggleWorktree(cx);
+      } else return;
       cx.stop_propagation();
       cx.notify();
       return;
@@ -871,7 +966,6 @@ export default class SkillPicker {
   }
 
   header(t) {
-    const usable = usableAgents(this.known);
     const page = (id, label, count) =>
       this.headerChip(
         {
@@ -898,32 +992,43 @@ export default class SkillPicker {
       .child(page("mine", tr("我的技能"), this.mine.found()?.skills.length))
       .child(page("settings", tr("设置")))
       .child(div().flex_1())
-      // 只有一个 agent 时没得选。
-      .when(usable.length > 1 && this.page !== "settings", (el) =>
-        el
-          .child(div().flex_none().mr(2).text_size(11).text_color(t.dim).child(tr("给")))
-          .children(
-            usable.map((a) =>
-              this.headerChip(
-                {
-                  id: `agent-${a.key}`,
-                  label: a.name,
-                  on: a.key === this.agentKey,
-                  click: (cx) => {
-                    this.selectAgent(a.key, cx);
-                    this.preferredAgent = a.key;
-                    savePreferredAgent(a.key);
-                    this.focusKeys();
-                    cx.notify();
-                  },
-                },
-                t,
-              ),
-            ),
-          )
-          .child(div().w(8).flex_none()),
-      )
       .child(div().flex_none().text_size(11).text_color(t.dim).child("Esc"));
+  }
+
+  // 独立一行放 agent 选择，支持 flex_wrap 自动换行，避免装了多个 agent 时把顶栏挤爆。
+  agentBar(t) {
+    const usable = usableAgents(this.known);
+    if (usable.length <= 1 || this.page === "settings") return null;
+    return h_flex()
+      .id("agent-bar")
+      .flex_none()
+      .flex_wrap()
+      .px(12)
+      .py(5)
+      .gap(4)
+      .items_center()
+      .border_b_1()
+      .border_color(t.border)
+      .child(div().flex_none().mr(2).text_size(11).text_color(t.dim).child(tr("给")))
+      .children(
+        usable.map((a) =>
+          this.headerChip(
+            {
+              id: `agent-${a.key}`,
+              label: a.name,
+              on: a.key === this.agentKey,
+              click: (cx) => {
+                this.selectAgent(a.key, cx);
+                this.preferredAgent = a.key;
+                savePreferredAgent(a.key);
+                this.focusKeys();
+                cx.notify();
+              },
+            },
+            t,
+          ),
+        ),
+      );
   }
 
   speclinkPage(t) {
@@ -935,6 +1040,7 @@ export default class SkillPicker {
 
   render() {
     const t = theme();
+    const agentsRow = this.agentBar(t);
     return v_flex()
       .id("skill-picker")
       .size_full()
@@ -944,6 +1050,7 @@ export default class SkillPicker {
       .text_color(t.foreground)
       .on_key_down((e, cx) => this.onKey(e, cx))
       .child(this.header(t))
+      .when(Boolean(agentsRow), (el) => el.child(agentsRow))
       .child(
         this.page === "settings"
           ? this.settingsPage(t)

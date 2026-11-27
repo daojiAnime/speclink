@@ -18,6 +18,8 @@ export default class MySkillsPage {
     this.cursor = null;
     this.groupOpen = {};
     this.familyOpen = {};
+    this.openVersion = 0;
+    this.rowsCache = null;
     this.inNote = false;
     this.scroll = VirtualListScrollHandle.new();
     this.search = InputState.new({ placeholder: tr("搜索技能：名称或说明") });
@@ -55,7 +57,14 @@ export default class MySkillsPage {
 
   rows() {
     const skills = this.found()?.skills ?? [];
-    return skillRows({ skills, query: this.search.value(), groupOpen: this.groupOpen, familyOpen: this.familyOpen });
+    const query = this.search.value();
+    const cached = this.rowsCache;
+    if (cached && cached.skills === skills && cached.query === query && cached.openVersion === this.openVersion) {
+      return cached.rows;
+    }
+    const rows = skillRows({ skills, query, groupOpen: this.groupOpen, familyOpen: this.familyOpen });
+    this.rowsCache = { skills, query, openVersion: this.openVersion, rows };
+    return rows;
   }
 
   current(rows = this.rows()) {
@@ -69,6 +78,7 @@ export default class MySkillsPage {
   toggle(row) {
     if (row.kind === "group") this.groupOpen[row.id] = !row.open;
     else this.familyOpen[row.id] = !row.open;
+    this.openVersion += 1;
     this.cursor = row.key;
   }
 

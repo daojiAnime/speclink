@@ -21,6 +21,7 @@ const busyText = (agent) => (agent.status === "blocked" ? waitingText(agent) : (
 // 这些技能要在主文件夹运行；其余技能跟着变更走，有 worktree 就在 worktree 中运行。
 const MAIN_FOLDER = new Set(["archive", "archive+commit", "worktree-merge", "apply-with-worktree"]);
 const ANALYZE_TOOLS = new Set(["claude", "antigravity", "omp"]);
+const ANALYZE_UNSUPPORTED_MSG = "{0} 仅支持 Claude Code、Antigravity 和 oh-my-pi";
 export const skillUnsupported = (skill, key) => skill === "analyze" && !ANALYZE_TOOLS.has(key);
 export const onlyClaude = skillUnsupported;
 
@@ -795,7 +796,7 @@ export function placePlan({ skill, target, note, agents, focus, agentKey }) {
   if (left) return none("还有 {0} 个代码任务未完成", left);
   const agent = placeTarget(agents, focus, agentKey);
   if (agent.kind === "none") return agent;
-  if (skillUnsupported(skill, agent.key)) return none("{0} 仅支持 Claude Code、Antigravity 和 oh-my-pi", skill);
+  if (skillUnsupported(skill, agent.key)) return none(ANALYZE_UNSUPPORTED_MSG, skill);
   return {
     kind: "place",
     agent,
@@ -849,7 +850,7 @@ export function newTabPlan({ skill, target, note, root, agents, known, preferred
   const discussion = target?.kind === "discussion" ? { slug: target.name } : null;
   const d = newAgent({ name, args: joinArgs(target, note), folder, change, discussion, known, preferred, projectTools });
   if (d.kind === "none") return d;
-  if (skillUnsupported(skill, d.key)) return none("{0} 仅支持 Claude Code、Antigravity 和 oh-my-pi", skill);
+  if (skillUnsupported(skill, d.key)) return none(ANALYZE_UNSUPPORTED_MSG, skill);
   const labels = change
     ? [`speclink.change=${change.name}`, skillLabel(name)]
     : discussion
@@ -1035,43 +1036,89 @@ export const hasSpeclinkSkills = (found) => found.some((x) => isSpeclinkSkill(x.
 // 同一組裡三個以上開頭相同的技能收成一列（系列）。整組都同一系列時不用多一層，但整組太長就預設收合。
 const FAMILY_MIN = 3;
 const GROUP_OPEN_LIMIT = 12;
-const skillStem = (name) => name.split(/[-:]/)[0];
 
-function familiesIn(items) {
-  const count = new Map();
-  for (const x of items) count.set(skillStem(x.name), (count.get(skillStem(x.name)) ?? 0) + 1);
-  return new Set([...count].filter(([, n]) => n >= FAMILY_MIN && n < items.length).map(([stem]) => stem));
+function skillStem(name) {
+  let end = name.length;
+  const dash = name.indexOf("-");
+  if (dash !== -1 && dash < end) end = dash;
+  const colon = name.indexOf(":");
+  if (colon !== -1 && colon < end) end = colon;
+  return end === name.length ? name : name.slice(0, end);
 }
 
 // 我的技能頁的列。有搜尋字時全部攤開，不分系列。
+// 單次線性掃描分組與分系列（避免在 QuickJS 單幀預算內 O(N²) 重複正則切割觸發 interrupted）。
 export function skillRows({ skills, query = "", groupOpen = {}, familyOpen = {} }) {
   const words = query.trim().toLowerCase();
-  const matched = words ? skills.filter((x) => `${x.name} ${x.about}`.toLowerCase().includes(words)) : skills;
+  const byGroup = new Map();
+  for (const x of skills) {
+    if (words && !x.name.toLowerCase().includes(words) && !x.about.toLowerCase().includes(words)) continue;
+    let list = byGroup.get(x.use);
+    if (!list) {
+      list = [];
+      byGroup.set(x.use, list);
+    }
+    list.push(x);
+  }
   const rows = [];
   const skillRow = (skill, nested) => ({ kind: "skill", key: `s:${skill.name}`, skill, nested });
   for (const group of SKILL_GROUPS) {
-    const items = matched.filter((x) => x.use === group.id);
-    if (items.length === 0) continue;
-    const families = words ? new Set() : familiesIn(items);
-    const inFamily = (x) => families.has(skillStem(x.name));
-    const lines = items.filter((x) => !inFamily(x)).length + families.size;
+    const items = byGroup.get(group.id);
+    if (!items || items.length === 0) continue;
+    const byStem = new Map();
+    const stems = words ? null : items.map((x) => skillStem(x.name));
+    if (stems) {
+      for (let i = 0; i < items.length; i += 1) {
+        const stem = stems[i];
+        let list = byStem.get(stem);
+        if (!list) {
+          list = [];
+          byStem.set(stem, list);
+        }
+        list.push(items[i]);
+      }
+    }
+    const isFamily = (members) => Boolean(stems) && members.length >= FAMILY_MIN && members.length < items.length;
+    let lines = items.length;
+    if (stems) {
+      lines = 0;
+      for (const members of byStem.values()) lines += isFamily(members) ? 1 : members.length;
+    }
     const open = words ? true : groupOpen[group.id] ?? lines <= GROUP_OPEN_LIMIT;
     rows.push({ kind: "group", key: `g:${group.id}`, id: group.id, group, count: items.length, open });
     if (!open) continue;
     const done = new Set();
-    for (const x of items) {
-      if (!inFamily(x)) {
+    for (let i = 0; i < items.length; i += 1) {
+      const x = items[i];
+      if (!stems) {
         rows.push(skillRow(x, false));
         continue;
       }
-      const stem = skillStem(x.name);
+      const stem = stems[i];
+      const members = byStem.get(stem);
+      if (!isFamily(members)) {
+        rows.push(skillRow(x, false));
+        continue;
+      }
       if (done.has(stem)) continue;
       done.add(stem);
-      const members = items.filter((y) => skillStem(y.name) === stem);
       const id = `${group.id}/${stem}`;
-      const hint = members.slice(0, 4).map((y) => y.name.slice(stem.length + 1)).join(tr("、"));
-      rows.push({ kind: "family", key: `f:${id}`, id, name: stem, count: members.length, open: Boolean(familyOpen[id]), hint: members.length > 4 ? `${hint}…` : hint });
-      if (familyOpen[id]) rows.push(...members.map((y) => skillRow(y, true)));
+      const hint = members
+        .slice(0, 4)
+        .map((y) => y.name.slice(stem.length + 1))
+        .join(tr("、"));
+      rows.push({
+        kind: "family",
+        key: `f:${id}`,
+        id,
+        name: stem,
+        count: members.length,
+        open: Boolean(familyOpen[id]),
+        hint: members.length > 4 ? `${hint}…` : hint,
+      });
+      if (familyOpen[id]) {
+        for (const y of members) rows.push(skillRow(y, true));
+      }
     }
   }
   return rows;

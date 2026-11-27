@@ -59,6 +59,23 @@ export async function readChangeArtifact(change, artifact, cwd, on) {
   return { ok: true, text: r.stdout };
 }
 
+// 切换项目的 worktree 流程开关（写入 config.yaml 并由 CLI 自动同步 worktree 技能）。
+export async function setWorktreePolicy(enabled, cwd, on) {
+  const value = enabled ? "true" : "false";
+  const r = await exec("speclink", ["workflow-config", "set", "worktree", value, "--no-color"], { cwd, on }).catch((e) => ({
+    code: 1,
+    stdout: "",
+    stderr: String(e.message ?? e),
+  }));
+  if (r.code !== 0) {
+    return {
+      ok: false,
+      error: firstLine(r.stderr) || tr("speclink {0} 退出码 {1}", `workflow-config set worktree ${value}`, r.code),
+    };
+  }
+  return { ok: true };
+}
+
 export const firstLine = (text) => text.trim().split("\n")[0];
 
 // 目前 space 所在的資料夾：焦點所在的終端機，否則該 space 第一個終端機。spaces() 的 folder
