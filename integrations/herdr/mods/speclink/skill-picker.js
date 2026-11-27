@@ -989,8 +989,8 @@ export default class SkillPicker {
       .border_b_1()
       .border_color(t.border)
       .child(page("speclink", "Speclink"))
-      .child(page("mine", tr("我的技能"), this.mine.found()?.skills.length))
-      .child(page("settings", tr("设置")))
+      .child(page("mine", "My Skills", this.mine.found()?.skills.length))
+      .child(page("settings", "Settings"))
       .child(div().flex_1())
       .child(div().flex_none().text_size(11).text_color(t.dim).child("Esc"));
   }
