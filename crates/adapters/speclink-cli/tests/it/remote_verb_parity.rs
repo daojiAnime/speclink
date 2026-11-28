@@ -3130,3 +3130,51 @@ fn remote_discuss_restore_of_a_dot_name_is_an_invalid_slug_and_sends_nothing() {
     let sent = mock.captured.lock().unwrap();
     assert!(sent.iter().all(|c| !c.path.contains("/discussions")), "no restore request went out: {sent:?}");
 }
+
+#[test]
+fn remote_review_stamp_classifies_gitlink_as_present_not_missing() {
+    // spec review-station「remote 模式下子模块路径正确归类为存在而非 missing」：
+    // 本地 checkout 含 160000 gitlink `frontend`，remote `review stamp` 将其归入
+    // `scope` 并上送规范状态指纹、`missing` 为空，exit 0。
+    let round = serde_json::json!({
+        "index": 1,
+        "phase": "discovery",
+        "patchHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "scope": ["frontend"],
+        "findings": []
+    });
+    let ticket_json = serde_json::json!({
+        "change": "demo",
+        "rounds": [round.clone()],
+        "lastRound": round
+    })
+    .to_string();
+    let mock = mock_server(vec![
+        ("GET", "/changes/demo/review", 200, ticket_json),
+        ("POST", "/changes/demo/review/stamp", 200, r#"{"change":"demo"}"#.to_string()),
+    ]);
+    let up = super::review_verbs::TempUpstream::new("remote-stamp");
+    let p = TempProject::remote("review-stamp-gitlink", &mock.base, "backend");
+    seed_git_src(&p);
+    super::review_verbs::add_frontend_submodule_at(&p.dir, &up);
+    p.write("frontend/app.txt", "remote-dirty\n");
+
+    let expected_bytes =
+        speclink_core::util::read_scope_bytes(&p.dir, "frontend").expect("gitlink bytes");
+    let expected_hash = speclink_core::station::content_fingerprint_bytes(&expected_bytes);
+
+    let out = p.run(&["review", "stamp", "demo"]);
+    assert!(out.status.success(), "stderr: {}", stderr_of(&out));
+
+    let post = mock.find("POST", "/changes/demo/review/stamp");
+    let body: serde_json::Value = serde_json::from_str(&post.body).expect("valid stamp JSON");
+    assert!(
+        body.get("missing").is_none() || body["missing"] == serde_json::json!([]),
+        "gitlink must not be classified as missing: {body}"
+    );
+    assert_eq!(
+        body["scope"],
+        serde_json::json!([{ "path": "frontend", "hash": expected_hash }]),
+        "scope must carry canonical gitlink fingerprint: {body}"
+    );
+}

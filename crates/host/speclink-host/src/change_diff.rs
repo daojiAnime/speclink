@@ -274,7 +274,7 @@ fn carry_snapshots(ws: &Workspace, change: &str, from_root: &Path) -> Result<()>
 // --- D2: the single Git-backed change-diff resolver ---
 
 /// File delta kind (change-diff-scope spec: modified／added／deleted／
-/// renamed／binary).
+/// renamed／binary／submodule).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DeltaKind {
@@ -283,6 +283,7 @@ pub enum DeltaKind {
     Deleted,
     Renamed,
     Binary,
+    Submodule,
 }
 
 impl DeltaKind {
@@ -293,6 +294,7 @@ impl DeltaKind {
             DeltaKind::Deleted => "deleted",
             DeltaKind::Renamed => "renamed",
             DeltaKind::Binary => "binary",
+            DeltaKind::Submodule => "submodule",
         }
     }
 }
@@ -855,13 +857,43 @@ fn resolve_validation_scope(
     // frozen text must travel into the new snapshot — the next round still
     // validates them against this exact state.
     let mut carried_texts: Vec<SnapshotText> = Vec::new();
+    // Cache older snapshots along `patch_hash_chain` so both finding walk-back
+    // (unchanged submodule/binary findings from an earlier round) and adjacent
+    // walk-back load each snapshot at most once.
+    let mut older_cache: std::collections::HashMap<String, Snapshot> =
+        std::collections::HashMap::new();
+    let snap_knows = |s: &Snapshot, path: &str| -> bool {
+        snapshot_preserves(s, path)
+            || s.files.iter().any(|f| f.old_path.as_deref() == Some(path))
+    };
     for path in &finding_paths {
-        match remediation_segment(ws, &snap, path)? {
+        let mut origin_hash: Option<String> = None;
+        if !snap_knows(&snap, path) {
+            for older_hash in ticket.patch_hash_chain.iter().skip(1) {
+                if !older_cache.contains_key(older_hash.as_str()) {
+                    let Some(older) = load_snapshot(ws, &req.change, req.station, older_hash)
+                    else {
+                        anyhow::bail!(
+                            "frozen snapshot for {older_hash} is missing — the ticket's round \
+                             chain cannot be walked back to rebuild {path}; keep the ticket and \
+                             stop, or discard it and re-run discovery explicitly"
+                        );
+                    };
+                    older_cache.insert(older_hash.clone(), older);
+                }
+                if snap_knows(&older_cache[older_hash.as_str()], path) {
+                    origin_hash = Some(older_hash.clone());
+                    break;
+                }
+            }
+        }
+        let origin = origin_hash.as_deref().map(|h| &older_cache[h]).unwrap_or(&snap);
+        match remediation_segment(ws, origin, path)? {
             Some((seg, delta, text)) => {
                 entries.push((path.clone(), seg, attributed(delta, Attribution::Finding), text))
             }
             None => {
-                if let Some(t) = snap.texts.iter().find(|t| &t.path == path) {
+                if let Some(t) = origin.texts.iter().find(|t| &t.path == path) {
                     carried_texts.push(SnapshotText {
                         path: path.clone(),
                         before_text: t.after_text.clone(),
@@ -879,7 +911,8 @@ fn resolve_validation_scope(
         if finding_paths.contains(&entry.path) {
             continue;
         }
-        let now = std::fs::read(ws.root.join(&entry.path)).ok().map(|b| sha256_prefixed(&b));
+        let now =
+            speclink_core::util::read_scope_bytes(&ws.root, &entry.path).map(|b| sha256_prefixed(&b));
         if now.as_deref() == Some(entry.hash.as_str()) {
             continue; // content did not move — nothing to review
         }
@@ -895,18 +928,22 @@ fn resolve_validation_scope(
         if pending.is_empty() {
             break;
         }
-        let Some(older) = load_snapshot(ws, &req.change, req.station, older_hash) else {
-            anyhow::bail!(
-                "frozen snapshot for {older_hash} is missing — the ticket's round chain \
-                 cannot be walked back to rebuild {}; keep the ticket and stop, or discard \
-                 it and re-run discovery explicitly",
-                pending.join(", ")
-            );
-        };
+        if !older_cache.contains_key(older_hash.as_str()) {
+            let Some(older) = load_snapshot(ws, &req.change, req.station, older_hash) else {
+                anyhow::bail!(
+                    "frozen snapshot for {older_hash} is missing — the ticket's round chain \
+                     cannot be walked back to rebuild {}; keep the ticket and stop, or discard \
+                     it and re-run discovery explicitly",
+                    pending.join(", ")
+                );
+            };
+            older_cache.insert(older_hash.clone(), older);
+        }
+        let older = &older_cache[older_hash.as_str()];
         let mut still_pending = Vec::new();
         for path in pending {
-            if snapshot_preserves(&older, &path) {
-                push_adjacent(ws, &older, &path, None, &mut entries)?;
+            if snapshot_preserves(older, &path) {
+                push_adjacent(ws, older, &path, None, &mut entries)?;
             } else {
                 still_pending.push(path);
             }
@@ -928,7 +965,7 @@ fn resolve_validation_scope(
     let deletion_frozen = |p: &str| {
         (snap.files.iter().any(|f| f.old_path.as_deref() == Some(p) && f.new_path.is_none())
             || snap.texts.iter().any(|t| t.path == p && t.after_text.is_none()))
-            && !ws.root.join(p).exists()
+            && !speclink_core::util::scope_entry_exists(&ws.root, p)
     };
     let mut new_dirty: Vec<String> = Vec::new();
     for p in speclink_core::tasks::git_changed_files(ws) {
@@ -1036,9 +1073,9 @@ fn remediation_segment(
         .files
         .iter()
         .find(|f| f.new_path.as_deref() == Some(path) || f.old_path.as_deref() == Some(path));
-    let current = std::fs::read(ws.root.join(path)).ok();
+    let current = speclink_core::util::read_scope_bytes(&ws.root, path);
     let Some(frozen_text) = frozen_text else {
-        // No frozen text: the path was binary (or absent) in the frozen scope.
+        // No frozen text: the path was binary, submodule, or absent in the frozen scope.
         let Some(frozen) = frozen_delta else {
             anyhow::bail!(
                 "scope path '{path}' is not part of the frozen snapshot — the ticket and \
@@ -1047,6 +1084,58 @@ fn remediation_segment(
         };
         let before_hash = frozen.after_hash.clone();
         let after_hash = current.as_deref().map(sha256_prefixed);
+        if frozen.kind == DeltaKind::Submodule {
+            // Submodule dir still present in index (160000) but unreadable (e.g. corrupted `.git`)
+            // must fail closed rather than pretending the submodule was deleted.
+            if current.is_none() && speclink_core::util::scope_entry_exists(&ws.root, path) {
+                anyhow::bail!("cannot read gitlink state for '{path}'");
+            }
+            if before_hash == after_hash {
+                return Ok(None);
+            }
+            // Submodule replaced by a regular (text or binary) file during remediation:
+            // emit a real file/binary delta instead of stuffing raw bytes under Submodule.
+            if ws.root.join(path).is_file() {
+                let (seg, mut delta) = synthesize_addition(&ws.root, path)?;
+                delta.old_path = Some(path.to_string());
+                delta.before_hash = before_hash;
+                let text = if delta.kind == DeltaKind::Binary {
+                    None
+                } else {
+                    Some(SnapshotText {
+                        path: path.to_string(),
+                        before_text: None,
+                        after_text: current.and_then(|b| String::from_utf8(b).ok()),
+                    })
+                };
+                return Ok(Some((seg, delta, text)));
+            }
+            let seg = match &current {
+                Some(bytes) => {
+                    let state = String::from_utf8_lossy(bytes);
+                    let mut s = format!("diff --git a/{path} b/{path}\nSubmodule {path} changed:\n");
+                    for line in state.lines() {
+                        s.push('+');
+                        s.push_str(line);
+                        s.push('\n');
+                    }
+                    s
+                }
+                None => format!(
+                    "diff --git a/{path} b/{path}\ndeleted file mode 160000\nSubmodule {path} deleted\n"
+                ),
+            };
+            let delta = FileDelta {
+                old_path: Some(path.to_string()),
+                new_path: current.is_some().then(|| path.to_string()),
+                kind: DeltaKind::Submodule,
+                before_hash,
+                after_hash,
+                hunks: Vec::new(),
+                attribution: None,
+            };
+            return Ok(Some((seg, delta, None)));
+        }
         if before_hash == after_hash {
             return Ok(None);
         }
@@ -1186,7 +1275,7 @@ fn discovery_texts(
 ) -> Result<Vec<SnapshotText>> {
     let mut texts = Vec::new();
     for f in files {
-        if f.kind == DeltaKind::Binary {
+        if matches!(f.kind, DeltaKind::Binary | DeltaKind::Submodule) {
             continue;
         }
         let before_text = match &f.old_path {
@@ -1222,8 +1311,9 @@ fn write_scope_snapshot(
     let mut dirty_files_at_capture = Vec::new();
     for path in speclink_core::tasks::git_changed_files(ws) {
         // A dirty-deleted file has no bytes to hash; it re-enters review as a
-        // fresh path if it ever reappears.
-        if let Ok(bytes) = std::fs::read(ws.root.join(&path)) {
+        // fresh path if it ever reappears. Gitlinks use canonical submodule bytes
+        // so the ledger matches delta.after_hash.
+        if let Some(bytes) = speclink_core::util::read_scope_bytes(&ws.root, &path) {
             dirty_files_at_capture.push(PathHash { path, hash: sha256_prefixed(&bytes) });
         }
     }
@@ -1287,8 +1377,8 @@ fn apply_selection(
         }
         if !candidate.files.iter().any(|f| f.hunks.iter().any(|h| &h.id == id)) {
             anyhow::bail!(
-                "unknown --include-hunk id: {id} — binary deltas have no selectable hunks; \
-                 list the current candidate with review scope --json"
+                "unknown --include-hunk id: {id} — binary and submodule deltas have no selectable \
+                 hunks; list the current candidate with review scope --json"
             );
         }
     }
@@ -1458,7 +1548,15 @@ fn split_file_segments(patch: &str) -> Vec<String> {
 fn parse_segment(seg: &str, root: &std::path::Path, base: &str) -> Result<FileDelta> {
     let mut old_path: Option<String> = None;
     let mut new_path: Option<String> = None;
-    let (mut renamed, mut added, mut deleted, mut binary) = (false, false, false, false);
+    let (
+        mut renamed,
+        mut added,
+        mut deleted,
+        mut binary,
+        mut old_is_submodule,
+        mut new_is_submodule,
+        mut saw_mode_change,
+    ) = (false, false, false, false, false, false, false);
     // Header lines only: past the first `@@` every line is hunk body, where a
     // deleted `-- x` reads as `--- x` and an added `++ x` as `+++ x`. Scanning
     // on would let file content overwrite the parsed paths.
@@ -1479,8 +1577,27 @@ fn parse_segment(seg: &str, root: &std::path::Path, base: &str) -> Result<FileDe
             }
         } else if line.starts_with("new file mode") {
             added = true;
+            if line == "new file mode 160000" {
+                new_is_submodule = true;
+            }
         } else if line.starts_with("deleted file mode") {
             deleted = true;
+            if line == "deleted file mode 160000" {
+                old_is_submodule = true;
+            }
+        } else if line.starts_with("old mode ") {
+            saw_mode_change = true;
+            if line == "old mode 160000" {
+                old_is_submodule = true;
+            }
+        } else if line.starts_with("new mode ") {
+            saw_mode_change = true;
+            if line == "new mode 160000" {
+                new_is_submodule = true;
+            }
+        } else if !saw_mode_change && line.starts_with("index ") && line.ends_with(" 160000") {
+            old_is_submodule = !added;
+            new_is_submodule = !deleted;
         } else if line.starts_with("Binary files ") || line.starts_with("GIT binary patch") {
             binary = true;
         }
@@ -1499,11 +1616,39 @@ fn parse_segment(seg: &str, root: &std::path::Path, base: &str) -> Result<FileDe
     }
     if added {
         old_path = None;
+        old_is_submodule = false;
     }
     if deleted {
         new_path = None;
+        new_is_submodule = false;
     }
-    let kind = if binary {
+    // Dirty-only gitlink segments omit the `index ... 160000` line because the
+    // gitlink OID did not move, and pure gitlink renames omit mode lines too.
+    // Checking `is_dir()` first keeps regular files at zero extra git calls.
+    if !old_is_submodule && !new_is_submodule {
+        let new_is_gitlink_dir = new_path.as_deref().is_some_and(|p| {
+            root.join(p).is_dir() && speclink_core::util::scope_entry_exists(root, p)
+        });
+        if new_is_gitlink_dir {
+            new_is_submodule = true;
+            if let Some(p) = old_path.as_deref() {
+                if speclink_core::util::gitlink_commit_at(root, base, p).is_some() {
+                    old_is_submodule = true;
+                }
+            }
+        } else if renamed
+            && old_path
+                .as_deref()
+                .is_some_and(|p| speclink_core::util::gitlink_commit_at(root, base, p).is_some())
+        {
+            old_is_submodule = true;
+            new_is_submodule = !deleted;
+        }
+    }
+    let submodule = old_is_submodule || new_is_submodule;
+    let kind = if submodule {
+        DeltaKind::Submodule
+    } else if binary {
         DeltaKind::Binary
     } else if added {
         DeltaKind::Added
@@ -1514,12 +1659,23 @@ fn parse_segment(seg: &str, root: &std::path::Path, base: &str) -> Result<FileDe
     } else {
         DeltaKind::Modified
     };
-    let hunks = if binary { Vec::new() } else { parse_hunks(seg, &old_path, &new_path) };
+    let hunks =
+        if submodule || binary { Vec::new() } else { parse_hunks(seg, &old_path, &new_path) };
     let before_hash = match &old_path {
+        Some(p) if old_is_submodule => {
+            let sha = speclink_core::util::gitlink_commit_at(root, base, p)
+                .with_context(|| format!("gitlink '{p}' not found at base commit {base}"))?;
+            Some(sha256_prefixed(&speclink_core::util::gitlink_canonical_bytes(&sha)))
+        }
         Some(p) => Some(sha256_prefixed(&git_bytes(root, &["show", &format!("{base}:{p}")])?)),
         None => None,
     };
     let after_hash = match &new_path {
+        Some(p) if new_is_submodule => {
+            let bytes = speclink_core::util::read_scope_bytes(root, p)
+                .with_context(|| format!("cannot read gitlink state for '{p}'"))?;
+            Some(sha256_prefixed(&bytes))
+        }
         Some(p) => {
             let bytes = std::fs::read(root.join(p))
                 .with_context(|| format!("cannot read worktree file {p}"))?;
@@ -3133,5 +3289,484 @@ mod tests {
         let err = prepare_at(&ws, "demo", "HEAD", &[], Some(&gone)).expect_err("missing --from");
         assert!(format!("{err:#}").contains("no-such-worktree"), "{err:#}");
         assert!(!scope_dir(&ws, "demo").exists(), "zero writes");
+    }
+
+    // --- gitlink (mode 160000 submodule) discovery, needsInput, and validation ---
+
+    fn git_in(dir: &Path, args: &[&str]) -> String {
+        let out = Command::new("git")
+            .args([
+                "-c",
+                "user.name=Sandbox Tester",
+                "-c",
+                "user.email=sandbox@example.com",
+                "-c",
+                "core.quotepath=false",
+            ])
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .expect("git should run");
+        assert!(
+            out.status.success(),
+            "git {args:?} failed in {}:\nstdout: {}\nstderr: {}",
+            dir.display(),
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    fn make_upstream_sub(tag: &str) -> TempRepo {
+        let sub = TempRepo::no_git(tag);
+        std::fs::remove_dir_all(sub.root.join("src")).unwrap();
+        sub.write("app.txt", &format!("v1-{tag}\n"));
+        git_in(&sub.root, &["init", "-q", "-b", "main"]);
+        git_in(&sub.root, &["add", "-A"]);
+        git_in(&sub.root, &["commit", "-q", "-m", &format!("init {tag}")]);
+        sub
+    }
+
+    fn add_submodule(parent: &TempRepo, upstream: &TempRepo, mount: &str) {
+        let src = upstream.root.to_str().unwrap();
+        git_in(
+            &parent.root,
+            &["-c", "protocol.file.allow=always", "submodule", "add", "-q", src, mount],
+        );
+        git_in(&parent.root, &["commit", "-q", "-m", &format!("add {mount}")]);
+    }
+
+    #[test]
+    fn discovery_dirty_submodule_resolves_as_submodule_delta() {
+        let up = make_upstream_sub("up-dirty");
+        let sub_sha = up.head();
+        let repo = TempRepo::new("gitlink-dirty");
+        add_submodule(&repo, &up, "frontend");
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("clean baseline");
+
+        // Submodule worktree dirty, submodule HEAD unchanged
+        repo.write("frontend/app.txt", "v1-dirty\n");
+        let r = resolved(&ws, &scope_req(&["frontend"]));
+        assert_eq!(r.phase, Phase::Discovery);
+        assert_eq!(r.paths, vec!["frontend".to_string()]);
+        assert_eq!(r.files.len(), 1);
+        let f = &r.files[0];
+        assert_eq!(f.old_path.as_deref(), Some("frontend"));
+        assert_eq!(f.new_path.as_deref(), Some("frontend"));
+        assert_eq!(f.kind, DeltaKind::Submodule);
+        assert_eq!(serde_json::to_value(f.kind).unwrap(), serde_json::json!("submodule"));
+        assert!(f.hunks.is_empty());
+        let expected_before = sha256_of(format!("Subproject commit {sub_sha}\n").as_bytes());
+        assert_eq!(f.before_hash.as_deref(), Some(expected_before.as_str()));
+        assert!(f.after_hash.is_some());
+        assert_ne!(f.after_hash, f.before_hash);
+
+        let snap = load_snapshot(&ws, "demo", StationNs::Review, &r.patch_hash)
+            .expect("snapshot written");
+        assert!(
+            !snap.texts.iter().any(|t| t.path == "frontend"),
+            "submodule delta must not store texts"
+        );
+        let ledger = snap
+            .dirty_files_at_capture
+            .iter()
+            .find(|e| e.path == "frontend")
+            .expect("gitlink recorded in dirty_files_at_capture");
+        assert_eq!(Some(ledger.hash.as_str()), f.after_hash.as_deref());
+    }
+
+    #[test]
+    fn discovery_submodule_advance_add_delete_and_uninitialized() {
+        let up_a = make_upstream_sub("up-a");
+        let up_b = make_upstream_sub("up-b");
+        let up_v = make_upstream_sub("up-v");
+        let up_new = make_upstream_sub("up-new");
+        let sha_a1 = up_a.head();
+        let sha_b1 = up_b.head();
+        let sha_v1 = up_v.head();
+
+        let repo = TempRepo::new("gitlink-matrix");
+        add_submodule(&repo, &up_a, "sub-a");
+        add_submodule(&repo, &up_b, "sub-b");
+        add_submodule(&repo, &up_v, "vendor-sub");
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("clean baseline");
+
+        // 1) Advance sub-a commit
+        repo.write("sub-a/app.txt", "v2\n");
+        git_in(&repo.root.join("sub-a"), &["add", "app.txt"]);
+        git_in(&repo.root.join("sub-a"), &["commit", "-q", "-m", "advance sub-a"]);
+        let sha_a2 = git_in(&repo.root.join("sub-a"), &["rev-parse", "HEAD"]);
+        git_in(&repo.root, &["add", "sub-a"]);
+
+        // 2) Delete sub-b
+        git_in(&repo.root, &["rm", "-f", "-q", "sub-b"]);
+
+        // 3) Add new submodule sub-new (staged, uncommitted)
+        let new_src = up_new.root.to_str().unwrap();
+        git_in(
+            &repo.root,
+            &["-c", "protocol.file.allow=always", "submodule", "add", "-q", new_src, "sub-new"],
+        );
+        let sha_new = up_new.head();
+
+        // 4) Uninitialized submodule with updated index SHA
+        up_v.write("app.txt", "v2\n");
+        git_in(&up_v.root, &["add", "app.txt"]);
+        git_in(&up_v.root, &["commit", "-q", "-m", "v2"]);
+        let sha_v2 = up_v.head();
+        git_in(&repo.root, &["submodule", "deinit", "-f", "vendor-sub"]);
+        assert!(!repo.root.join("vendor-sub/.git").exists());
+        git_in(
+            &repo.root,
+            &["update-index", "--cacheinfo", &format!("160000,{sha_v2},vendor-sub")],
+        );
+
+        let r = resolved(&ws, &scope_req(&["sub-a", "sub-b", "sub-new", "vendor-sub"]));
+        let by_key = |k: &str| {
+            r.files
+                .iter()
+                .find(|f| f.new_path.as_deref() == Some(k) || f.old_path.as_deref() == Some(k))
+                .unwrap_or_else(|| panic!("missing delta for {k}: {:?}", r.files))
+        };
+
+        let fa = by_key("sub-a");
+        assert_eq!(fa.kind, DeltaKind::Submodule);
+        assert!(fa.hunks.is_empty());
+        assert_eq!(fa.before_hash, Some(sha256_of(format!("Subproject commit {sha_a1}\n").as_bytes())));
+        assert_eq!(fa.after_hash, Some(sha256_of(format!("Subproject commit {sha_a2}\n").as_bytes())));
+
+        let fb = by_key("sub-b");
+        assert_eq!(fb.kind, DeltaKind::Submodule);
+        assert_eq!(fb.old_path.as_deref(), Some("sub-b"));
+        assert_eq!(fb.new_path, None);
+        assert_eq!(fb.before_hash, Some(sha256_of(format!("Subproject commit {sha_b1}\n").as_bytes())));
+        assert_eq!(fb.after_hash, None);
+        assert!(fb.hunks.is_empty());
+
+        let fnew = by_key("sub-new");
+        assert_eq!(fnew.kind, DeltaKind::Submodule);
+        assert_eq!(fnew.old_path, None);
+        assert_eq!(fnew.new_path.as_deref(), Some("sub-new"));
+        assert_eq!(fnew.before_hash, None);
+        assert_eq!(fnew.after_hash, Some(sha256_of(format!("Subproject commit {sha_new}\n").as_bytes())));
+        assert!(fnew.hunks.is_empty());
+
+        let fv = by_key("vendor-sub");
+        assert_eq!(fv.kind, DeltaKind::Submodule);
+        assert_eq!(fv.before_hash, Some(sha256_of(format!("Subproject commit {sha_v1}\n").as_bytes())));
+        assert_eq!(fv.after_hash, Some(sha256_of(format!("Subproject commit {sha_v2}\n").as_bytes())));
+        assert!(fv.hunks.is_empty());
+    }
+
+    #[test]
+    fn needs_input_with_submodule_preserves_candidate_hash_and_rejects_include_hunk() {
+        let up = make_upstream_sub("up-ambig");
+        let repo = TempRepo::new("gitlink-ambig");
+        add_submodule(&repo, &up, "frontend");
+        // Dirty src/lib.rs BEFORE prepare so it lands in dirtyFilesAtStart
+        repo.write("src/lib.rs", "fn demo() { pre_dirty(); }\n");
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("baseline with dirty src/lib.rs");
+        // Now also dirty the submodule
+        repo.write("frontend/app.txt", "v1-dirty\n");
+
+        let outcome = resolve_scope(&ws, &scope_req(&["src/lib.rs", "frontend"]))
+            .expect("needsInput should not crash");
+        let ScopeOutcome::NeedsInput(n) = outcome else {
+            panic!("expected NeedsInput, got {outcome:?}");
+        };
+        assert!(n.candidate_hash.is_some(), "candidateHash must be non-null: {n:?}");
+        assert!(n.ambiguous_paths.contains(&"src/lib.rs".to_string()));
+        let text_delta = n
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("src/lib.rs"))
+            .expect("text delta present");
+        assert!(!text_delta.hunks.is_empty(), "text file keeps selectable hunks");
+        let sub_delta = n
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("frontend"))
+            .expect("submodule delta present");
+        assert_eq!(sub_delta.kind, DeltaKind::Submodule);
+        assert!(sub_delta.hunks.is_empty());
+        assert!(snapshot_files(&ws, "demo").is_empty(), "needsInput writes no snapshot");
+
+        // Attempting --include-hunk against a candidate with submodule fails closed and mentions binary & submodule
+        let mut sel = scope_req(&["src/lib.rs", "frontend"]);
+        sel.candidate_hash = n.candidate_hash;
+        sel.include_hunks = vec!["bogus-hunk-id".to_string()];
+        let err = resolve_scope(&ws, &sel).expect_err("unknown/submodule hunk must fail");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("binary") && msg.contains("submodule"),
+            "rejection message must mention both binary and submodule: {msg}"
+        );
+        assert!(snapshot_files(&ws, "demo").is_empty(), "rejected selection writes no snapshot");
+    }
+
+    #[test]
+    fn validation_submodule_unchanged_omitted_and_dirty_edits_reenter_finding_and_adjacent() {
+        let up = make_upstream_sub("up-val");
+        let repo = TempRepo::new("gitlink-val");
+        add_submodule(&repo, &up, "frontend");
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("clean baseline");
+
+        // Round 1: dirty submodule + modified text file
+        repo.write("src/lib.rs", "fn demo() { r1(); }\n");
+        repo.write("frontend/app.txt", "dirty-r1\n");
+        let r1 = resolved(&ws, &scope_req(&["src/lib.rs", "frontend"]));
+        let r1_sub = r1
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("frontend"))
+            .expect("r1 frontend")
+            .clone();
+
+        // Case 1: only src/lib.rs changes in Round 2 -> frontend stays out of validation patch
+        repo.write("src/lib.rs", "fn demo() { r2(); }\n");
+        let mut req_unchanged = scope_req(&["src/lib.rs", "frontend"]);
+        req_unchanged.ticket = Some(TicketBinding {
+            patch_hash_chain: vec![r1.patch_hash.clone()],
+            finding_paths: vec!["src/lib.rs".to_string()],
+        });
+        let r2_unchanged = resolved(&ws, &req_unchanged);
+        assert_eq!(r2_unchanged.phase, Phase::Validation);
+        assert_eq!(r2_unchanged.paths, vec!["src/lib.rs".to_string()]);
+
+        // Case 2: edit submodule dirty content again (HEAD unchanged) -> re-enters as finding
+        repo.write("frontend/app.txt", "dirty-r2\n");
+        let mut req_finding = scope_req(&["src/lib.rs", "frontend"]);
+        req_finding.ticket = Some(TicketBinding {
+            patch_hash_chain: vec![r1.patch_hash.clone()],
+            finding_paths: vec!["frontend".to_string()],
+        });
+        let r2_finding = resolved(&ws, &req_finding);
+        let f_finding = r2_finding
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("frontend"))
+            .expect("frontend re-enters as finding");
+        assert_eq!(f_finding.kind, DeltaKind::Submodule);
+        assert!(f_finding.hunks.is_empty());
+        assert_eq!(f_finding.before_hash, r1_sub.after_hash);
+        assert_ne!(f_finding.after_hash, f_finding.before_hash);
+        assert_eq!(f_finding.attribution, Some(Attribution::Finding));
+
+        // Case 3: finding only names src/lib.rs, but frontend moved too -> re-enters as adjacent
+        let mut req_adj = scope_req(&["src/lib.rs", "frontend"]);
+        req_adj.ticket = Some(TicketBinding {
+            patch_hash_chain: vec![r1.patch_hash.clone()],
+            finding_paths: vec!["src/lib.rs".to_string()],
+        });
+        let r2_adj = resolved(&ws, &req_adj);
+        let f_adj = r2_adj
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("frontend"))
+            .expect("frontend re-enters as adjacent");
+        assert_eq!(f_adj.kind, DeltaKind::Submodule);
+        assert!(f_adj.hunks.is_empty());
+        assert_eq!(f_adj.before_hash, r1_sub.after_hash);
+        assert_ne!(f_adj.after_hash, f_adj.before_hash);
+        assert_eq!(f_adj.attribution, Some(Attribution::Adjacent));
+    }
+
+    #[test]
+    fn validation_deleted_submodule_stays_suppressed_on_followup_round() {
+        let up = make_upstream_sub("up-val-del");
+        let repo = TempRepo::new("gitlink-val-del");
+        add_submodule(&repo, &up, "frontend");
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("clean baseline");
+
+        // Round 1: delete submodule + edit src/lib.rs
+        git_in(&repo.root, &["rm", "-f", "-q", "frontend"]);
+        repo.write("src/lib.rs", "fn demo() { r1(); }\n");
+        let r1 = resolved(&ws, &scope_req(&["src/lib.rs", "frontend"]));
+
+        // Round 2: only touch src/lib.rs; deleted submodule must NOT re-enter as new
+        repo.write("src/lib.rs", "fn demo() { r2(); }\n");
+        let mut req = scope_req(&["src/lib.rs", "frontend"]);
+        req.ticket = Some(TicketBinding {
+            patch_hash_chain: vec![r1.patch_hash.clone()],
+            finding_paths: vec!["src/lib.rs".to_string()],
+        });
+        let r2 = resolved(&ws, &req);
+        assert_eq!(r2.paths, vec!["src/lib.rs".to_string()]);
+    }
+
+    #[test]
+    fn gitlink_sharp_edges_dash_space_non_ascii_and_corrupted_dot_git() {
+        let up1 = make_upstream_sub("up-edge-dash");
+        let up2 = make_upstream_sub("up-edge-cjk");
+        let repo = TempRepo::new("gitlink-edges");
+        // Leading `-` gitlink created via clone + `git add --`
+        let src1 = up1.root.to_str().unwrap();
+        git_in(
+            &repo.root,
+            &["-c", "protocol.file.allow=always", "clone", "-q", src1, "--", "-dash-sub"],
+        );
+        git_in(&repo.root, &["add", "--", "-dash-sub"]);
+        // Space + non-ASCII CJK submodule path
+        let src2 = up2.root.to_str().unwrap();
+        git_in(
+            &repo.root,
+            &["-c", "protocol.file.allow=always", "submodule", "add", "-q", src2, "sub dir/前端"],
+        );
+        git_in(&repo.root, &["commit", "-q", "-m", "add edge submodules"]);
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("clean baseline");
+
+        // Dirty both edge-path submodules and resolve discovery
+        repo.write("-dash-sub/app.txt", "dirty-dash\n");
+        repo.write("sub dir/前端/app.txt", "dirty-cjk\n");
+        let r1 = resolved(&ws, &scope_req(&["-dash-sub", "sub dir/前端"]));
+        assert_eq!(r1.paths, vec!["-dash-sub".to_string(), "sub dir/前端".to_string()]);
+        for f in &r1.files {
+            assert_eq!(f.kind, DeltaKind::Submodule);
+            assert!(f.hunks.is_empty());
+            assert_ne!(f.before_hash, f.after_hash);
+        }
+
+        // Corrupted `.git` in a submodule must fail closed (never fabricate a hash)
+        let up_bad = make_upstream_sub("up-edge-bad");
+        let bad_repo = TempRepo::new("gitlink-corrupt");
+        add_submodule(&bad_repo, &up_bad, "broken-sub");
+        let bad_ws = bad_repo.ws();
+        prepare(&bad_ws, "demo", false).expect("clean baseline");
+        std::fs::write(
+            bad_repo.root.join("broken-sub/.git"),
+            "gitdir: /nonexistent/corrupted/gitdir\n",
+        )
+        .unwrap();
+        let outcome = resolve_scope(&bad_ws, &scope_req(&["broken-sub"]));
+        assert!(
+            !matches!(outcome, Ok(ScopeOutcome::Resolved(_))),
+            "corrupted submodule .git must never silently resolve: {outcome:?}"
+        );
+    }
+
+    #[test]
+    fn validation_multi_round_unchanged_submodule_finding_walks_hash_chain() {
+        // Review CRITICAL: Round 1 freezes src/lib.rs + dirty frontend; Round 2 fixes
+        // only src/lib.rs (frontend unchanged); Round 3 modifies frontend and still names
+        // frontend as a finding — must walk patch_hash_chain to Round 1 and resolve cleanly.
+        let up = make_upstream_sub("up-multi");
+        let repo = TempRepo::new("gitlink-multi-round");
+        add_submodule(&repo, &up, "frontend");
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("clean baseline");
+
+        repo.write("src/lib.rs", "fn demo() { r1(); }\n");
+        repo.write("frontend/app.txt", "dirty-r1\n");
+        let r1 = resolved(&ws, &scope_req(&["src/lib.rs", "frontend"]));
+        let r1_sub_hash = r1
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("frontend"))
+            .unwrap()
+            .after_hash
+            .clone();
+
+        // Round 2: fix only src/lib.rs; frontend stays unchanged even though still a finding
+        repo.write("src/lib.rs", "fn demo() { r2(); }\n");
+        let mut req_r2 = scope_req(&["src/lib.rs", "frontend"]);
+        req_r2.ticket = Some(TicketBinding {
+            patch_hash_chain: vec![r1.patch_hash.clone()],
+            finding_paths: vec!["src/lib.rs".to_string(), "frontend".to_string()],
+        });
+        let r2 = resolved(&ws, &req_r2);
+        assert_eq!(r2.paths, vec!["src/lib.rs".to_string()]);
+
+        // Round 3: now fix frontend; chain is [r2, r1] newest->oldest
+        repo.write("frontend/app.txt", "dirty-r3\n");
+        let mut req_r3 = scope_req(&["src/lib.rs", "frontend"]);
+        req_r3.ticket = Some(TicketBinding {
+            patch_hash_chain: vec![r2.patch_hash.clone(), r1.patch_hash.clone()],
+            finding_paths: vec!["frontend".to_string()],
+        });
+        let r3 = resolved(&ws, &req_r3);
+        let f3 = r3
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("frontend"))
+            .expect("frontend resolves in Round 3 via Round 1 snapshot");
+        assert_eq!(f3.kind, DeltaKind::Submodule);
+        assert_eq!(f3.before_hash, r1_sub_hash);
+        assert_ne!(f3.after_hash, r1_sub_hash);
+        assert_eq!(f3.attribution, Some(Attribution::Finding));
+    }
+
+    #[test]
+    fn validation_submodule_clean_recovery_corrupted_dot_git_typechange_and_pure_rename() {
+        // 1) Validation: dirty submodule restored back to clean -> re-enters with clean afterHash
+        let up = make_upstream_sub("up-recover");
+        let clean_sha = up.head();
+        let repo = TempRepo::new("gitlink-recover");
+        add_submodule(&repo, &up, "frontend");
+        let ws = repo.ws();
+        prepare(&ws, "demo", false).expect("clean baseline");
+
+        repo.write("frontend/app.txt", "dirty-r1\n");
+        let r1 = resolved(&ws, &scope_req(&["frontend"]));
+        let r1_dirty_hash = r1.files[0].after_hash.clone();
+
+        git_in(&repo.root.join("frontend"), &["checkout", "--", "app.txt"]);
+        let mut req_clean = scope_req(&["frontend"]);
+        req_clean.ticket = Some(TicketBinding {
+            patch_hash_chain: vec![r1.patch_hash.clone()],
+            finding_paths: vec!["frontend".to_string()],
+        });
+        let r2_clean = resolved(&ws, &req_clean);
+        assert_eq!(r2_clean.files.len(), 1);
+        assert_eq!(r2_clean.files[0].kind, DeltaKind::Submodule);
+        assert_eq!(r2_clean.files[0].before_hash, r1_dirty_hash);
+        assert_eq!(
+            r2_clean.files[0].after_hash,
+            Some(sha256_of(&speclink_core::util::gitlink_canonical_bytes(&clean_sha)))
+        );
+
+        // 2) Validation: corrupted `.git` in 160000 submodule fails closed (not treated as deleted)
+        std::fs::write(
+            repo.root.join("frontend/.git"),
+            "gitdir: /nonexistent/corrupted/gitdir\n",
+        )
+        .unwrap();
+        let err = resolve_scope(&ws, &req_clean)
+            .expect_err("corrupted submodule .git in validation must fail closed");
+        assert!(format!("{err:#}").contains("frontend"), "{err:#}");
+
+        // 3) Validation: submodule replaced by a regular binary file -> emits Binary, not Submodule
+        std::fs::remove_dir_all(repo.root.join("frontend")).unwrap();
+        std::fs::write(repo.root.join("frontend"), [0u8, 1, 2, 3]).unwrap();
+        let r2_replaced = resolved(&ws, &req_clean);
+        assert_eq!(r2_replaced.files[0].kind, DeltaKind::Binary);
+        assert_eq!(r2_replaced.files[0].before_hash, r1_dirty_hash);
+
+        // 4) Discovery: pure gitlink rename (`git mv`) -> DeltaKind::Submodule with oldPath & newPath
+        let up_ren = make_upstream_sub("up-rename");
+        let ren_sha = up_ren.head();
+        let ren_repo = TempRepo::new("gitlink-rename");
+        add_submodule(&ren_repo, &up_ren, "sub-old");
+        let ren_ws = ren_repo.ws();
+        prepare(&ren_ws, "demo", false).expect("clean baseline");
+        git_in(&ren_repo.root, &["mv", "sub-old", "sub-new"]);
+        let r_ren = resolved(&ren_ws, &scope_req(&["sub-old", "sub-new"]));
+        let f_ren = r_ren
+            .files
+            .iter()
+            .find(|f| f.new_path.as_deref() == Some("sub-new"))
+            .expect("renamed gitlink delta");
+        assert_eq!(f_ren.kind, DeltaKind::Submodule);
+        assert_eq!(f_ren.old_path.as_deref(), Some("sub-old"));
+        assert_eq!(f_ren.new_path.as_deref(), Some("sub-new"));
+        let expected = Some(sha256_of(&speclink_core::util::gitlink_canonical_bytes(&ren_sha)));
+        assert_eq!(f_ren.before_hash, expected);
+        assert_eq!(f_ren.after_hash, expected);
+        assert!(f_ren.hunks.is_empty());
     }
 }

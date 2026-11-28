@@ -8,9 +8,273 @@ pub fn read_opt(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
-/// Read a file to bytes, returning None if it does not exist / cannot be read.
-pub fn read_bytes_opt(path: &Path) -> Option<Vec<u8>> {
-    std::fs::read(path).ok()
+/// Canonical bytes representing a clean or uninitialized gitlink pointing at `sha`.
+/// Shared by `read_scope_bytes`, `speclink-host::change_diff`, and desktop remote freshness
+/// so every consumer produces identical bytes.
+pub fn gitlink_canonical_bytes(sha: &str) -> Vec<u8> {
+    format!("Subproject commit {sha}\n").into_bytes()
+}
+
+/// Normalize a repo-relative path for git pathspec/output comparison:
+/// forward slashes, collapses `.` and repeated `/`, no trailing slash. Rejects empty paths,
+/// NUL bytes, absolute paths, drive letters, and `..` traversal so callers cannot escape `root`.
+fn normalize_git_rel_path(rel_path: &str) -> Option<String> {
+    if rel_path.contains('\0') {
+        return None;
+    }
+    let replaced = rel_path.replace('\\', "/");
+    if replaced.starts_with('/') {
+        return None;
+    }
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in replaced.split('/') {
+        if seg.is_empty() || seg == "." {
+            continue;
+        }
+        if seg == ".." || seg.contains(':') {
+            return None;
+        }
+        parts.push(seg);
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    Some(parts.join("/"))
+}
+
+fn is_git_hex_oid(s: &str) -> bool {
+    s.len() >= 40 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// True when `sub_dir` is itself the top-level work tree of its own git checkout
+/// (never climbing into the parent repository when `sub_dir/.git` is an empty/broken
+/// directory or a dangling symlink).
+fn is_own_git_worktree(sub_dir: &Path) -> bool {
+    let mut cmd = git_command(sub_dir);
+    if let Some(parent) = sub_dir.parent() {
+        cmd.env("GIT_CEILING_DIRECTORIES", parent);
+    }
+    let Ok(out) = cmd.args(["rev-parse", "--show-toplevel"]).output() else {
+        return false;
+    };
+    if !out.status.success() {
+        return false;
+    }
+    let top = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if top.is_empty() {
+        return false;
+    }
+    match (std::fs::canonicalize(&top), std::fs::canonicalize(sub_dir)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => Path::new(&top) == sub_dir,
+    }
+}
+
+/// Run `git -C <root> <args...>`, returning raw stdout bytes on success.
+fn git_bytes_opt(root: &Path, args: &[&str]) -> Option<Vec<u8>> {
+    let output = git_command(root).args(args).output().ok()?;
+    output.status.success().then_some(output.stdout)
+}
+
+/// Inspect `<rev>` tree in `root` for a tree mode `160000` gitlink at `rel_path`,
+/// returning its recorded commit SHA. Returns `None` for regular files, plain
+/// directories, missing paths, or non-git checkouts.
+pub fn gitlink_commit_at(root: &Path, rev: &str, rel_path: &str) -> Option<String> {
+    let norm = normalize_git_rel_path(rel_path)?;
+    if rev.is_empty() || rev.starts_with('-') {
+        return None;
+    }
+    let raw = git_bytes_opt(
+        root,
+        &["-c", "core.quotepath=false", "ls-tree", "-z", rev, "--", &norm],
+    )?;
+    for entry in raw.split(|&b| b == 0).filter(|e| !e.is_empty()) {
+        let line = String::from_utf8_lossy(entry);
+        let Some((meta, path)) = line.split_once('\t') else {
+            continue;
+        };
+        if path != norm {
+            continue;
+        }
+        let mut parts = meta.split_whitespace();
+        let (Some(mode), Some(kind), Some(sha)) = (parts.next(), parts.next(), parts.next()) else {
+            continue;
+        };
+        if mode == "160000" && kind == "commit" && is_git_hex_oid(sha) {
+            return Some(sha.to_string());
+        }
+    }
+    None
+}
+
+/// Inspect the parent index in `root` for a mode `160000` gitlink entry at `rel_path`,
+/// returning its staged commit SHA (preferring stage 0).
+fn gitlink_index_commit(root: &Path, rel_path: &str) -> Option<String> {
+    let norm = normalize_git_rel_path(rel_path)?;
+    let raw = git_bytes_opt(
+        root,
+        &["-c", "core.quotepath=false", "ls-files", "--stage", "-z", "--", &norm],
+    )?;
+    let mut fallback: Option<String> = None;
+    for entry in raw.split(|&b| b == 0).filter(|e| !e.is_empty()) {
+        let line = String::from_utf8_lossy(entry);
+        let Some((meta, path)) = line.split_once('\t') else {
+            continue;
+        };
+        if path != norm {
+            continue;
+        }
+        let mut parts = meta.split_whitespace();
+        let (Some(mode), Some(sha), Some(stage)) = (parts.next(), parts.next(), parts.next())
+        else {
+            continue;
+        };
+        if mode == "160000" && is_git_hex_oid(sha) {
+            if stage == "0" {
+                return Some(sha.to_string());
+            }
+            if fallback.is_none() {
+                fallback = Some(sha.to_string());
+            }
+        }
+    }
+    fallback
+}
+
+/// True when `rel_path` exists in `root` as a reviewable scope entry:
+/// either a regular file or a directory backed by a parent index mode `160000` gitlink.
+/// Plain directories and missing paths return `false`.
+pub fn scope_entry_exists(root: &Path, rel_path: &str) -> bool {
+    let Some(norm) = normalize_git_rel_path(rel_path) else {
+        return false;
+    };
+    let full = root.join(&norm);
+    if full.is_file() {
+        return true;
+    }
+    if full.is_dir() {
+        return gitlink_index_commit(root, &norm).is_some();
+    }
+    false
+}
+
+/// Read canonical scope bytes for `rel_path` under `root`.
+///
+/// - Regular files take the direct `std::fs::read` fast path (no git subprocesses).
+/// - Directories are accepted only when the parent index records mode `160000`:
+///   - Uninitialized submodule (no `.git` inside) → `Subproject commit <index_sha>\n`.
+///   - Initialized & clean submodule → `Subproject commit <head_sha>\n`.
+///   - Initialized & dirty submodule → `Subproject commit <head_sha>-dirty\ndirty-worktree: sha256:<digest>\n`.
+///   - Corrupted `.git` inside a 160000 directory → `None` (fail closed).
+/// - Plain directories and missing paths return `None`.
+pub fn read_scope_bytes(root: &Path, rel_path: &str) -> Option<Vec<u8>> {
+    let norm = normalize_git_rel_path(rel_path)?;
+    let full = root.join(&norm);
+    if !full.is_dir() {
+        return std::fs::read(&full).ok();
+    }
+    let index_sha = gitlink_index_commit(root, &norm)?;
+    // 未初始化子模块：目录内无 `.git`，回退父仓索引记录的 160000 SHA
+    if full.join(".git").symlink_metadata().is_err() {
+        return Some(gitlink_canonical_bytes(&index_sha));
+    }
+    // 已存在 `.git` 但非该目录自有有效 git 工作树（如损坏 `.git` 文件、空 `.git` 目录
+    // 或悬空符号链接）：防止向上爬升命中父仓 `.git`，直接 fail closed
+    if !is_own_git_worktree(&full) {
+        return None;
+    }
+    let head_res = git(&full, &["rev-parse", "--verify", "HEAD"]);
+    let head_sha = head_res.clone().unwrap_or(index_sha);
+    let status_raw = git_bytes_opt(
+        &full,
+        &["-c", "core.quotepath=false", "status", "--porcelain", "-uall", "-z"],
+    )?;
+    if status_raw.is_empty() {
+        return Some(gitlink_canonical_bytes(&head_sha));
+    }
+    let digest = submodule_dirty_digest(&full, head_res.is_some(), &status_raw)?;
+    Some(format!("Subproject commit {head_sha}-dirty\ndirty-worktree: sha256:{digest}\n").into_bytes())
+}
+
+/// Compute a deterministic SHA-256 hex digest over a dirty submodule worktree:
+/// raw `status --porcelain -uall -z`, `diff HEAD --` (or staged+unstaged for unborn HEAD),
+/// and sorted untracked file paths + raw contents.
+fn submodule_dirty_digest(sub_dir: &Path, has_head: bool, status_raw: &[u8]) -> Option<String> {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"status\0");
+    hasher.update((status_raw.len() as u64).to_be_bytes());
+    hasher.update(b"\0");
+    hasher.update(status_raw);
+
+    hasher.update(b"diff\0");
+    if has_head {
+        let diff_raw = git_bytes_opt(
+            sub_dir,
+            &[
+                "-c",
+                "core.quotepath=false",
+                "diff",
+                "--no-color",
+                "--no-ext-diff",
+                "--full-index",
+                "HEAD",
+                "--",
+            ],
+        )?;
+        hasher.update((diff_raw.len() as u64).to_be_bytes());
+        hasher.update(b"\0");
+        hasher.update(&diff_raw);
+    } else {
+        let cached = git_bytes_opt(
+            sub_dir,
+            &["-c", "core.quotepath=false", "diff", "--no-color", "--no-ext-diff", "--full-index", "--cached"],
+        )?;
+        let unstaged = git_bytes_opt(
+            sub_dir,
+            &["-c", "core.quotepath=false", "diff", "--no-color", "--no-ext-diff", "--full-index"],
+        )?;
+        hasher.update((cached.len() as u64).to_be_bytes());
+        hasher.update(b"\0");
+        hasher.update(&cached);
+        hasher.update((unstaged.len() as u64).to_be_bytes());
+        hasher.update(b"\0");
+        hasher.update(&unstaged);
+    }
+
+    let mut untracked: Vec<String> = Vec::new();
+    let mut parts = status_raw.split(|&b| b == 0);
+    while let Some(entry) = parts.next() {
+        if entry.len() < 4 {
+            continue;
+        }
+        if entry.starts_with(b"?? ") {
+            let path = String::from_utf8_lossy(&entry[3..]).replace('\\', "/");
+            if !path.is_empty() {
+                untracked.push(path);
+            }
+        } else if matches!(entry[0], b'R' | b'C') || matches!(entry[1], b'R' | b'C') {
+            // `-z` 在重命名/复制条目后紧跟原始路径，需要消费掉以免误解析
+            let _ = parts.next();
+        }
+    }
+    untracked.sort();
+    untracked.dedup();
+
+    hasher.update(b"untracked\0");
+    for rel in untracked {
+        if let Ok(bytes) = std::fs::read(sub_dir.join(&rel)) {
+            hasher.update(rel.as_bytes());
+            hasher.update(b"\0");
+            hasher.update((bytes.len() as u64).to_be_bytes());
+            hasher.update(b"\0");
+            hasher.update(&bytes);
+            hasher.update(b"\0");
+        }
+    }
+
+    Some(format!("{:x}", hasher.finalize()))
 }
 
 /// 看板排序鍵（board_rank）的合法值：非空、僅小寫 ASCII 英文字母。
@@ -727,5 +991,238 @@ mod tests {
         std::fs::write(wt.join(".git"), format!("gitdir: {}\n", wt_gitdir.display())).unwrap();
         assert_eq!(main_git_dir(&wt), None);
         assert!(is_linked_worktree(&wt));
+    }
+
+    /// Run a git command in `dir`, panicking with stdout/stderr on failure.
+    fn run_git_test(dir: &Path, args: &[&str]) -> String {
+        let out = git_command(dir)
+            .args([
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "-c",
+                "core.quotepath=false",
+            ])
+            .args(args)
+            .output()
+            .expect("git should execute");
+        assert!(
+            out.status.success(),
+            "git {:?} failed in {}:\nstdout: {}\nstderr: {}",
+            args,
+            dir.display(),
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    /// Build a temp parent git repo with a 160000 submodule at `frontend` and a tracked plain dir `plain_dir`.
+    fn make_repo_with_submodule(tag: &str) -> (TempDir, PathBuf, String) {
+        let d = TempDir::new(tag);
+        let upstream = d.path.join("upstream-sub");
+        std::fs::create_dir_all(&upstream).unwrap();
+        run_git_test(&upstream, &["init", "-b", "main"]);
+        std::fs::write(upstream.join("app.txt"), "v1\n").unwrap();
+        run_git_test(&upstream, &["add", "app.txt"]);
+        run_git_test(&upstream, &["commit", "-m", "init sub"]);
+        let sub_sha = run_git_test(&upstream, &["rev-parse", "HEAD"]);
+
+        let parent = d.path.join("parent");
+        std::fs::create_dir_all(parent.join("plain_dir")).unwrap();
+        run_git_test(&parent, &["init", "-b", "main"]);
+        std::fs::write(parent.join("README.md"), "hello\n").unwrap();
+        std::fs::write(parent.join("plain_dir/note.txt"), "plain\n").unwrap();
+        run_git_test(&parent, &["add", "README.md", "plain_dir/note.txt"]);
+        run_git_test(&parent, &["commit", "-m", "init parent"]);
+
+        let upstream_str = upstream.to_str().unwrap();
+        run_git_test(
+            &parent,
+            &["-c", "protocol.file.allow=always", "submodule", "add", upstream_str, "frontend"],
+        );
+        run_git_test(&parent, &["commit", "-m", "add frontend submodule"]);
+        (d, parent, sub_sha)
+    }
+
+    #[test]
+    fn scope_helpers_regular_file_and_plain_dir() {
+        let (_d, parent, _sub_sha) = make_repo_with_submodule("regular-and-dir");
+
+        // Regular file fast path
+        assert!(scope_entry_exists(&parent, "README.md"));
+        assert_eq!(read_scope_bytes(&parent, "README.md"), Some(b"hello\n".to_vec()));
+        assert_eq!(gitlink_commit_at(&parent, "HEAD", "README.md"), None);
+
+        // Missing file
+        assert!(!scope_entry_exists(&parent, "missing.txt"));
+        assert_eq!(read_scope_bytes(&parent, "missing.txt"), None);
+        assert_eq!(gitlink_commit_at(&parent, "HEAD", "missing.txt"), None);
+
+        // Plain directory (non-160000) must fail closed
+        assert!(!scope_entry_exists(&parent, "plain_dir"));
+        assert_eq!(read_scope_bytes(&parent, "plain_dir"), None);
+        assert_eq!(gitlink_commit_at(&parent, "HEAD", "plain_dir"), None);
+    }
+
+    #[test]
+    fn scope_helpers_clean_and_dirty_submodule() {
+        let (_d, parent, sub_sha) = make_repo_with_submodule("clean-and-dirty");
+        let sub_dir = parent.join("frontend");
+
+        // Clean submodule
+        assert_eq!(gitlink_commit_at(&parent, "HEAD", "frontend"), Some(sub_sha.clone()));
+        assert!(scope_entry_exists(&parent, "frontend"));
+        let expected_clean = format!("Subproject commit {sub_sha}\n").into_bytes();
+        assert_eq!(read_scope_bytes(&parent, "frontend"), Some(expected_clean.clone()));
+
+        // Dirty tracked file in submodule
+        std::fs::write(sub_dir.join("app.txt"), "v1-dirty\n").unwrap();
+        assert!(scope_entry_exists(&parent, "frontend"));
+        let dirty_tracked = read_scope_bytes(&parent, "frontend").expect("dirty bytes");
+        let dirty_tracked_str = String::from_utf8(dirty_tracked.clone()).unwrap();
+        let expected_prefix = format!("Subproject commit {sub_sha}-dirty\ndirty-worktree: sha256:");
+        assert!(
+            dirty_tracked_str.starts_with(&expected_prefix) && dirty_tracked_str.ends_with('\n'),
+            "unexpected dirty canonical format: {dirty_tracked_str:?}"
+        );
+        let hex_part = dirty_tracked_str
+            .strip_prefix(&expected_prefix)
+            .unwrap()
+            .strip_suffix('\n')
+            .unwrap();
+        assert_eq!(hex_part.len(), 64);
+        assert!(hex_part.bytes().all(|b| b.is_ascii_hexdigit()));
+
+        // Adding an untracked file must change the digest
+        std::fs::write(sub_dir.join("untracked.txt"), "u1\n").unwrap();
+        let dirty_u1 = read_scope_bytes(&parent, "frontend").expect("dirty u1");
+        assert_ne!(dirty_u1, dirty_tracked);
+
+        // Second edit to the untracked file must change the digest again
+        std::fs::write(sub_dir.join("untracked.txt"), "u2\n").unwrap();
+        let dirty_u2 = read_scope_bytes(&parent, "frontend").expect("dirty u2");
+        assert_ne!(dirty_u2, dirty_u1);
+
+        // Cleaning the submodule restores exact clean canonical bytes
+        run_git_test(&sub_dir, &["checkout", "--", "app.txt"]);
+        std::fs::remove_file(sub_dir.join("untracked.txt")).unwrap();
+        assert_eq!(read_scope_bytes(&parent, "frontend"), Some(expected_clean));
+    }
+
+    #[test]
+    fn scope_helpers_uninitialized_corrupted_and_deleted_submodule() {
+        let (_d, parent, sub_sha) = make_repo_with_submodule("uninit-and-del");
+        let sub_dir = parent.join("frontend");
+
+        // Uninitialized submodule: deinit leaves empty dir without `.git`, falls back to index SHA
+        run_git_test(&parent, &["submodule", "deinit", "-f", "frontend"]);
+        assert!(sub_dir.is_dir());
+        assert!(!sub_dir.join(".git").exists());
+        assert!(scope_entry_exists(&parent, "frontend"));
+        assert_eq!(
+            read_scope_bytes(&parent, "frontend"),
+            Some(format!("Subproject commit {sub_sha}\n").into_bytes())
+        );
+
+        // Corrupted `.git` in 160000 dir: exists (so stamp catches it) but read returns None (fail closed)
+        std::fs::write(sub_dir.join(".git"), "gitdir: /nonexistent/broken/gitdir\n").unwrap();
+        assert!(scope_entry_exists(&parent, "frontend"));
+        assert_eq!(read_scope_bytes(&parent, "frontend"), None);
+
+        // Deleted submodule from worktree and index
+        std::fs::remove_file(sub_dir.join(".git")).unwrap();
+        run_git_test(&parent, &["rm", "-f", "frontend"]);
+        assert!(!scope_entry_exists(&parent, "frontend"));
+        assert_eq!(read_scope_bytes(&parent, "frontend"), None);
+        // HEAD tree still has the gitlink commit before committing the deletion
+        assert_eq!(gitlink_commit_at(&parent, "HEAD", "frontend"), Some(sub_sha));
+    }
+
+    #[test]
+    fn scope_helpers_sharp_edges_dash_spaces_non_ascii_and_traversal() {
+        let d = TempDir::new("sharp-edges");
+        let upstream = d.path.join("upstream");
+        std::fs::create_dir_all(&upstream).unwrap();
+        run_git_test(&upstream, &["init", "-q", "-b", "main"]);
+        std::fs::write(upstream.join("app.txt"), "v1\n").unwrap();
+        run_git_test(&upstream, &["add", "app.txt"]);
+        run_git_test(&upstream, &["commit", "-q", "-m", "init"]);
+        let sub_sha = run_git_test(&upstream, &["rev-parse", "HEAD"]);
+
+        let parent = d.path.join("parent");
+        std::fs::create_dir_all(&parent).unwrap();
+        run_git_test(&parent, &["init", "-q", "-b", "main"]);
+        std::fs::write(parent.join("README.md"), "root\n").unwrap();
+        run_git_test(&parent, &["add", "README.md"]);
+        run_git_test(&parent, &["commit", "-q", "-m", "init"]);
+
+        let src = upstream.to_str().unwrap();
+        // Leading `-` gitlink (git's own `submodule add` omits `--` internally, so clone + `git add --` creates the 160000 entry directly)
+        run_git_test(
+            &parent,
+            &["-c", "protocol.file.allow=always", "clone", "-q", src, "--", "-dash-sub"],
+        );
+        run_git_test(&parent, &["add", "--", "-dash-sub"]);
+        // Space + non-ASCII CJK path
+        run_git_test(
+            &parent,
+            &["-c", "protocol.file.allow=always", "submodule", "add", "-q", src, "sub dir/前端"],
+        );
+        run_git_test(&parent, &["commit", "-q", "-m", "add edge submodules"]);
+
+        let expected = format!("Subproject commit {sub_sha}\n").into_bytes();
+        for mount in ["-dash-sub", "sub dir/前端"] {
+            assert_eq!(gitlink_commit_at(&parent, "HEAD", mount), Some(sub_sha.clone()), "{mount}");
+            assert!(scope_entry_exists(&parent, mount), "{mount}");
+            assert_eq!(read_scope_bytes(&parent, mount), Some(expected.clone()), "{mount}");
+
+            // Dirty with non-ASCII untracked file
+            std::fs::write(parent.join(mount).join("新增 檔案.txt"), "dirty\n").unwrap();
+            let dirty = read_scope_bytes(&parent, mount).expect("dirty bytes");
+            assert_ne!(dirty, expected, "{mount} dirty bytes must differ");
+        }
+
+        // Reject traversal, absolute paths, NUL bytes, and flag-like revisions
+        for evil in ["../upstream/app.txt", "/etc/passwd", "a\0b", "C:evil", "", "."] {
+            assert!(!scope_entry_exists(&parent, evil), "must reject {evil:?}");
+            assert_eq!(read_scope_bytes(&parent, evil), None, "must reject {evil:?}");
+            assert_eq!(gitlink_commit_at(&parent, "HEAD", evil), None, "must reject {evil:?}");
+        }
+        assert_eq!(gitlink_commit_at(&parent, "--help", "-dash-sub"), None);
+
+        // Collapse `./` and repeated `/` so lookups match ls-tree / ls-files canonical paths
+        assert_eq!(gitlink_commit_at(&parent, "HEAD", "./-dash-sub"), Some(sub_sha.clone()));
+        assert_eq!(gitlink_commit_at(&parent, "HEAD", "sub dir//前端"), Some(sub_sha.clone()));
+        assert!(scope_entry_exists(&parent, "./sub dir//前端"));
+
+        // File literally named `HEAD` inside dirty submodule must not trigger git rev/path ambiguity
+        std::fs::write(parent.join("-dash-sub").join("HEAD"), "not a ref\n").unwrap();
+        assert!(
+            read_scope_bytes(&parent, "-dash-sub").is_some(),
+            "dirty submodule with file named HEAD must still hash cleanly"
+        );
+    }
+
+    #[test]
+    fn scope_helpers_corrupted_dot_git_dir_and_dangling_symlink_do_not_climb_to_parent() {
+        let (_d, parent, _sub_sha) = make_repo_with_submodule("corrupt-climb");
+        let sub_dir = parent.join("frontend");
+        run_git_test(&parent, &["submodule", "deinit", "-f", "frontend"]);
+
+        // Empty `.git/` directory inside 160000 dir must fail closed, never read parent `.git`
+        std::fs::create_dir(sub_dir.join(".git")).unwrap();
+        assert!(scope_entry_exists(&parent, "frontend"));
+        assert_eq!(read_scope_bytes(&parent, "frontend"), None);
+        std::fs::remove_dir(sub_dir.join(".git")).unwrap();
+
+        // Dangling `.git` symlink must fail closed, never climb to parent `.git`
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("/definitely/missing/gitdir", sub_dir.join(".git")).unwrap();
+            assert!(scope_entry_exists(&parent, "frontend"));
+            assert_eq!(read_scope_bytes(&parent, "frontend"), None);
+        }
     }
 }

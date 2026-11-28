@@ -837,10 +837,15 @@ fn held_commit(root: &Path, commit: &str) -> Option<String> {
 }
 
 /// `path` 在 checkout 裡是不是還停在 `commit` 當時的樣子（當時沒有、現在也沒有也算）。
-/// 用 git 的 blob 識別比：現值照 git 存檔時的換行轉換算。
-fn still_at_commit(root: &Path, commit: &str, path: &str, exists: bool) -> bool {
+/// gitlink 160000 比對規範 `Subproject commit <sha>\n` 位元組；普通檔用 git blob 識別比
+/// （現值照 git 存檔時的換行轉換算）。
+fn still_at_commit(root: &Path, commit: &str, path: &str, current: Option<&[u8]>) -> bool {
+    if let Some(sha) = speclink_core::util::gitlink_commit_at(root, commit, path) {
+        let expected = speclink_core::util::gitlink_canonical_bytes(&sha);
+        return current == Some(expected.as_slice());
+    }
     let git = |args: &[&str]| speclink_core::util::git(root, args);
-    match (exists, git(&["rev-parse", "--verify", "--quiet", &format!("{commit}:{path}")])) {
+    match (current.is_some(), git(&["rev-parse", "--verify", "--quiet", &format!("{commit}:{path}")])) {
         (false, None) => true,
         (true, Some(blob)) => git(&["hash-object", "--", path]).is_some_and(|now| now == blob),
         _ => false,
@@ -856,11 +861,11 @@ fn changed_since_stamp(root: &Path, commit: &str, scope: &[ReviewedScopeEntry]) 
         if speclink_core::station::ensure_repo_relative(&entry.path).is_err() {
             return true;
         }
-        let current = speclink_core::util::read_bytes_opt(&root.join(&entry.path));
+        let current = speclink_core::util::read_scope_bytes(root, &entry.path);
         let reviewed = current
             .as_deref()
             .is_some_and(|bytes| speclink_core::station::content_fingerprint_bytes(bytes) == entry.hash);
-        !reviewed && !still_at_commit(root, commit, &entry.path, current.is_some())
+        !reviewed && !still_at_commit(root, commit, &entry.path, current.as_deref())
     })
 }
 
@@ -2494,6 +2499,78 @@ mod board_order_tests {
         assert_eq!(status("new.rs"), "reviewed", "absent at the commit and absent now");
         std::fs::write(checkout.path().join("new.rs"), "fn other() {}\n").unwrap();
         assert_eq!(status("new.rs"), "reviewedStale", "a different file appeared");
+    }
+
+    #[test]
+    fn remote_checkout_freshness_and_still_at_commit_handle_gitlink_submodule() {
+        // D4：remote 看板對 160000 gitlink：
+        // - 子模組仍停留在蓋章 commit 且工作區乾淨 → still_at_commit 為 true → reviewed；
+        // - 蓋章指紋與目前髒態相符 → reviewed；
+        // - 繼續改髒檔或推進 commit → reviewedStale。
+        let (checkout, _) = git_checkout();
+        let upstream = tempfile::tempdir().unwrap();
+        let run_git = |dir: &std::path::Path, args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=T",
+                    "-c",
+                    "user.email=t@example.com",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.quotepath=false",
+                ])
+                .args(args)
+                .current_dir(dir)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        std::fs::write(upstream.path().join("app.txt"), "v1\n").unwrap();
+        run_git(upstream.path(), &["init", "-q", "-b", "main"]);
+        run_git(upstream.path(), &["add", "app.txt"]);
+        run_git(upstream.path(), &["commit", "-q", "-m", "init sub"]);
+
+        let src = upstream.path().to_str().unwrap();
+        run_git(
+            checkout.path(),
+            &["-c", "protocol.file.allow=always", "submodule", "add", "-q", src, "frontend"],
+        );
+        run_git(checkout.path(), &["commit", "-q", "-m", "add frontend"]);
+        let head = run_git(checkout.path(), &["rev-parse", "HEAD"]);
+
+        let status_for = |hash: &str| {
+            let (mut item, stamped) = stamped_item("frontend", hash, Some(&head));
+            super::refine_with_checkout(&mut item, Some(&stamped), None, checkout.path());
+            item.stations["reviewStatus"].clone()
+        };
+
+        // 1) 章記的是別台機器尚未 commit 的髒指紋，但本機子模組仍停在 head 且乾淨 → still_at_commit 放行
+        let remote_dirty_hash =
+            speclink_core::station::content_fingerprint_bytes(b"Subproject commit 0000-dirty\n");
+        assert_eq!(
+            status_for(&remote_dirty_hash),
+            "reviewed",
+            "clean gitlink still at stamp commit must not be marked stale"
+        );
+
+        // 2) 子模組進入髒態，與章記錄的髒指紋相符 → reviewed
+        std::fs::write(checkout.path().join("frontend/app.txt"), "v1-dirty\n").unwrap();
+        let dirty_bytes = speclink_core::util::read_scope_bytes(checkout.path(), "frontend")
+            .expect("dirty gitlink bytes");
+        let dirty_hash = speclink_core::station::content_fingerprint_bytes(&dirty_bytes);
+        assert_eq!(status_for(&dirty_hash), "reviewed", "matching dirty gitlink stays fresh");
+
+        // 3) 繼續修改子模組髒檔 → reviewedStale
+        std::fs::write(checkout.path().join("frontend/app.txt"), "v1-dirty-2\n").unwrap();
+        assert_eq!(status_for(&dirty_hash), "reviewedStale", "subsequent dirty edit turns stale");
+
+        // 4) 推進子模組至新 commit（工作區乾淨但偏離 head 與章）→ reviewedStale
+        run_git(&checkout.path().join("frontend"), &["add", "app.txt"]);
+        run_git(&checkout.path().join("frontend"), &["commit", "-q", "-m", "v2"]);
+        assert_eq!(status_for(&dirty_hash), "reviewedStale", "advanced gitlink commit turns stale");
     }
 
     #[test]

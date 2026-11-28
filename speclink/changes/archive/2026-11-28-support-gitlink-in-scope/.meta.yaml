@@ -1,0 +1,60 @@
+schema: spec-driven
+created: 2026-11-28T12:07:37+08:00
+created_by: daoji <daoji.chang@gmail.com>
+created_with: claude
+started_at: 2026-11-28T12:23:55+08:00
+started_by: daoji <daoji.chang@gmail.com>
+branch: main
+ready_at: 2026-11-28T12:41:51+08:00
+reviewed_at: 2026-11-28T13:46:15+08:00
+reviewed_by: daoji <daoji.chang@gmail.com>
+reviewed_with: claude
+reviewed_tasks_total: 10
+reviewed_rounds: 2
+reviewed_commit: 6481a6191237c6c5c8e43ddb80f4b34dd56ab8a4
+reviewed_scope:
+  - path: apps/desktop/core/src/query.rs
+    hash: e41bee0800b9796bb68d71a161fb932523d56b01795f9221d18cdc5c49e7890f
+  - path: apps/desktop/src-tauri/src/remote.rs
+    hash: 680ff84c3135d618b5f3238bf26acd9b218bab8ed5c99642f0e987e2e9df7614
+  - path: crates/adapters/speclink-cli/src/verbs/station.rs
+    hash: ab056e127af16a8baab9f4bc1324eb6e8ed630a2b32c4753c3de6919a5ed8a71
+  - path: crates/adapters/speclink-cli/tests/it/remote_verb_parity.rs
+    hash: 6671a6576de754f6d060fb2a9778463a132309ee00c9605ce98ab306d3988295
+  - path: crates/adapters/speclink-cli/tests/it/review_verbs.rs
+    hash: baae95e66c40bdb16764ef9ad0277b2b1fb6e1e7d5d46e3298575ed5d480bb9a
+  - path: crates/adapters/speclink-cli/tests/it/verify_verbs.rs
+    hash: 2de167295e5db34b8c1e56d3dfb7476af7c9d08bd9c7a94ffc886f0cb06994da
+  - path: crates/engine/speclink-core/src/lifecycle/archive.rs
+    hash: 0018fe300b040b1572ac00605ffbf0dce1be94339ec55975f9269af6fed0919f
+  - path: crates/engine/speclink-core/src/util.rs
+    hash: 6e40f466b5ab574c8067d446db5d87498e2710656256f7e42a3ec41fe68cce2d
+  - path: crates/host/speclink-host/src/change_diff.rs
+    hash: 4b8d5f53020377859ad3981b418f71811b0ed4046b8c0fee69f985189e403c6b
+verified_at: 2026-11-28T13:46:21+08:00
+verified_by: daoji <daoji.chang@gmail.com>
+verified_with: claude
+verified_tasks_total: 10
+verified_rounds: 2
+verified_commit: 6481a6191237c6c5c8e43ddb80f4b34dd56ab8a4
+verified_scope:
+  - path: apps/desktop/core/src/query.rs
+    hash: e41bee0800b9796bb68d71a161fb932523d56b01795f9221d18cdc5c49e7890f
+  - path: apps/desktop/src-tauri/src/remote.rs
+    hash: 680ff84c3135d618b5f3238bf26acd9b218bab8ed5c99642f0e987e2e9df7614
+  - path: crates/adapters/speclink-cli/src/verbs/station.rs
+    hash: ab056e127af16a8baab9f4bc1324eb6e8ed630a2b32c4753c3de6919a5ed8a71
+  - path: crates/adapters/speclink-cli/tests/it/remote_verb_parity.rs
+    hash: 6671a6576de754f6d060fb2a9778463a132309ee00c9605ce98ab306d3988295
+  - path: crates/adapters/speclink-cli/tests/it/review_verbs.rs
+    hash: baae95e66c40bdb16764ef9ad0277b2b1fb6e1e7d5d46e3298575ed5d480bb9a
+  - path: crates/adapters/speclink-cli/tests/it/verify_verbs.rs
+    hash: 2de167295e5db34b8c1e56d3dfb7476af7c9d08bd9c7a94ffc886f0cb06994da
+  - path: crates/engine/speclink-core/src/lifecycle/archive.rs
+    hash: 0018fe300b040b1572ac00605ffbf0dce1be94339ec55975f9269af6fed0919f
+  - path: crates/engine/speclink-core/src/util.rs
+    hash: 6e40f466b5ab574c8067d446db5d87498e2710656256f7e42a3ec41fe68cce2d
+  - path: crates/host/speclink-host/src/change_diff.rs
+    hash: 4b8d5f53020377859ad3981b418f71811b0ed4046b8c0fee69f985189e403c6b
+archived_at: 2026-11-28T13:50:37+08:00
+archived_by: daoji <daoji.chang@gmail.com>

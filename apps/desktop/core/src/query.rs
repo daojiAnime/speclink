@@ -79,7 +79,7 @@ pub fn list_changes_at(root: &Path) -> Value {
                 read_cache
                     .borrow_mut()
                     .entry(p.to_string())
-                    .or_insert_with(|| speclink_core::util::read_bytes_opt(&scope_root.join(p)))
+                    .or_insert_with(|| speclink_core::util::read_scope_bytes(scope_root, p))
                     .clone()
             };
             // 失效判定吃兩組計數（寫碼任務錨）——`[M]` 手測任務的勾選不打黃卡片。
@@ -1217,6 +1217,78 @@ mod tests {
             .unwrap();
         let v = list_changes_at(fx.root());
         assert_eq!(v["changes"][0]["reviewStatus"], "reviewedStale", "位元組變動 → stale: {v}");
+    }
+
+    #[test]
+    fn review_and_verify_freshness_handle_gitlink_submodule() {
+        // D4：桌面本机看板含 160000 gitlink scope 的已盖章变更：
+        // 未变动 → reviewed/verified；修改子模块脏文件或推进 commit → stale。
+        let fx = FixtureRoot::new("q-gitlink");
+        let upstream = FixtureRoot::new("q-gitlink-up");
+        let run_git = |dir: &std::path::Path, args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=T",
+                    "-c",
+                    "user.email=t@example.com",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.quotepath=false",
+                ])
+                .args(args)
+                .current_dir(dir)
+                .output()
+                .expect("git should run");
+            assert!(
+                out.status.success(),
+                "git {args:?} failed in {}: {}",
+                dir.display(),
+                String::from_utf8_lossy(&out.stderr)
+            );
+        };
+        std::fs::write(upstream.root().join("app.txt"), "v1\n").unwrap();
+        run_git(upstream.root(), &["init", "-q", "-b", "main"]);
+        run_git(upstream.root(), &["add", "app.txt"]);
+        run_git(upstream.root(), &["commit", "-q", "-m", "init sub"]);
+
+        run_git(fx.root(), &["init", "-q", "-b", "main"]);
+        let src = upstream.root().to_str().unwrap();
+        run_git(
+            fx.root(),
+            &["-c", "protocol.file.allow=always", "submodule", "add", "-q", src, "frontend"],
+        );
+        run_git(fx.root(), &["commit", "-q", "-m", "add frontend"]);
+
+        let clean_bytes = speclink_core::util::read_scope_bytes(fx.root(), "frontend")
+            .expect("gitlink canonical bytes");
+        let clean_hash = station::content_fingerprint_bytes(&clean_bytes);
+        let both_meta = format!(
+            "schema: spec-driven\ncreated: 2026-07-01\n\
+             reviewed_at: 2026-08-01\nreviewed_by: R <r@example.com>\nreviewed_with: claude\nreviewed_tasks_total: 2\nreviewed_scope:\n  - path: frontend\n    hash: {clean_hash}\n\
+             verified_at: 2026-08-02\nverified_by: V <v@example.com>\nverified_with: claude\nverified_tasks_total: 2\nverified_scope:\n  - path: frontend\n    hash: {clean_hash}\n"
+        );
+        fx.add_change("sub-scope", &both_meta);
+        fx.write("speclink/changes/sub-scope/tasks.md", TASKS_ALL_DONE);
+
+        // 1) 未变动 → fresh
+        let v = list_changes_at(fx.root());
+        assert_eq!(v["changes"][0]["reviewStatus"], "reviewed", "clean gitlink → reviewed: {v}");
+        assert_eq!(v["changes"][0]["verifyStatus"], "verified", "clean gitlink → verified: {v}");
+
+        // 2) 修改子模块工作区脏文件（HEAD 未变）→ stale
+        std::fs::write(fx.root().join("frontend/app.txt"), "v1-dirty\n").unwrap();
+        let v = list_changes_at(fx.root());
+        assert_eq!(v["changes"][0]["reviewStatus"], "reviewedStale", "dirty gitlink → stale: {v}");
+        assert_eq!(v["changes"][0]["verifyStatus"], "verifiedStale", "dirty gitlink → stale: {v}");
+
+        // 3) 推进子模块 commit（干净但指向新 commit）→ stale
+        run_git(&fx.root().join("frontend"), &["add", "app.txt"]);
+        run_git(&fx.root().join("frontend"), &["commit", "-q", "-m", "v2"]);
+        let v = list_changes_at(fx.root());
+        assert_eq!(v["changes"][0]["reviewStatus"], "reviewedStale", "advanced gitlink → stale: {v}");
+        assert_eq!(v["changes"][0]["verifyStatus"], "verifiedStale", "advanced gitlink → stale: {v}");
     }
 
     /// 帶完整驗證章的 meta（任務錨 2、內容錨 scope_path＋hash）。

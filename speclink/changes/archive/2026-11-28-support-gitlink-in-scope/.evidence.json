@@ -1,0 +1,104 @@
+{
+  "version": 2,
+  "change": "support-gitlink-in-scope",
+  "touched": [
+    {
+      "task_id": "1",
+      "task_desc": "1.1 补齐 gitlink 读取单测（红灯）：在 `crates/engine/speclink-core/src/util.rs` 的测试模块为 `gitlink_commit_at`、`scope_entry_exists` 与 `read_scope_bytes` 编写失败单测（D2），使用 `-c protocol.file.allow=always` 构造含 160000 子模块的临时仓库，覆盖普通文件、普通目录、干净子模块、脏子模块（含未追踪文件及二次修改哈希变化）、未初始化子模块与已删除子模块。验证：运行 `cargo test -p speclink-core util::` 确认新增用例因尚未实现而编译或断言失败",
+      "files": [
+        "crates/engine/speclink-core/src/util.rs"
+      ]
+    },
+    {
+      "task_id": "3",
+      "task_desc": "2.1 补齐 change_diff gitlink 场景单测（红灯）：在 `crates/host/speclink-host/src/change_diff.rs` 的测试模块编写失败单测，覆盖「Git-backed discovery scope 解析完整 worktree patch」、「歧義 scope 必須 fail closed 並以 hash-pinned selection 解鎖」与「frozen snapshot 綁定 discovery 與 validation patch」（D1、D3），包含脏子模块 discovery（`kind=\"submodule\"`、`hunks=[]`、`beforeHash`/`afterHash` 非 null 且不等）、指针推进/新增/删除/未初始化子模块、歧义时保留非 null `candidateHash` 与文本 hunk、`--include-hunk` 拒绝选取子模块、以及 validation 轮未变动不重入与二次脏修改以 `finding`/`adjacent` 重入补丁。验证：运行 `cargo test -p speclink-host change_diff::` 确认新增用例失败",
+      "files": [
+        "crates/host/speclink-host/src/change_diff.rs"
+      ]
+    },
+    {
+      "task_id": "5",
+      "task_desc": "3.1 补齐 CLI 双站 gitlink 集成测试（红灯）：在 `crates/adapters/speclink-cli/tests/it/review_verbs.rs` 与 `crates/adapters/speclink-cli/tests/it/verify_verbs.rs` 新增端到端集成测试，覆盖「內容指紋錨與失效判定」、「驗證指紋錨與失效判定」及两站 `scope`（含 `--json` camelCase 负载结构与类型断言、`--no-color` 无 ANSI 断言），验证脏子模块 discovery → `add-round` → `stamp` → `archive`（未改动放行、继续修改子模块脏文件或推进 commit 后 `archive` 拒封存并点名子模块路径），以及 `needsInput` 时保留 `candidateHash` 并在 stderr 说明 submodule 不可按 `--include-hunk` 钉选。验证：运行 `cargo test -p speclink-cli --test it review_verbs::` 与 `cargo test -p speclink-cli --test it verify_verbs::` 确认新增用例失败",
+      "files": [
+        "crates/adapters/speclink-cli/tests/it/review_verbs.rs",
+        "crates/adapters/speclink-cli/tests/it/verify_verbs.rs"
+      ]
+    },
+    {
+      "task_id": "6",
+      "task_desc": "3.2 接入 CLI 双站盖章、歧义提示与封存守门（绿灯）：在 `crates/adapters/speclink-cli/src/verbs/station.rs`（本机 `station_fs` 与 remote `remote_station` 的 `Stamp` 以及 `scope_needs_input_message`）与 `crates/engine/speclink-core/src/lifecycle/archive.rs`（`guard_stale_stamps`）统一接入 `scope_entry_exists` 与 `read_scope_bytes`（D4），并在 `scope_needs_input_message` 仅当候选包含 `DeltaKind::Submodule` 时追加不可按文本 hunk 钉选的提示行。验证：运行 `cargo test -p speclink-cli --test it review_verbs::`、`cargo test -p speclink-cli --test it verify_verbs::`、`cargo test -p speclink-cli --test it remote_verb_parity::` 与 `cargo test -p speclink-core archive::` 全部通过",
+      "files": [
+        "crates/adapters/speclink-cli/src/verbs/station.rs",
+        "crates/engine/speclink-core/src/lifecycle/archive.rs"
+      ]
+    },
+    {
+      "task_id": "7",
+      "task_desc": "4.1 补齐桌面看板 gitlink freshness 测试（红灯）：在 `apps/desktop/core/src/query.rs` 与 `apps/desktop/src-tauri/src/remote.rs` 的测试模块新增单测（D4），验证含 160000 gitlink scope 的已盖章变更在子模块未变动时判定为 fresh、修改子模块工作区脏文件或推进 commit 后判定为 stale，以及 remote 看板 `still_at_commit` 在子模块仍停留在盖章 commit 且工作区干净时返回未变动。验证：运行 `cargo test -p speclink-desktop-core` 与 `cargo test -p speclink-desktop` 确认新增用例失败",
+      "files": [
+        "apps/desktop/core/src/query.rs",
+        "apps/desktop/src-tauri/src/remote.rs"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "taskId": "tsk_01M8G5X0M7RRMZZPZGDBXTCG6H",
+      "taskDesc": "1.1 补齐 gitlink 读取单测（红灯）：在 `crates/engine/speclink-core/src/util.rs` 的测试模块为 `gitlink_commit_at`、`scope_entry_exists` 与 `read_scope_bytes` 编写失败单测（D2），使用 `-c protocol.file.allow=always` 构造含 160000 子模块的临时仓库，覆盖普通文件、普通目录、干净子模块、脏子模块（含未追踪文件及二次修改哈希变化）、未初始化子模块与已删除子模块。验证：运行 `cargo test -p speclink-core util::` 确认新增用例因尚未实现而编译或断言失败",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "6481a6191237c6c5c8e43ddb80f4b34dd56ab8a4",
+      "touchedFiles": [
+        "crates/engine/speclink-core/src/util.rs"
+      ],
+      "recordedAt": "2026-11-28T04:27:55Z"
+    },
+    {
+      "taskId": "tsk_01M8G5X0M7Y4HB9953ECH4N1NM",
+      "taskDesc": "2.1 补齐 change_diff gitlink 场景单测（红灯）：在 `crates/host/speclink-host/src/change_diff.rs` 的测试模块编写失败单测，覆盖「Git-backed discovery scope 解析完整 worktree patch」、「歧義 scope 必須 fail closed 並以 hash-pinned selection 解鎖」与「frozen snapshot 綁定 discovery 與 validation patch」（D1、D3），包含脏子模块 discovery（`kind=\"submodule\"`、`hunks=[]`、`beforeHash`/`afterHash` 非 null 且不等）、指针推进/新增/删除/未初始化子模块、歧义时保留非 null `candidateHash` 与文本 hunk、`--include-hunk` 拒绝选取子模块、以及 validation 轮未变动不重入与二次脏修改以 `finding`/`adjacent` 重入补丁。验证：运行 `cargo test -p speclink-host change_diff::` 确认新增用例失败",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "6481a6191237c6c5c8e43ddb80f4b34dd56ab8a4",
+      "touchedFiles": [
+        "crates/host/speclink-host/src/change_diff.rs"
+      ],
+      "recordedAt": "2026-11-28T04:30:21Z"
+    },
+    {
+      "taskId": "tsk_01M8G5X0M7QHRJ10YG2AAMYA4E",
+      "taskDesc": "3.1 补齐 CLI 双站 gitlink 集成测试（红灯）：在 `crates/adapters/speclink-cli/tests/it/review_verbs.rs` 与 `crates/adapters/speclink-cli/tests/it/verify_verbs.rs` 新增端到端集成测试，覆盖「內容指紋錨與失效判定」、「驗證指紋錨與失效判定」及两站 `scope`（含 `--json` camelCase 负载结构与类型断言、`--no-color` 无 ANSI 断言），验证脏子模块 discovery → `add-round` → `stamp` → `archive`（未改动放行、继续修改子模块脏文件或推进 commit 后 `archive` 拒封存并点名子模块路径），以及 `needsInput` 时保留 `candidateHash` 并在 stderr 说明 submodule 不可按 `--include-hunk` 钉选。验证：运行 `cargo test -p speclink-cli --test it review_verbs::` 与 `cargo test -p speclink-cli --test it verify_verbs::` 确认新增用例失败",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "6481a6191237c6c5c8e43ddb80f4b34dd56ab8a4",
+      "touchedFiles": [
+        "crates/adapters/speclink-cli/tests/it/review_verbs.rs",
+        "crates/adapters/speclink-cli/tests/it/verify_verbs.rs"
+      ],
+      "recordedAt": "2026-11-28T04:34:04Z"
+    },
+    {
+      "taskId": "tsk_01M8G5X0M7RMAJE7FGWGYFN35D",
+      "taskDesc": "3.2 接入 CLI 双站盖章、歧义提示与封存守门（绿灯）：在 `crates/adapters/speclink-cli/src/verbs/station.rs`（本机 `station_fs` 与 remote `remote_station` 的 `Stamp` 以及 `scope_needs_input_message`）与 `crates/engine/speclink-core/src/lifecycle/archive.rs`（`guard_stale_stamps`）统一接入 `scope_entry_exists` 与 `read_scope_bytes`（D4），并在 `scope_needs_input_message` 仅当候选包含 `DeltaKind::Submodule` 时追加不可按文本 hunk 钉选的提示行。验证：运行 `cargo test -p speclink-cli --test it review_verbs::`、`cargo test -p speclink-cli --test it verify_verbs::`、`cargo test -p speclink-cli --test it remote_verb_parity::` 与 `cargo test -p speclink-core archive::` 全部通过",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "6481a6191237c6c5c8e43ddb80f4b34dd56ab8a4",
+      "touchedFiles": [
+        "crates/adapters/speclink-cli/src/verbs/station.rs",
+        "crates/engine/speclink-core/src/lifecycle/archive.rs"
+      ],
+      "recordedAt": "2026-11-28T04:34:40Z"
+    },
+    {
+      "taskId": "tsk_01M8G5X0M7NJZQMJVXBEMQR494",
+      "taskDesc": "4.1 补齐桌面看板 gitlink freshness 测试（红灯）：在 `apps/desktop/core/src/query.rs` 与 `apps/desktop/src-tauri/src/remote.rs` 的测试模块新增单测（D4），验证含 160000 gitlink scope 的已盖章变更在子模块未变动时判定为 fresh、修改子模块工作区脏文件或推进 commit 后判定为 stale，以及 remote 看板 `still_at_commit` 在子模块仍停留在盖章 commit 且工作区干净时返回未变动。验证：运行 `cargo test -p speclink-desktop-core` 与 `cargo test -p speclink-desktop` 确认新增用例失败",
+      "actor": "daoji <daoji.chang@gmail.com>",
+      "repo": "main",
+      "headCommit": "6481a6191237c6c5c8e43ddb80f4b34dd56ab8a4",
+      "touchedFiles": [
+        "apps/desktop/core/src/query.rs",
+        "apps/desktop/src-tauri/src/remote.rs"
+      ],
+      "recordedAt": "2026-11-28T04:36:29Z"
+    }
+  ]
+}

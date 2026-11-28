@@ -176,8 +176,11 @@ fn station_fs(cli: &StationCli, verb: StationVerb) -> Result<()> {
             // The commit the checkout is on goes into the stamp; outside a git
             // checkout there is none and the stamp lands without it.
             let head = core::tasks::head_commit(&ws.root);
-            let read_file = |p: &str| core::util::read_bytes_opt(&ws.root.join(p));
-            let file_exists = |p: &str| ws.root.join(p).is_file();
+            let read_file = |p: &str| core::util::read_scope_bytes(&ws.root, p);
+            // 物理存在的条目一律归入 present（含普通文件、160000 gitlink 与非 160000 普通目录）：
+            // 普通目录与损坏子模块随后由 read_scope_bytes 返回 None 触发 fail-closed 报错，
+            // 仅真正已从工作树删除的路径归入 gone（对齐 review-station/spec.md）。
+            let file_exists = |p: &str| ws.root.join(p).symlink_metadata().is_ok();
             core::station::stamp(
                 st,
                 &store,
@@ -492,6 +495,13 @@ fn scope_needs_input_message(
             .to_string(),
     );
     lines.push("  3. redo the work in an isolated worktree".to_string());
+    if n.files.iter().any(|f| f.kind == speclink_host::change_diff::DeltaKind::Submodule) {
+        lines.push(
+            "note: submodule paths have no selectable text hunks and cannot be pinned with \
+             --include-hunk (use --base from a clean start, or pin only the remaining text hunks)"
+                .to_string(),
+        );
+    }
     lines.join("\n")
 }
 #[cfg(test)]
@@ -629,9 +639,11 @@ fn remote_station(ctx: &RemoteCtx, cli: &StationCli, verb: StationVerb) -> Resul
             );
             // 修正可能刪除／改名早輪檢查過的檔：仍存在者算雜湊，已消失者以
             // missing 明示宣告——server 無工作樹，分割由這裡的存在性判定。
-            let (present, missing): (Vec<String>, Vec<String>) =
-                paths.into_iter().partition(|p| ctx.ws.root.join(p).is_file());
-            let read_file = |p: &str| core::util::read_bytes_opt(&ctx.ws.root.join(p));
+            let (present, missing): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| {
+                core::station::ensure_repo_relative(p).is_ok()
+                    && ctx.ws.root.join(p).symlink_metadata().is_ok()
+            });
+            let read_file = |p: &str| core::util::read_scope_bytes(&ctx.ws.root, p);
             let scope: Vec<_> = core::station::fingerprint_scope(&present, &read_file)?
                 .into_iter()
                 .map(|(path, hash)| speclink_protocol::command::ReviewScopeEntryDto { path, hash })

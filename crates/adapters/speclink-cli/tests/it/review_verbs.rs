@@ -1345,3 +1345,191 @@ fn review_scope_flag_sharp_edges_fail_closed() {
     assert!(!out.status.success(), "binary can never be hunk-selected");
     assert_eq!(b.snapshot_count(), 0);
 }
+
+// --- gitlink 160000 端到端整合（review scope / stamp / archive / needsInput）---
+
+pub(super) struct TempUpstream {
+    pub(super) dir: PathBuf,
+}
+
+impl TempUpstream {
+    pub(super) fn new(tag: &str) -> Self {
+        let dir = std::env::temp_dir()
+            .join(format!("speclink-cli-sub-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("app.txt"), format!("v1-{tag}\n")).unwrap();
+        git_in_dir(&dir, &["init", "-q", "-b", "main"]);
+        git_in_dir(&dir, &["add", "-A"]);
+        git_in_dir(&dir, &["commit", "-q", "-m", "init sub"]);
+        Self { dir }
+    }
+}
+
+impl Drop for TempUpstream {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+pub(super) fn git_in_dir(dir: &std::path::Path, args: &[&str]) {
+    let out = Command::new("git")
+        .args([
+            "-c",
+            "user.name=Sandbox Tester",
+            "-c",
+            "user.email=sandbox@example.com",
+            "-c",
+            "core.quotepath=false",
+        ])
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("git should run");
+    assert!(
+        out.status.success(),
+        "git {args:?} failed in {}:\nstdout: {}\nstderr: {}",
+        dir.display(),
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+pub(super) fn add_frontend_submodule_at(parent_dir: &std::path::Path, upstream: &TempUpstream) {
+    let src = upstream.dir.to_str().unwrap();
+    git_in_dir(
+        parent_dir,
+        &["-c", "protocol.file.allow=always", "submodule", "add", "-q", src, "frontend"],
+    );
+    git_in_dir(parent_dir, &["commit", "-q", "-m", "add frontend submodule"]);
+}
+
+fn add_frontend_submodule(p: &TempProject, upstream: &TempUpstream) {
+    add_frontend_submodule_at(&p.dir, upstream);
+}
+
+#[test]
+fn review_gitlink_scope_stamp_and_archive_fresh_and_stale() {
+    // 1) 脏子模块完整闭环：discovery → add-round → stamp → archive（未改动放行）
+    let up_fresh = TempUpstream::new("fresh");
+    let p_fresh = TempProject::with_git_change("gitlink-fresh", TASKS_DONE);
+    add_frontend_submodule(&p_fresh, &up_fresh);
+    assert!(p_fresh.run(&["review", "prepare", "demo"]).status.success());
+
+    p_fresh.write("frontend/app.txt", "dirty-v1\n");
+    p_fresh.touched("demo", &["frontend"]);
+
+    let scope_out = p_fresh.run(&["review", "scope", "demo", "--json"]);
+    assert!(scope_out.status.success(), "stderr: {}", stderr_of(&scope_out));
+    let v: serde_json::Value = serde_json::from_str(&stdout_of(&scope_out)).expect("valid JSON");
+    assert_eq!(v["state"], "resolved");
+    assert_eq!(v["phase"], "discovery");
+    assert!(v["patchHash"].as_str().unwrap_or("").starts_with("sha256:"));
+    assert_eq!(v["paths"], serde_json::json!(["frontend"]));
+    let f = &v["files"][0];
+    assert_eq!(f["oldPath"], "frontend");
+    assert_eq!(f["newPath"], "frontend");
+    assert_eq!(f["kind"], "submodule");
+    assert_eq!(f["hunks"], serde_json::json!([]));
+    assert!(f["beforeHash"].is_string());
+    assert!(f["afterHash"].is_string());
+    assert_ne!(f["beforeHash"], f["afterHash"]);
+
+    let add = p_fresh.run_stdin(&["review", "add-round", "demo", "--stdin"], "**Scope**: frontend\n");
+    assert!(add.status.success(), "stderr: {}", stderr_of(&add));
+
+    let stamp = p_fresh.run(&["review", "stamp", "demo"]);
+    assert!(stamp.status.success(), "stderr: {}", stderr_of(&stamp));
+    assert!(!p_fresh.ticket_path().exists(), "review.md removed on stamp");
+    let meta = p_fresh.meta();
+    assert!(meta.contains("frontend"), "reviewed_scope must record frontend: {meta}");
+
+    let arch_ok = p_fresh.run(&["archive", "demo", "--skip-specs", "--no-validate"]);
+    assert!(arch_ok.status.success(), "fresh gitlink stamp must allow archive: {}", stderr_of(&arch_ok));
+
+    // 2) 盖章后继续修改子模块脏文件（HEAD 未变）→ archive 拒绝并点名 frontend
+    let up_dirty = TempUpstream::new("stale-dirty");
+    let p_dirty = TempProject::with_git_change("gitlink-stale-dirty", TASKS_DONE);
+    add_frontend_submodule(&p_dirty, &up_dirty);
+    assert!(p_dirty.run(&["review", "prepare", "demo"]).status.success());
+    p_dirty.write("frontend/app.txt", "dirty-v1\n");
+    p_dirty.touched("demo", &["frontend"]);
+    assert!(p_dirty.run(&["review", "scope", "demo", "--json"]).status.success());
+    assert!(p_dirty.run_stdin(&["review", "add-round", "demo", "--stdin"], "**Scope**: frontend\n").status.success());
+    assert!(p_dirty.run(&["review", "stamp", "demo"]).status.success());
+
+    p_dirty.write("frontend/extra.txt", "new-untracked-after-stamp\n");
+    let arch_dirty = p_dirty.run(&["archive", "demo", "--skip-specs", "--no-validate"]);
+    assert!(!arch_dirty.status.success(), "dirty edit after stamp must block archive");
+    let err_dirty = stderr_of(&arch_dirty);
+    assert!(err_dirty.contains("frontend"), "archive refusal must name frontend: {err_dirty}");
+
+    // 3) 盖章后推进子模块指针 commit → archive 拒绝并点名 frontend
+    let up_commit = TempUpstream::new("stale-commit");
+    let p_commit = TempProject::with_git_change("gitlink-stale-commit", TASKS_DONE);
+    add_frontend_submodule(&p_commit, &up_commit);
+    assert!(p_commit.run(&["review", "prepare", "demo"]).status.success());
+    p_commit.write("frontend/app.txt", "c2\n");
+    git_in_dir(&p_commit.dir.join("frontend"), &["add", "app.txt"]);
+    git_in_dir(&p_commit.dir.join("frontend"), &["commit", "-q", "-m", "sub c2"]);
+    git_in_dir(&p_commit.dir, &["add", "frontend"]);
+    p_commit.touched("demo", &["frontend"]);
+    assert!(p_commit.run(&["review", "scope", "demo", "--json"]).status.success());
+    assert!(p_commit.run_stdin(&["review", "add-round", "demo", "--stdin"], "**Scope**: frontend\n").status.success());
+    assert!(p_commit.run(&["review", "stamp", "demo"]).status.success());
+
+    p_commit.write("frontend/app.txt", "c3\n");
+    git_in_dir(&p_commit.dir.join("frontend"), &["add", "app.txt"]);
+    git_in_dir(&p_commit.dir.join("frontend"), &["commit", "-q", "-m", "sub c3"]);
+    let arch_commit = p_commit.run(&["archive", "demo", "--skip-specs", "--no-validate"]);
+    assert!(!arch_commit.status.success(), "submodule commit advance after stamp must block archive");
+    let err_commit = stderr_of(&arch_commit);
+    assert!(err_commit.contains("frontend"), "archive refusal must name frontend: {err_commit}");
+}
+
+#[test]
+fn review_gitlink_needs_input_keeps_candidate_hash_and_explains_submodule() {
+    let up = TempUpstream::new("ambig");
+    let p = TempProject::with_git_change("gitlink-ambig", TASKS_DONE);
+    add_frontend_submodule(&p, &up);
+    // Dirty src/lib.rs before prepare so it lands in dirtyFilesAtStart
+    p.write("src/lib.rs", "fn demo() { pre(); }\n");
+    assert!(p.run(&["review", "prepare", "demo"]).status.success());
+    p.write("frontend/app.txt", "dirty-sub\n");
+    p.touched("demo", &["src/lib.rs", "frontend"]);
+
+    let json_out = p.run(&["review", "scope", "demo", "--json"]);
+    assert!(!json_out.status.success(), "ambiguous scope must exit non-zero");
+    let v: serde_json::Value = serde_json::from_str(&stdout_of(&json_out)).expect("valid JSON");
+    assert_eq!(v["state"], "needsInput");
+    assert!(v["candidateHash"].is_string(), "candidateHash must stay non-null: {v}");
+    let files = v["files"].as_array().expect("files array");
+    assert!(files.iter().any(|f| f["newPath"] == "src/lib.rs" && !f["hunks"].as_array().unwrap().is_empty()));
+    assert!(files.iter().any(|f| f["newPath"] == "frontend" && f["kind"] == "submodule" && f["hunks"] == serde_json::json!([])));
+    assert_eq!(p.snapshot_count(), 0);
+
+    let human_out = p.run(&["review", "scope", "demo", "--no-color"]);
+    assert!(!human_out.status.success());
+    let err = stderr_of(&human_out);
+    assert!(!err.contains("\x1b["), "--no-color must emit no ANSI: {err:?}");
+    assert!(err.contains("--base"), "keeps standard resolutions: {err}");
+    assert!(err.contains("submodule"), "stderr must note submodule limitation: {err}");
+    assert!(err.contains("--include-hunk"), "stderr must mention --include-hunk: {err}");
+}
+
+#[test]
+fn review_stamp_fails_on_plain_non_gitlink_directory_in_mixed_scope() {
+    // spec review-station「內容指紋錨與失效判定」：存在但读取失败的条目（含非 160000 普通目录）
+    // 即使与合法普通文件同处一个 Scope 联集，也必须使盖章失败，不得静默排除。
+    let p = TempProject::with_git_change("plain-dir-stamp", TASKS_DONE);
+    p.write("plain_dir/note.txt", "plain\n");
+    let add = p.run_stdin(
+        &["review", "add-round", "demo", "--stdin"],
+        "**Scope**: src/lib.rs, plain_dir\n",
+    );
+    assert!(add.status.success(), "stderr: {}", stderr_of(&add));
+    let stamp = p.run(&["review", "stamp", "demo"]);
+    assert!(!stamp.status.success(), "plain non-160000 directory in scope must fail stamping");
+    let err = stderr_of(&stamp);
+    assert!(err.contains("plain_dir"), "stderr must name the unreadable directory: {err}");
+}

@@ -786,3 +786,102 @@ fn verify_discard_clears_only_verify_snapshots_and_keeps_the_review_ticket() {
     assert!(p.baseline_path().exists(), "Apply baseline survives");
     assert!(p.review_ticket_path().exists(), "the review ticket survives");
 }
+
+// --- gitlink 160000 端到端整合（verify scope / stamp / archive / needsInput）---
+
+use super::review_verbs::{add_frontend_submodule_at, TempUpstream};
+
+#[test]
+fn verify_gitlink_scope_stamp_and_archive_fresh_and_stale() {
+    // 1) 脏子模块 verify 闭环：scope → add-round → stamp → archive（未改动放行）
+    //    同时验证 verified_scope 写入的 frontend 哈希与审查站同状态逐位元一致。
+    let up_fresh = TempUpstream::new("verify-fresh");
+    let p_fresh = TempProject::with_git_change("gitlink-fresh", TASKS_DONE);
+    add_frontend_submodule_at(&p_fresh.dir, &up_fresh);
+    assert!(p_fresh.run(&["review", "prepare", "demo"]).status.success());
+
+    p_fresh.write("frontend/app.txt", "dirty-v1\n");
+    p_fresh.touched("demo", &["frontend"]);
+
+    let scope_out = p_fresh.run(&["verify", "scope", "demo", "--json"]);
+    assert!(scope_out.status.success(), "stderr: {}", stderr_of(&scope_out));
+    let v: serde_json::Value = serde_json::from_str(&stdout_of(&scope_out)).expect("valid JSON");
+    assert_eq!(v["state"], "resolved");
+    assert_eq!(v["phase"], "discovery");
+    assert!(v["patchHash"].as_str().unwrap_or("").starts_with("sha256:"));
+    assert_eq!(v["paths"], serde_json::json!(["frontend"]));
+    assert_eq!(v["files"][0]["kind"], "submodule");
+    assert_eq!(v["files"][0]["hunks"], serde_json::json!([]));
+    assert_ne!(v["files"][0]["beforeHash"], v["files"][0]["afterHash"]);
+
+    // 同状态下两站分别盖章，比对 .meta.yaml 中 reviewed_scope 与 verified_scope 哈希逐位元一致
+    assert!(p_fresh.run_stdin(&["review", "add-round", "demo", "--stdin"], "**Scope**: frontend\n").status.success());
+    assert!(p_fresh.run(&["review", "stamp", "demo"]).status.success());
+
+    let add = p_fresh.run_stdin(&["verify", "add-round", "demo", "--stdin"], "**Scope**: frontend\n");
+    assert!(add.status.success(), "stderr: {}", stderr_of(&add));
+    let stamp = p_fresh.run(&["verify", "stamp", "demo"]);
+    assert!(stamp.status.success(), "stderr: {}", stderr_of(&stamp));
+    assert!(!p_fresh.ticket_path().exists(), "verify.md removed on stamp");
+
+    let meta_text = std::fs::read_to_string(
+        p_fresh.dir.join("speclink").join("changes").join("demo").join(".meta.yaml"),
+    )
+    .expect(".meta.yaml exists");
+    let meta_yaml: serde_yaml::Value = serde_yaml::from_str(&meta_text).expect("valid YAML");
+    assert_eq!(meta_yaml["verified_scope"][0]["path"], "frontend");
+    assert_eq!(
+        meta_yaml["verified_scope"][0]["hash"],
+        meta_yaml["reviewed_scope"][0]["hash"],
+        "verify and review stations must compute bit-identical gitlink fingerprints: {meta_text}"
+    );
+
+    let arch_ok = p_fresh.run(&["archive", "demo", "--skip-specs", "--no-validate"]);
+    assert!(arch_ok.status.success(), "fresh verify gitlink stamp must allow archive: {}", stderr_of(&arch_ok));
+
+    // 2) 验证盖章后修改子模块脏内容 → archive 拒绝并点名 frontend
+    let up_stale = TempUpstream::new("verify-stale");
+    let p_stale = TempProject::with_git_change("gitlink-stale", TASKS_DONE);
+    add_frontend_submodule_at(&p_stale.dir, &up_stale);
+    assert!(p_stale.run(&["review", "prepare", "demo"]).status.success());
+    p_stale.write("frontend/app.txt", "dirty-v1\n");
+    p_stale.touched("demo", &["frontend"]);
+    assert!(p_stale.run(&["verify", "scope", "demo", "--json"]).status.success());
+    assert!(p_stale.run_stdin(&["verify", "add-round", "demo", "--stdin"], "**Scope**: frontend\n").status.success());
+    assert!(p_stale.run(&["verify", "stamp", "demo"]).status.success());
+
+    p_stale.write("frontend/app.txt", "dirty-v2\n");
+    let arch_stale = p_stale.run(&["archive", "demo", "--skip-specs", "--no-validate"]);
+    assert!(!arch_stale.status.success(), "dirty edit after verify stamp must block archive");
+    let err = stderr_of(&arch_stale);
+    assert!(err.contains("frontend"), "archive refusal must name frontend: {err}");
+}
+
+#[test]
+fn verify_gitlink_needs_input_no_color_explains_submodule() {
+    let up = TempUpstream::new("verify-ambig");
+    let p = TempProject::with_git_change("gitlink-ambig", TASKS_DONE);
+    add_frontend_submodule_at(&p.dir, &up);
+    p.write("src/lib.rs", "fn demo() { pre(); }\n");
+    assert!(p.run(&["review", "prepare", "demo"]).status.success());
+    p.write("frontend/app.txt", "dirty-sub\n");
+    p.touched("demo", &["src/lib.rs", "frontend"]);
+
+    let json_out = p.run(&["verify", "scope", "demo", "--json"]);
+    assert!(!json_out.status.success());
+    let v: serde_json::Value = serde_json::from_str(&stdout_of(&json_out)).expect("valid JSON");
+    assert_eq!(v["state"], "needsInput");
+    assert!(v["candidateHash"].is_string());
+    assert!(v["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|f| f["newPath"] == "frontend" && f["kind"] == "submodule" && f["hunks"] == serde_json::json!([])));
+
+    let human_out = p.run(&["verify", "scope", "demo", "--no-color"]);
+    assert!(!human_out.status.success());
+    let err = stderr_of(&human_out);
+    assert!(!err.contains("\x1b["), "--no-color must emit no ANSI: {err:?}");
+    assert!(err.contains("submodule"), "stderr must note submodule limitation: {err}");
+    assert!(err.contains("--include-hunk"), "stderr must mention --include-hunk: {err}");
+}
