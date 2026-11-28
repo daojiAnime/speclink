@@ -59,3 +59,4 @@ mod validate_specs;
 mod verify_verbs;
 mod workflow_config;
 mod worktree_overlay;
+mod worktree_verbs;

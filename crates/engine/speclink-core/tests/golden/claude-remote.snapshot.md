@@ -9,7 +9,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -102,7 +102,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -450,7 +450,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -786,7 +786,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1035,7 +1035,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1165,7 +1165,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1234,9 +1234,11 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
    The artifact set is empty: no artifact file is in this checkout, so none is staged.
 
-4. **Identify unrelated dirty files**
+4. **Identify unrelated dirty files and submodule scope**
 
    From the full `git status --porcelain` output, any dirty files that are neither in the artifact set nor in the evidence record are "unrelated changes."
+
+   When `git status --porcelain` shows a dirty `160000` submodule gitlink (verify via `git submodule status` or `git ls-files --stage <path>`) or the evidence record includes paths inside a submodule, inspect `git -C "<submodule-path>" status --porcelain`: classify files inside the submodule with the same rule (files belonging to this change vs unrelated dirty files inside the submodule). If the submodule contains uncommitted changes for this change, commit inside that submodule before staging its gitlink in the superproject.
 
 5. **Generate commit message**
 
@@ -1406,9 +1408,13 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
          Policy off, or only one such change → name `next` alone. A null `next`, or a `plan` failure (a dependency cycle) → say nothing about ordering. This too is a reminder only — never run apply yourself.
 
-8. **Selective staging**
+8. **Selective staging (and submodule commits first, if any)**
 
-   Stage each confirmed file individually:
+   When confirmed changes include files inside a git submodule:
+   - Check the submodule's branch (`git -C "<submodule-path>" branch --show-current`). Inside a linked worktree (when the superproject branch is `speclink/<change-name>`) if the submodule is on a detached HEAD, create or check out branch `speclink/<change-name>` inside the submodule first so its commit is reachable by branch name.
+   - Stage only the confirmed change files inside the submodule explicitly (`git -C "<submodule-path>" add <file>` — never `git add .` or `git add -A`) and commit inside the submodule (`git -C "<submodule-path>" commit -m "<message>"`).
+
+   Stage each confirmed file individually (in the superproject, include any updated `160000` submodule gitlink path `<submodule-path>`):
 
    ```bash
    git add <file1>
@@ -1489,7 +1495,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1736,7 +1742,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -2237,7 +2243,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -2380,7 +2386,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -2577,7 +2583,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -2919,7 +2925,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -3136,7 +3142,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -3632,7 +3638,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -3770,7 +3776,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -4074,7 +4080,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -4162,7 +4168,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 

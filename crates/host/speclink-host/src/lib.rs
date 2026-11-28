@@ -26,3 +26,4 @@ pub mod read_only;
 pub mod scope;
 pub mod transfer;
 pub mod worktree;
+mod worktree_inspect;

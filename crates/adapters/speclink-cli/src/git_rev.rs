@@ -126,7 +126,41 @@ fn watch_tracked_files(root: &Path, git_bin: &OsStr, emit_watch: &mut dyn FnMut(
             continue;
         }
         if let Ok(rel) = std::str::from_utf8(entry) {
-            watch_path_or_existing_parent(&join_git_rel(root, rel), root, &mut seen, emit_watch);
+            let path = join_git_rel(root, rel);
+            watch_path_or_existing_parent(&path, root, &mut seen, emit_watch);
+            // Submodule (mode 160000) directory mtime alone misses inner commits or staged state.
+            if path.is_dir() && path.join(".git").exists() {
+                watch_submodule_metadata(&path, git_bin, &mut seen, emit_watch);
+            }
+        }
+    }
+}
+
+fn watch_submodule_metadata(
+    sub_root: &Path,
+    git_bin: &OsStr,
+    seen: &mut HashSet<PathBuf>,
+    emit_watch: &mut dyn FnMut(&Path),
+) {
+    let Some(paths_out) = git_stdout(
+        sub_root,
+        git_bin,
+        &[
+            "-c",
+            "core.quotepath=false",
+            "rev-parse",
+            "--git-path",
+            "HEAD",
+            "--git-path",
+            "index",
+        ],
+    ) else {
+        return;
+    };
+    for rel in paths_out.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let path = join_git_rel(sub_root, rel);
+        if path.exists() && seen.insert(path.clone()) {
+            emit_watch_safe(&path, emit_watch);
         }
     }
 }
@@ -410,5 +444,50 @@ mod tests {
             resolve_git_rev_with(&empty_manifest, &empty_guard.0, OsStr::new("git"), &mut |_| {}),
             None
         );
+    }
+
+    #[test]
+    fn initialized_submodule_marks_dirty_and_watches_submodule_git_metadata() {
+        let sub_guard = TempDirGuard::new("sub-upstream");
+        let sub_dir = &sub_guard.0;
+        run_git(sub_dir, &["init", "-b", "main"]);
+        run_git(sub_dir, &["config", "user.name", "Test"]);
+        run_git(sub_dir, &["config", "user.email", "test@example.com"]);
+        fs::write(sub_dir.join("app.txt"), "v1\n").unwrap();
+        run_git(sub_dir, &["add", "app.txt"]);
+        run_git(sub_dir, &["commit", "-m", "sub init"]);
+
+        let repo_guard = TempDirGuard::new("with-sub");
+        let root = &repo_guard.0;
+        let (manifest_dir, _) = init_repo_with_commit(root);
+        run_git(
+            root,
+            &[
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                sub_dir.to_str().unwrap(),
+                "frontend",
+            ],
+        );
+        run_git(root, &["commit", "-m", "add submodule"]);
+        let sha8 = run_git(root, &["rev-parse", "--short=8", "HEAD"])
+            .trim()[..8]
+            .to_string();
+
+        let mut watches = Vec::new();
+        let rev = resolve_git_rev_with(&manifest_dir, root, OsStr::new("git"), &mut |p| {
+            watches.push(p.to_path_buf());
+        });
+        assert_eq!(rev.as_deref(), Some(sha8.as_str()));
+        assert!(
+            watches.iter().any(|p| p.ends_with("modules/frontend/HEAD") || p.ends_with("frontend/.git/HEAD")),
+            "expected submodule HEAD watch, got {watches:?}"
+        );
+
+        fs::write(root.join("frontend/app.txt"), "dirty\n").unwrap();
+        let dirty_rev = resolve_git_rev_with(&manifest_dir, root, OsStr::new("git"), &mut |_| {});
+        assert_eq!(dirty_rev.as_deref(), Some(format!("{sha8}-dirty").as_str()));
     }
 }

@@ -45,6 +45,8 @@
 
 有四個子指令要讀你電腦上的 git 與工作目錄：`drift`、`review prepare`、`review scope`、`verify scope`。用 CLI 在遠端專案的 checkout 裡執行，它們照常可用。沒有 checkout 的宿主經呼叫入口（`host.dispatch`）執行它們會被拒絕。帶 `--skill` 的 `instructions` 印的是 CLI 內建的技能文字，經呼叫入口同樣被拒絕，所以被拒絕的一共五個。見專案能力狀態的[已知缺口](product-status.zh-TW.md#known-gaps)。
 
+`worktree` 子指令家族（`speclink worktree status` 與 `speclink worktree preflight`）在你的本機檢查 git 狀態、活躍 sibling worktree、`160000` submodule 指標與本機 `.meta.yaml` 清潔度。無論在本機專案或遠端專案的本機 checkout 裡都能用，沒有 HTTP 端點，也不經 `host.dispatch` 呼叫。
+
 ## <a id="output-differences"></a>兩種模式的輸出差異
 
 兩種模式都可用的動詞，給人看的輸出（含 `--no-color`）應該一字不差。已知的差異只有下表。
@@ -155,6 +157,133 @@
 - `--json` 輸出 `{"change":"add-login","commit":"<sha>","branch":"speclink/add-login"}`；`branch` 只在這次有帶 `--branch` 時出現。
 
 `commit` 與 `worktree-merge` 兩支技能會在提交或合併之後替你執行它，見[工作流](workflow.zh-TW.md#commit)。
+
+### <a id="worktree-inspect"></a>本機 worktree 檢查：`speclink worktree status` 與 `speclink worktree preflight`
+
+這兩個子指令在你的電腦上檢查本機 git worktree 清潔度、`160000` submodule gitlink 歧異、Wave-1 重疊情況與合併就緒狀態：
+
+- `speclink worktree status [--target <rev>] [--json] [--no-color]`
+- `speclink worktree preflight <change> [--target <rev>] [--json] [--no-color]`
+
+規則與結束碼：
+
+- `--target <rev>` 預設為主 checkout 的 `HEAD`（或目前合併目標分支）。`<change>` 對應分支 `speclink/<change>`。
+- 兩者在本機專案與遠端專案的本機 git checkout 裡都能執行。若遠端專案的規格資料夾位於 Server 上，本機仍會檢查 git 狀態（`dirtyPaths`、`dirtySubmodules`、`submodulesChanged`、`submoduleConflicts`、`fileConflicts` 以及依路徑／submodule 計算的 `overlappingWorktrees`），而依賴規格文件的欄位（`dirtyLandedMeta`、`wave1Overlaps`、`overlaps`、`archiveAfter`、`landed`、`tasksCompleted`、`tasksTotal`、`review`、`verify`）會保持空白、`false` 或 `0`。
+- 只要位於有效的 git repository 內，`speclink worktree status` 即以 `0` 結束。
+- `speclink worktree preflight <change>` 會印出報告（人類可讀輸出與 `--json` 皆同），並只在 `readyToMerge` 為 `true`（`status` 為 `"ready"` 或 `"submodule_first"`）時以 `0` 結束。當 `readyToMerge` 為 `false`（`status` 為 `"needs_cleanup"`——例如主 checkout 僅剩未提交的已落地 `.meta.yaml`——或 `"blocked"`）時，仍印出完整報告並以非零結束。
+- `mergeReadiness`（及 `preflight --json` 的 `status`）有四種值：`"ready"`、`"submodule_first"`、`"needs_cleanup"` 或 `"blocked"`。
+
+`speclink worktree status --json` 輸出範例：
+
+```json
+{
+  "target": "main",
+  "targetCommit": "486315be1a9e61819822c35223c5d046fb535374",
+  "inLinkedWorktree": false,
+  "main": {
+    "branch": "main",
+    "head": "486315be1a9e61819822c35223c5d046fb535374",
+    "clean": false,
+    "cleanExceptLandedMeta": true,
+    "dirtyLandedMeta": [
+      {
+        "change": "add-auth",
+        "path": "speclink/changes/add-auth/.meta.yaml",
+        "landedCommit": "1111111",
+        "tasksDone": true,
+        "openTickets": [],
+        "readyToArchive": true
+      }
+    ],
+    "dirtyPaths": ["speclink/changes/add-auth/.meta.yaml"],
+    "dirtySubmodules": []
+  },
+  "wave1Overlaps": [
+    {
+      "change": "add-session",
+      "stage": "in-progress",
+      "hasWorktree": true,
+      "overlaps": [{ "change": "add-profile", "capabilities": ["session"] }],
+      "conflictsWith": ["add-profile"],
+      "archiveAfter": []
+    }
+  ],
+  "worktrees": [
+    {
+      "change": "add-session",
+      "branch": "speclink/add-session",
+      "path": "/path/to/repo.worktrees/add-session",
+      "mapped": true,
+      "clean": true,
+      "dirtyPaths": [],
+      "dirtySubmodules": [],
+      "ahead": 2,
+      "behind": 1,
+      "mergeBase": "486315be1a9e61819822c35223c5d046fb535374",
+      "changedPaths": ["frontend", "src/session.ts"],
+      "submodulesChanged": [
+        {
+          "path": "frontend",
+          "baseCommit": "aaaa111",
+          "branchCommit": "bbbb222",
+          "targetCommit": "cccc333",
+          "divergedOnTarget": true
+        }
+      ],
+      "overlaps": [{ "change": "add-profile", "capabilities": ["session"] }],
+      "archiveAfter": [],
+      "overlappingWorktrees": [
+        {
+          "change": "add-profile",
+          "capabilities": ["session"],
+          "sharedPaths": [],
+          "sharedSubmodules": ["frontend"]
+        }
+      ],
+      "landed": false,
+      "tasksCompleted": 3,
+      "tasksTotal": 3,
+      "review": { "state": "open", "rounds": 1, "commit": null },
+      "verify": { "state": "none", "rounds": 0, "commit": null },
+      "mergeReadiness": "needs_cleanup",
+      "blockers": ["main checkout only has uncommitted landed .meta.yaml file(s)"],
+      "warnings": []
+    }
+  ]
+}
+```
+
+`speclink worktree preflight <change> --json` 輸出範例（於提交或封存先前已落地的 `.meta.yaml` 之後）：
+
+```json
+{
+  "change": "add-session",
+  "target": "main",
+  "targetCommit": "597426cf1a9e61819822c35223c5d046fb535374",
+  "readyToMerge": true,
+  "submoduleMergeRequired": true,
+  "status": "submodule_first",
+  "main": {
+    "branch": "main",
+    "head": "597426cf1a9e61819822c35223c5d046fb535374",
+    "clean": true,
+    "cleanExceptLandedMeta": false,
+    "dirtyLandedMeta": [],
+    "dirtyPaths": [],
+    "dirtySubmodules": []
+  },
+  "worktree": { "...": "結構同上方 WorktreeStatusItem；找不到 worktree 時為 null" },
+  "submoduleConflicts": ["frontend"],
+  "fileConflicts": [],
+  "blockers": [],
+  "warnings": [],
+  "remediations": []
+}
+```
+
+- `dirtySubmodules` 每筆包含 `{ "path", "indexCommit", "headCommit", "dirty" }`。
+- `review.state` 與 `verify.state` 的值為 `"none"`、`"open"`、`"stamped"` 或 `"stale"`。
+- `submoduleConflicts` 列出在兩個分支上分歧但沒有納入 `fileConflicts` 的 `160000` gitlink 路徑；`worktree-merge` 技能會改走 submodule-first 合併解開，而不會僅因指標歧異就直接中止。
 
 ### 自由欄位：`change field` 與 `discuss field`
 

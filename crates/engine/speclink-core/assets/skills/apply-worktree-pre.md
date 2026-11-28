@@ -83,6 +83,15 @@ Every STOP in this step ends the run on the spot: do NOT commit the artifacts, d
 
 Once a change is selected, announce: "Using change: <change-name>" and how to override (e.g., `/speclink:apply-with-worktree <other>`).
 
+Inspect structural overlaps and active sibling worktrees before starting parallel work: read `overlaps`, `requirementOverlap`, and `archiveAfter` from the `speclink plan --json` payload above, and check active sibling worktrees:
+
+```bash
+speclink worktree status --json
+git worktree list --porcelain
+```
+
+- When `overlaps` or `requirementOverlap` is non-empty, or sibling `speclink/*` worktrees are active (`worktrees` / `wave1Overlaps` / `overlappingWorktrees`): surface the overlapping change names, shared `capabilities`, any `conflict: true` requirement overlaps (where one side will need adjusting before archiving), `archiveAfter` order, and any shared submodules clearly to the user. Note that parallel work may proceed, and that if overlapping sibling worktrees run concurrently, quality stamps (`/speclink:review` and `/speclink:verify`) should be deferred until after `/speclink:worktree-merge` back in the main checkout so fork-point stamps are not invalidated when another branch lands first.
+
 Keep the selected change's `created` and `modifiedAt` from `speclink list --json` now: creating the worktree writes the change's files anew, so inside the worktree `modifiedAt` reads as now. Step 3d of the apply body judges dormancy on the values kept here, not on the ones its own step 2 keeps. Continue to P3.
 
 {{#SPEC_IN_CHECKOUT}}
@@ -168,6 +177,12 @@ git branch --list "speclink/<change-name>"
 
 If `git worktree add` fails, report the error verbatim and STOP.
 
+If the repo has git submodules (`git -C "<worktree-path>" submodule status` shows entries prefixed with `-`), initialize them inside the worktree:
+
+```bash
+git -C "<worktree-path>" submodule update --init --recursive
+```
+
 ### P5. Tell the user what this costs
 
 Print a short note before starting work:
@@ -180,6 +195,7 @@ Every step of the apply flow below runs **inside the worktree folder**, not the 
 
 - `cd` into the worktree, or pass it explicitly to every command.
 - File reads and edits target the worktree copy.
+- If this change modifies files inside a git submodule, create or check out `speclink/<change-name>` inside that submodule before committing there (`git -C "<worktree-path>/<submodule-path>" branch --list "speclink/<change-name>"` → check it out if present, else `git -C "<worktree-path>/<submodule-path>" checkout -b "speclink/<change-name>"`), so submodule commits never stay dangling on a detached HEAD.
 {{#SPEC_IN_CHECKOUT}}
 - `speclink` verbs run with the worktree as the working directory, so task checkboxes and stamps land in that copy.
 {{/SPEC_IN_CHECKOUT}}

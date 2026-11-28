@@ -45,6 +45,8 @@ With an older Server that does not have these routes, all three stop with a non-
 
 Four subcommands read git and the working tree on your machine: `drift`, `review prepare`, `review scope`, and `verify scope`. The CLI runs them in the checkout of a remote project as usual. A host without a checkout refuses them when a call comes through the call entry point (`host.dispatch`). `instructions` with `--skill` prints skill text that is built into the CLI, and the call entry point refuses it too. Thus the entry point refuses five in total. See [Known gaps](product-status.md#known-gaps) in Product status.
 
+The `worktree` command group (`speclink worktree status` and `speclink worktree preflight`) inspects local git state, active sibling worktrees, `160000` submodule pointers, and local `.meta.yaml` cleanliness on your machine. It runs in both local projects and local checkouts of remote projects, has no HTTP endpoint, and is not dispatched through `host.dispatch`.
+
 ## <a id="output-differences"></a>Output differences between modes
 
 For verbs that work in both modes, the human-readable output (also with `--no-color`) must be identical. The table below shows all known differences.
@@ -155,6 +157,133 @@ It reports the commit that the code of the change landed on.
 - `--json` prints `{"change":"add-login","commit":"<sha>","branch":"speclink/add-login"}`. `branch` appears only when this call has `--branch`.
 
 The `commit` and `worktree-merge` skills run it for you after a commit or a merge. See [the workflow](workflow.md#commit).
+
+### <a id="worktree-inspect"></a>Local worktree inspection: `speclink worktree status` and `speclink worktree preflight`
+
+These two subcommands inspect local git worktree cleanliness, `160000` submodule gitlink divergence, Wave-1 overlaps, and merge readiness on your machine:
+
+- `speclink worktree status [--target <rev>] [--json] [--no-color]`
+- `speclink worktree preflight <change> [--target <rev>] [--json] [--no-color]`
+
+Rules and exit behavior:
+
+- `--target <rev>` defaults to the main checkout's `HEAD` (or current branch target). `<change>` matches branch `speclink/<change>`.
+- Both run in local projects and in local git checkouts of remote projects. In a remote project whose spec folder lives on the Server, git state (`dirtyPaths`, `dirtySubmodules`, `submodulesChanged`, `submoduleConflicts`, `fileConflicts`, and path/submodule-based `overlappingWorktrees`) is still inspected locally, while spec-backed fields (`dirtyLandedMeta`, `wave1Overlaps`, `overlaps`, `archiveAfter`, `landed`, `tasksCompleted`, `tasksTotal`, `review`, `verify`) remain empty, `false`, or `0`.
+- `speclink worktree status` exits `0` on a valid git repository.
+- `speclink worktree preflight <change>` prints its report (both human output and `--json`) and exits `0` only when `readyToMerge` is `true` (`status` is `"ready"` or `"submodule_first"`). When `readyToMerge` is `false` (`status` is `"needs_cleanup"` — for example when the main checkout only has uncommitted landed `.meta.yaml` files — or `"blocked"`), it prints the report and exits non-zero.
+- `mergeReadiness` (and `preflight --json`'s `status`) takes one of four values: `"ready"`, `"submodule_first"`, `"needs_cleanup"`, or `"blocked"`.
+
+Example `speclink worktree status --json` output:
+
+```json
+{
+  "target": "main",
+  "targetCommit": "486315be1a9e61819822c35223c5d046fb535374",
+  "inLinkedWorktree": false,
+  "main": {
+    "branch": "main",
+    "head": "486315be1a9e61819822c35223c5d046fb535374",
+    "clean": false,
+    "cleanExceptLandedMeta": true,
+    "dirtyLandedMeta": [
+      {
+        "change": "add-auth",
+        "path": "speclink/changes/add-auth/.meta.yaml",
+        "landedCommit": "1111111",
+        "tasksDone": true,
+        "openTickets": [],
+        "readyToArchive": true
+      }
+    ],
+    "dirtyPaths": ["speclink/changes/add-auth/.meta.yaml"],
+    "dirtySubmodules": []
+  },
+  "wave1Overlaps": [
+    {
+      "change": "add-session",
+      "stage": "in-progress",
+      "hasWorktree": true,
+      "overlaps": [{ "change": "add-profile", "capabilities": ["session"] }],
+      "conflictsWith": ["add-profile"],
+      "archiveAfter": []
+    }
+  ],
+  "worktrees": [
+    {
+      "change": "add-session",
+      "branch": "speclink/add-session",
+      "path": "/path/to/repo.worktrees/add-session",
+      "mapped": true,
+      "clean": true,
+      "dirtyPaths": [],
+      "dirtySubmodules": [],
+      "ahead": 2,
+      "behind": 1,
+      "mergeBase": "486315be1a9e61819822c35223c5d046fb535374",
+      "changedPaths": ["frontend", "src/session.ts"],
+      "submodulesChanged": [
+        {
+          "path": "frontend",
+          "baseCommit": "aaaa111",
+          "branchCommit": "bbbb222",
+          "targetCommit": "cccc333",
+          "divergedOnTarget": true
+        }
+      ],
+      "overlaps": [{ "change": "add-profile", "capabilities": ["session"] }],
+      "archiveAfter": [],
+      "overlappingWorktrees": [
+        {
+          "change": "add-profile",
+          "capabilities": ["session"],
+          "sharedPaths": [],
+          "sharedSubmodules": ["frontend"]
+        }
+      ],
+      "landed": false,
+      "tasksCompleted": 3,
+      "tasksTotal": 3,
+      "review": { "state": "open", "rounds": 1, "commit": null },
+      "verify": { "state": "none", "rounds": 0, "commit": null },
+      "mergeReadiness": "needs_cleanup",
+      "blockers": ["main checkout only has uncommitted landed .meta.yaml file(s)"],
+      "warnings": []
+    }
+  ]
+}
+```
+
+Example `speclink worktree preflight <change> --json` output (after committing or archiving the landed `.meta.yaml`):
+
+```json
+{
+  "change": "add-session",
+  "target": "main",
+  "targetCommit": "597426cf1a9e61819822c35223c5d046fb535374",
+  "readyToMerge": true,
+  "submoduleMergeRequired": true,
+  "status": "submodule_first",
+  "main": {
+    "branch": "main",
+    "head": "597426cf1a9e61819822c35223c5d046fb535374",
+    "clean": true,
+    "cleanExceptLandedMeta": false,
+    "dirtyLandedMeta": [],
+    "dirtyPaths": [],
+    "dirtySubmodules": []
+  },
+  "worktree": { "...": "same WorktreeStatusItem shape as above, or null if missing" },
+  "submoduleConflicts": ["frontend"],
+  "fileConflicts": [],
+  "blockers": [],
+  "warnings": [],
+  "remediations": []
+}
+```
+
+- `dirtySubmodules` entries contain `{ "path", "indexCommit", "headCommit", "dirty" }`.
+- `review.state` and `verify.state` take `"none"`, `"open"`, `"stamped"`, or `"stale"`.
+- `submoduleConflicts` lists `160000` gitlink paths that diverged on both branches without source conflicts in `fileConflicts`; `worktree-merge` resolves them submodule-first instead of aborting on gitlink divergence.
 
 ### Free fields: `change field` and `discuss field`
 

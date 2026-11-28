@@ -24,3 +24,4 @@ pub(crate) mod query;
 pub(crate) mod station;
 pub(crate) mod toolchain;
 pub(crate) mod trace;
+pub(crate) mod worktree;

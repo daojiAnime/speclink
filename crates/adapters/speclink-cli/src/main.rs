@@ -35,6 +35,7 @@ use verbs::toolchain::{
     FeedbackArgs, JsonFlag, SchemaArgs, TemplatesArgs,
 };
 use verbs::trace::{cmd_trace, remote_trace};
+use verbs::worktree::{cmd_worktree, WorktreeArgs};
 
 /// The frozen architecture suffix, absent on architectures we do not ship.
 const ARCH: Option<&str> = {
@@ -122,16 +123,19 @@ enum Commands {
     Config(ConfigArgs),
     /// Shell completion commands
     Completion(CompletionArgs),
+    /// Inspect local git worktree, submodule, and merge readiness
+    Worktree(WorktreeArgs),
     /// Generate a demo change with sample data
     Demo,
 }
 
 /// Every top-level command in its `--help` order.
-const HELP_ORDER: [&str; 35] = [
-    "init", "update", "list", "show", "validate", "analyze", "drift", "trace", "plan", "change",
-    "archive", "discard", "claim", "link", "unlink", "auth", "artifact", "evidence", "language", "status",
-    "instructions", "new", "schemas", "templates", "feedback", "schema", "config",
-    "workflow-config", "completion", "task", "in-progress", "demo", "discuss", "review", "verify",
+const HELP_ORDER: [&str; 36] = [
+    "init", "update", "list", "show", "validate", "analyze", "drift", "trace", "plan", "worktree",
+    "change", "archive", "discard", "claim", "link", "unlink", "auth", "artifact", "evidence",
+    "language", "status", "instructions", "new", "schemas", "templates", "feedback", "schema",
+    "config", "workflow-config", "completion", "task", "in-progress", "demo", "discuss",
+    "review", "verify",
 ];
 
 /// The CLI's command tree with each top-level command at its `HELP_ORDER`
@@ -186,6 +190,7 @@ fn dispatch(cli: Cli) -> Result<()> {
         Commands::Schema(a) => cmd_schema(a),
         Commands::Config(a) => cmd_config(a),
         Commands::Completion(a) => cmd_completion(a),
+        Commands::Worktree(a) => cmd_worktree(a),
         Commands::Spec(verb) => spec_dispatch(verb),
         // --- FsOnly：只解析模式、不握手，remote 明寫拒絕 ---
         Commands::Demo => fs_only(DEMO_REMOTE_REFUSAL, cmd_demo),

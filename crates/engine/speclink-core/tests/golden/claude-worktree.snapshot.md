@@ -9,7 +9,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -102,7 +102,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -450,7 +450,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -541,6 +541,15 @@ Every STOP in this step ends the run on the spot: do NOT commit the artifacts, d
 
 Once a change is selected, announce: "Using change: <change-name>" and how to override (e.g., `/speclink-apply-with-worktree <other>`).
 
+Inspect structural overlaps and active sibling worktrees before starting parallel work: read `overlaps`, `requirementOverlap`, and `archiveAfter` from the `speclink plan --json` payload above, and check active sibling worktrees:
+
+```bash
+speclink worktree status --json
+git worktree list --porcelain
+```
+
+- When `overlaps` or `requirementOverlap` is non-empty, or sibling `speclink/*` worktrees are active (`worktrees` / `wave1Overlaps` / `overlappingWorktrees`): surface the overlapping change names, shared `capabilities`, any `conflict: true` requirement overlaps (where one side will need adjusting before archiving), `archiveAfter` order, and any shared submodules clearly to the user. Note that parallel work may proceed, and that if overlapping sibling worktrees run concurrently, quality stamps (`/speclink-review` and `/speclink-verify`) should be deferred until after `/speclink-worktree-merge` back in the main checkout so fork-point stamps are not invalidated when another branch lands first.
+
 Keep the selected change's `created` and `modifiedAt` from `speclink list --json` now: creating the worktree writes the change's files anew, so inside the worktree `modifiedAt` reads as now. Step 3d of the apply body judges dormancy on the values kept here, not on the ones its own step 2 keeps. Continue to P3.
 
 ### P3. Get the change's artifacts into HEAD
@@ -614,6 +623,12 @@ git branch --list "speclink/<change-name>"
 
 If `git worktree add` fails, report the error verbatim and STOP.
 
+If the repo has git submodules (`git -C "<worktree-path>" submodule status` shows entries prefixed with `-`), initialize them inside the worktree:
+
+```bash
+git -C "<worktree-path>" submodule update --init --recursive
+```
+
 ### P5. Tell the user what this costs
 
 Print a short note before starting work:
@@ -626,6 +641,7 @@ Every step of the apply flow below runs **inside the worktree folder**, not the 
 
 - `cd` into the worktree, or pass it explicitly to every command.
 - File reads and edits target the worktree copy.
+- If this change modifies files inside a git submodule, create or check out `speclink/<change-name>` inside that submodule before committing there (`git -C "<worktree-path>/<submodule-path>" branch --list "speclink/<change-name>"` → check it out if present, else `git -C "<worktree-path>/<submodule-path>" checkout -b "speclink/<change-name>"`), so submodule commits never stay dangling on a detached HEAD.
 - `speclink` verbs run with the worktree as the working directory, so task checkboxes and stamps land in that copy.
 
 The main checkout stays untouched. Its `speclink list` will show this change with a `[worktree]` marker and reflect the worktree's task progress live — that is how the user watches parallel work from one place.
@@ -984,11 +1000,23 @@ The apply body's own **Next steps** section does not apply here — this worktre
 
 Follow the `/speclink-commit` skill's attribution convention: stage only the files belonging to this change (its artifacts under `speclink/changes/<change-name>/` plus the source files that `speclink evidence show "<change-name>" --json` lists in `files`), leave unrelated dirty files alone, and put the commit message in the project's language.
 
+If any touched files belong to a git submodule (check `git submodule status` or `git diff --raw`), commit those changed files inside each affected submodule first — ensuring that submodule is on branch `speclink/<change-name>` (check `git -C "<submodule-path>" branch --list "speclink/<change-name>"`: check it out if present, otherwise `git -C "<submodule-path>" checkout -b "speclink/<change-name>"`; never leave new commits dangling on a detached HEAD) — then stage the updated `160000` submodule gitlink path in the superproject alongside the superproject files.
+
 The commit lands on branch `speclink/<change-name>` inside the worktree. Nothing reaches the main branch yet.
 
 ### W2. Catch up with the main branch, then reset the quality starting point
 
-Rebasing now means a stamp landed in this worktree covers the content as it will be after the merge, and the later merge is a fast-forward that keeps the stamp fresh. Do it only while neither quality station has a ticket — a ticket means the stations are already running, and a rebase in the middle of their loop would move the ground under them:
+Check active sibling worktrees and structural overlaps first:
+
+```bash
+speclink worktree status --json
+speclink plan --json
+git worktree list --porcelain
+```
+
+Note whether concurrent overlapping worktrees exist — active sibling `speclink/*` worktrees (in `worktrees` / `git worktree list --porcelain`) that share `overlaps` capabilities or `requirementOverlap` in `plan`, or share `sharedPaths` / `sharedSubmodules` in `overlappingWorktrees`.
+
+Rebasing now catches the branch up when clean, and means a stamp landed in a standalone worktree covers the content as it will be after the merge. Do it only while neither quality station has a ticket — a ticket means the stations are already running, and a rebase in the middle of their loop would move the ground under them:
 
 ```bash
 speclink review show "<change-name>" --json
@@ -1012,10 +1040,10 @@ Both report that no ticket exists → continue. Either one shows a ticket → sk
    git rebase "<recorded-commit>"
    ```
 
-   - **Conflicts** → do not resolve them. Run `git rebase --abort` (the branch returns exactly as it was), report the conflicting files, and skip the reset below: the branch did not change, so its old starting point still holds.
+   - **Conflicts** (including `160000` submodule gitlink conflicts when both branches moved a submodule pointer) → do not resolve them. Run `git rebase --abort` (the branch returns exactly as it was), report the conflicting files, and skip the reset below: the branch did not change, so its old starting point still holds, and `/speclink-worktree-merge` handles submodule-first resolution when landing.
    - **Git refuses for another reason** (for example, uncommitted files) → report git's message and skip the reset below.
 
-3. The rebase succeeded → move the quality stations' starting point to the recorded commit:
+3. The rebase succeeded → if any unmodified submodule inside the worktree is clean and its `160000` gitlink moved on the rebased base, sync it (`git submodule update --init "<submodule-path>"`), then move the quality stations' starting point to the recorded commit:
 
    ```bash
    speclink review prepare "<change-name>" --base "<recorded-commit>"
@@ -1023,7 +1051,7 @@ Both report that no ticket exists → continue. Either one shows a ticket → sk
 
    If it fails, report its error and the recorded commit. The branch now sits on the recorded commit while the starting point still names the old fork point, so a quality round run now would count the main branch's own changes as this change's. Rerun that one line once the cause is cleared, before any quality station runs.
 
-A stamp can still go stale if the main branch changes the same files again while the stations run.
+A stamp can still go stale if the main branch or an overlapping sibling worktree lands changes to the same files or submodules later.
 
 ### W3. Stop here — do not merge, do not remove the worktree
 
@@ -1037,9 +1065,17 @@ Merging is a separate, human-triggered step: it needs a clean main tree, and a c
 
 ### W4. Hand off
 
-Pick the path by the change's state: unchecked `[M]` manual tasks show in `speclink instructions apply --change "<change-name>" --json` as `remaining` above `codeRemaining`.
+Pick the path by the change's state: unchecked `[M]` manual tasks show in `speclink instructions apply --change "<change-name>" --json` as `remaining` above `codeRemaining`, and W2 checked whether concurrent overlapping sibling worktrees exist (sharing `overlaps`, `requirementOverlap`, `sharedPaths`, or `sharedSubmodules`).
 
-- **No unchecked `[M]` task** — tell the user, plainly:
+- **Concurrent overlapping worktrees exist** — advise deferring quality stamping until after merging back into the main checkout (name the overlapping sibling worktrees, shared capabilities, or shared submodules):
+
+  > This change is finished and committed inside the worktree, and has not been merged back into the main branch yet.
+  >
+  > Concurrent overlapping worktrees are active (<overlapping sibling names / shared capabilities or submodules>), so defer `/speclink-review` (craft quality) ∥ `/speclink-verify` (spec compliance), or `/speclink-quality` (both stations together), until after `/speclink-worktree-merge <change-name>` back in the main checkout — stamps created on this fork-point commit would be invalidated as soon as another overlapping branch lands first.
+  >
+  > Suggested next step: run `/speclink-worktree-merge <change-name>` first — it handles submodule-first resolution if needed, carries the quality stations' starting point over to the main checkout, removes the worktree and branch, and returns the main tree clean. Then run `/speclink-review` ∥ `/speclink-verify`, or `/speclink-quality` in the main checkout, finish any manual tasks, and run `/speclink-archive`.
+
+- **No unchecked `[M]` task and no concurrent overlapping worktrees** — tell the user, plainly:
 
   > This change is finished and committed inside the worktree, and has not been merged back into the main branch yet.
   >
@@ -1047,29 +1083,29 @@ Pick the path by the change's state: unchecked `[M]` manual tasks show in `specl
   >
   > If you want to see CI results before stamping, take the other route: run `/speclink-worktree-merge <change-name>` to merge first, then run the quality stations in the main checkout — worktree branches stay local and are never pushed, so CI cannot see them; merging carries the quality stations' starting point over to the main checkout.
 
-- **Unchecked `[M]` tasks remain** — tell the user, plainly:
+- **Unchecked `[M]` tasks remain (with no concurrent overlap)** — tell the user, plainly:
 
   > This change is finished and committed inside the worktree, has not been merged back into the main branch yet, and still has unchecked manual tasks.
   >
   > Suggested next step: run `/speclink-worktree-merge <change-name>` first — it checks that the main tree is clean, merges the branch back, carries the quality stations' starting point over to the main checkout, and removes the worktree and branch on success. After that, run the quality stations in the main checkout — `/speclink-review` (craft quality) ∥ `/speclink-verify` (spec compliance), or `/speclink-quality` (both stations together); whether to run them is your call — then finish the manual tasks and archive.
 
-Report alongside it: the worktree path, the branch name, the tasks completed this session, and whether W2 rebased or why it skipped.
+Report alongside it: the worktree path, the branch name, the tasks completed this session, any overlapping sibling worktrees detected, and whether W2 rebased or why it skipped.
 
 ### Wrap-up check
 
 Check these before you hand off:
 
-- [ ] The commit in the worktree holds only this change's artifacts and evidence-recorded source files (W1).
+- [ ] The commit in the worktree (and inside any modified submodule on `speclink/<change-name>`) holds only this change's artifacts and evidence-recorded source files (W1).
 - [ ] W2 rebased only while neither station had a ticket; a conflict was aborted, never resolved; a successful rebase was followed by `speclink review prepare --base` (W2).
 - [ ] Nothing was merged, no worktree or branch was removed, and the main checkout was not touched (W3).
-- [ ] The hand-off names the worktree path, the branch and the tasks completed, takes the path the manual tasks call for, and lists review, verify and quality as the entries next to `/speclink-worktree-merge` (W4).
+- [ ] The hand-off names the worktree path, the branch and the tasks completed, advises post-merge quality stamping when concurrent overlapping worktrees exist or `[M]` tasks remain, and lists review, verify and quality as the entries next to `/speclink-worktree-merge` (W4).
 
 ## Next steps
 
 Suggestions only. This skill NEVER invokes any of them — report where things stand and stop; the user decides what runs next.
 
-- No unchecked `[M]` task → the quality stations here in the worktree: `/speclink-review` ∥ `/speclink-verify`, or `/speclink-quality` for both; commit the stamps, then `/speclink-worktree-merge <change-name>`
-- Unchecked `[M]` tasks remain, or the user wants CI results before stamping (the worktree branch is local only, so CI never sees it) → `/speclink-worktree-merge <change-name>` first, then the quality stations and the manual tasks in the main checkout, then archive
+- Concurrent overlapping sibling worktrees exist, unchecked `[M]` tasks remain, or the user wants CI results before stamping (the worktree branch is local only, so CI never sees it) → `/speclink-worktree-merge <change-name>` first, then the quality stations (`/speclink-review` ∥ `/speclink-verify`, or `/speclink-quality`) and any manual tasks in the main checkout, then archive
+- No unchecked `[M]` task and no concurrent overlapping sibling worktrees → the quality stations here in the worktree: `/speclink-review` ∥ `/speclink-verify`, or `/speclink-quality` for both; commit the stamps, then `/speclink-worktree-merge <change-name>`
 - Requirements changed mid-work → `/speclink-ingest <change-name>` inside this worktree, then resume apply here
 
 === .claude/skills/speclink-archive/SKILL.md ===
@@ -1080,7 +1116,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1435,7 +1471,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1684,7 +1720,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1810,7 +1846,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -1877,9 +1913,11 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
    Run `git status --porcelain` and filter the output to files under `speclink/changes/<name>/`. These are the change's artifact files (proposal, design, tasks, specs, etc.) — including `.evidence.json` itself, which is version-controlled and belongs to this change's commit.
 
-4. **Identify unrelated dirty files**
+4. **Identify unrelated dirty files and submodule scope**
 
    From the full `git status --porcelain` output, any dirty files that are neither in the artifact set nor in the evidence record are "unrelated changes."
+
+   When `git status --porcelain` shows a dirty `160000` submodule gitlink (verify via `git submodule status` or `git ls-files --stage <path>`) or the evidence record includes paths inside a submodule, inspect `git -C "<submodule-path>" status --porcelain`: classify files inside the submodule with the same rule (files belonging to this change vs unrelated dirty files inside the submodule). If the submodule contains uncommitted changes for this change, commit inside that submodule before staging its gitlink in the superproject.
 
 5. **Generate commit message**
 
@@ -2069,9 +2107,13 @@ A delta spec is written back with `speclink new artifact spec <capability> --cha
 
          Policy off, or only one such change → name `next` alone. A null `next`, or a `plan` failure (a dependency cycle) → say nothing about ordering. This too is a reminder only — never run apply yourself.
 
-8. **Selective staging**
+8. **Selective staging (and submodule commits first, if any)**
 
-   Stage each confirmed file individually:
+   When confirmed changes include files inside a git submodule:
+   - Check the submodule's branch (`git -C "<submodule-path>" branch --show-current`). Inside a linked worktree (when the superproject branch is `speclink/<change-name>`) if the submodule is on a detached HEAD, create or check out branch `speclink/<change-name>` inside the submodule first so its commit is reachable by branch name.
+   - Stage only the confirmed change files inside the submodule explicitly (`git -C "<submodule-path>" add <file>` — never `git add .` or `git add -A`) and commit inside the submodule (`git -C "<submodule-path>" commit -m "<message>"`).
+
+   Stage each confirmed file individually (in the superproject, include any updated `160000` submodule gitlink path `<submodule-path>`):
 
    ```bash
    git add <file1>
@@ -2154,7 +2196,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -2401,7 +2443,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -2902,7 +2944,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -3045,7 +3087,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -3242,7 +3284,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -3584,7 +3626,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -3799,7 +3841,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -4295,7 +4337,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -4433,7 +4475,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -4737,7 +4779,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -4825,7 +4867,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -5201,7 +5243,7 @@ license: MIT
 compatibility: Requires speclink CLI.
 metadata:
   author: speclink
-  version: "v1.66.0"
+  version: "v1.67.0"
   generatedBy: "Speclink"
 ---
 
@@ -5213,7 +5255,7 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
 
 **Input**: Optionally specify a change name (e.g., `/speclink-worktree-merge add-auth`). If omitted, run `git worktree list --porcelain` and offer the `speclink/*` branches found. If more than one is a candidate you MUST ask which one and wait for the answer — never guess.
 
-**Prerequisites**: This skill requires `git` and the `speclink` CLI. Run `git --version`. If git is not available, report it and STOP. Every step below is driven from the **main checkout**; the steps that act on the worktree — its status check and the rebase — reach it with `git -C <worktree-path>` rather than moving you there.
+**Prerequisites**: This skill requires `git` and the `speclink` CLI. Run `git --version`. If git is not available, report it and STOP. Every step below is driven from the **main checkout**; the steps that act on the worktree or its submodules — status checks, submodule fetches/merges, and the rebase — reach them with `-C <path>` rather than moving you there.
 
 **Steps**
 
@@ -5227,7 +5269,7 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
 
    Announce: "Merging worktree for change: <name>" plus the worktree path and branch.
 
-2. **Preflight — all three conditions must hold**
+2. **Preflight — all conditions must hold**
 
    Check which branch the main checkout is on:
 
@@ -5238,24 +5280,26 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
    - **A `speclink/*` branch, or empty output (detached HEAD)** — STOP. The main checkout is parked somewhere a merge must never land; tell the user to switch it back to the main branch first. Do **NOT** switch branches on their behalf.
    - **Anything else** — that branch is the merge target. Announce it (it appears again in step 3 and in the success output), so a wrong destination is visible BEFORE the merge, not after.
 
-   Check the main checkout's working tree:
+   Run the worktree preflight inspection and check both working trees plus any active submodules:
 
    ```bash
+   speclink worktree preflight "<change-name>" --target "<target-branch>" --json
    git -C <main-checkout> status --porcelain
-   ```
-
-   Check the worktree's:
-
-   ```bash
    git -C <worktree-path> status --porcelain
+   git -C <main-checkout> submodule status
    ```
 
-   - **Main tree not clean** (any uncommitted change) — STOP. List the dirty files and tell the user to commit or stash them first. Do **NOT** stash on their behalf. Do **NOT** commit their unrelated work for them.
-   - **Worktree not fully committed** (any uncommitted change) — STOP. List the dirty files and tell the user the change's work must be committed inside the worktree first (`/speclink-apply-with-worktree` does this at its wrap-up). Do **NOT** commit on their behalf.
+   Note: `speclink worktree preflight` exits non-zero when `status` is `needs_cleanup` or `blocked` while still printing JSON — read its `status`, `main`, `worktree`, `submoduleConflicts`, `fileConflicts`, and `blockers` fields.
 
-   Only when all three hold, continue.
+   - **Worktree not fully committed** (any uncommitted change in `<worktree-path>` or inside any submodule it contains, shown as `dirtySubmodules` or `git -C <worktree-path>/<submodule> status --porcelain`) — STOP. List the dirty files (including dirty submodule paths) and tell the user the change's work must be committed inside the worktree (and inside the submodule first, on branch `speclink/<change-name>`) before merging (`/speclink-apply-with-worktree` does this at its wrap-up). Do **NOT** commit on their behalf.
+   - **Main tree dirty only from already-landed change metadata** (`main.cleanExceptLandedMeta` is true in preflight, meaning every dirty path in `<main-checkout>` is a `speclink/changes/<other>/.meta.yaml` carrying a `landed_commit` from an earlier merge) — do not deadlock on an earlier landing record:
+     - If an entry in `main.dirtyLandedMeta` reports `readyToArchive: true` and the user wants to finish that change first, run `/speclink-archive <other>` and commit its archive changes; otherwise stage each listed landed metadata file individually (`git -C <main-checkout> add "<path>"`) and commit it with a message matching the repo's commit convention (without `--no-verify`, never sweeping unrelated files), then continue once the main tree is clean.
+   - **Main tree not clean** (any other uncommitted change in `<main-checkout>` or inside its submodules `main.dirtySubmodules`) — STOP. List the dirty files and tell the user to commit or stash them first. Do **NOT** stash on their behalf. Do **NOT** commit their unrelated work for them.
+   - **Submodule target branch detached when a submodule merge is needed** — for each path in `submoduleConflicts` (or any `160000` submodule gitlink modified on `speclink/<change-name>` whose target submodule needs merging), verify `git -C <main-checkout>/<submodule> branch --show-current` is non-empty. If detached HEAD, stop and tell the user to check out the submodule's target branch first — do not switch branches on their behalf.
 
-3. **Merge into the main branch — rebase first, fast-forward second**
+   Only when preflight passes (or landed metadata cleanup made the main tree clean), continue.
+
+3. **Merge into the main branch — rebase first, fast-forward second, with submodule-first resolution**
 
    `speclink/*` branches are local and never pushed, so rewriting their history costs nothing. Replaying the branch onto the target first lets the merge be a fast-forward, which keeps the main branch a straight line instead of collecting one merge node per parallel change.
 
@@ -5265,35 +5309,68 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
    git -C <main-checkout> rev-parse HEAD
    ```
 
-   In the worktree, replay the branch onto the target branch verified in step 2:
+   Also inspect whether `160000` submodule gitlinks diverged or changed (`submoduleConflicts`, `fileConflicts`, and `worktree.submodulesChanged` from step 2's preflight, or `git -C <main-checkout> diff --raw "<target-branch>...speclink/<change-name>"`).
 
-   ```bash
-   git -C <worktree-path> rebase "<target-branch>"
-   ```
-
-   - **Rebase succeeds** — in the main checkout, land it without a merge node:
+   - **When `fileConflicts` is non-empty** (real superproject content conflicts) — stop now or let step 4 abort any attempted merge; never resolve content conflicts yourself.
+   - **When `submoduleConflicts` is empty** (no `160000` gitlink diverged on both branches):
+     In the worktree, replay the branch onto the target branch verified in step 2:
 
      ```bash
-     git -C <main-checkout> merge --ff-only "speclink/<change-name>"
+     git -C <worktree-path> rebase "<target-branch>"
      ```
 
-     If the fast-forward is refused, the target branch moved on between the rebase and the merge — another worktree landed first. Take the same exit as a rebase conflict below: fall back to a plain merge, and tell the user this one lands as a merge node.
+     - **Rebase succeeds** — in the main checkout, land it without a merge node:
 
-   - **Rebase reports conflicts** — do **NOT** resolve them. Abort, which restores the branch exactly as it was:
+       ```bash
+       git -C <main-checkout> merge --ff-only "speclink/<change-name>"
+       ```
 
-     ```bash
-     git -C <worktree-path> rebase --abort
-     ```
+       If the fast-forward is refused, the target branch moved on between the rebase and the merge — another worktree landed first. Fall back to a plain merge as below, and tell the user this one lands as a merge node.
 
-     Then fall back to a plain merge in the main checkout, and tell the user this one lands as a merge node:
+     - **Rebase reports conflicts** — do **NOT** resolve them. Abort, which restores the branch exactly as it was:
 
-     ```bash
-     git -C <main-checkout> merge "speclink/<change-name>"
-     ```
+       ```bash
+       git -C <worktree-path> rebase --abort
+       ```
+
+       Then fall back to a plain merge in the main checkout, and tell the user this one lands as a merge node:
+
+       ```bash
+       git -C <main-checkout> merge "speclink/<change-name>"
+       ```
+
+       If that merge reports conflicts only on `160000` submodule gitlinks, continue to the submodule-first path below; if any non-submodule file conflicts, go to step 4 immediately.
+
+   - **When `160000` submodule gitlinks diverged (`submoduleConflicts` non-empty, or fallback merge hit only `160000` gitlink conflicts)**:
+     Do not abort purely because a solvable `160000` submodule pointer moved on both branches.
+
+     1. If any non-submodule file also conflicts (check `fileConflicts` from preflight, or `git -C <main-checkout> diff --name-only --diff-filter=U` excluding `160000` submodule paths), go straight to step 4 (`merge --abort`) before mutating any submodule.
+     2. Otherwise, merge inside each conflicting submodule repo first:
+        - Get the worktree's submodule commit SHA: `git -C <main-checkout> rev-parse "speclink/<change-name>:<submodule>"` (`<wt-sub-sha>`).
+        - If `git -C <main-checkout>/<submodule> cat-file -e "<wt-sub-sha>^{commit}"` fails, fetch it from `<worktree-path>/<submodule>`:
+
+          ```bash
+          git -C <main-checkout>/<submodule> fetch "<worktree-path>/<submodule>" "<wt-sub-sha>"
+          ```
+
+        - Merge `<wt-sub-sha>` into `<main-checkout>/<submodule>`'s target branch:
+
+          ```bash
+          git -C <main-checkout>/<submodule> merge "<wt-sub-sha>"
+          ```
+
+        - If the submodule merge reports real source/content conflicts: run `git -C <main-checkout>/<submodule> merge --abort`, abort any open superproject merge (`git -C <main-checkout> merge --abort`), report the conflicting files inside `<submodule>` verbatim, and go to step 4 to stop.
+        - Verify `git -C <main-checkout>/<submodule> status --porcelain` is empty.
+     3. Land the superproject merge node and stage the resolved `160000` submodule pointers:
+        - If a superproject merge is not already open, run `git -C <main-checkout> merge --no-commit "speclink/<change-name>"`.
+        - Verify `git -C <main-checkout> diff --name-only --diff-filter=U` contains only the resolved submodule paths (if any other file conflicts, run `git -C <main-checkout> merge --abort` and go to step 4).
+        - Stage each resolved submodule pointer (`git -C <main-checkout> add "<submodule>"`) and complete the merge (`git -C <main-checkout> commit --no-edit`), telling the user this one landed as a merge node with submodule-first resolution.
+
+   - **Sync any remaining moved submodule checkout after landing** — if `speclink/<change-name>` advanced any other `160000` submodule gitlink (in `worktree.submodulesChanged`) that did not go through submodule-first merge above, sync `<main-checkout>/<submodule>` to `HEAD:<submodule>` before removing the worktree: fetch `<wt-sub-sha>` (`git -C <main-checkout> rev-parse "HEAD:<submodule>"`) from `<worktree-path>/<submodule>` if `cat-file -e` fails, then fast-forward/merge `<wt-sub-sha>` onto `<main-checkout>/<submodule>`'s branch when on a named branch (or `git -C <main-checkout> submodule update --init "<submodule>"` when detached) so `<main-checkout>` stays clean.
 
 4. **Conflict — stop immediately**
 
-   If the fallback merge reports conflicts:
+   If the fallback merge or a submodule merge reports real file/content conflicts:
 
    - Abort so nothing half-merged is left behind:
 
@@ -5301,11 +5378,13 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
      git -C <main-checkout> merge --abort
      ```
 
+     (and `git -C <main-checkout>/<submodule> merge --abort` if a submodule merge conflicted).
+
    - Report the conflicting file list to the user, verbatim.
    - Do **NOT** edit conflict markers, do **NOT** pick a side, do **NOT** commit a partial merge.
    - STOP and wait for the user to decide how to resolve it.
 
-   The main checkout must end up exactly as it was before step 3.
+   The main checkout (and its submodules) must end up exactly as they were before step 3.
 
 5. **Report the landing, carry the quality baseline over, then clean up**
 
@@ -5316,8 +5395,6 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
    ```
 
    When the verb is refused (for example, a Server that has no such route), tell the user its message and go on with the rest of this step. The merge stays as it is: do not revert it.
-
-   The report is recorded in the change's own data file, so the main checkout has that one modified file from here on. Leave it uncommitted and name it in the hand-off: it goes into this change's next commit.
 
    Then, before the worktree is removed, run this from the main checkout:
 
@@ -5334,19 +5411,35 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
    git -C <main-checkout> branch -d "speclink/<change-name>"
    ```
 
+   Also delete any merged `speclink/<change-name>` branch inside submodules (`git -C <main-checkout>/<submodule> branch --list "speclink/<change-name>"` → `git -C <main-checkout>/<submodule> branch -d "speclink/<change-name>"`).
+
    If `worktree remove` refuses because the worktree is dirty, do NOT force it — report what is uncommitted there and STOP. If `branch -d` refuses, report it and STOP: an unmerged commit means step 3 did not carry everything.
+
+   The report updates that change's metadata file in the main checkout; do not leave it uncommitted to block the next parallel worktree merge. Inspect the change's state (`speclink show "<change-name>" --json`, `speclink instructions apply --change "<change-name>" --json`, and `speclink plan --json`):
+
+   - **Ready to finish now** (both quality stamps are already landed and fresh — or the user explicitly chose to skip quality stations — no unchecked `[M]` manual tasks remain, no unstamped tickets exist, and `plan` shows no `archiveAfter` order blocker or conflict): you may run `/speclink-archive <change-name>` in the main checkout and commit all resulting archive changes (deltas merged into specs, change directory moved to archive, and metadata) using the repository's commit convention without `--no-verify`.
+
+   - **Otherwise** (quality stations still need to run in the main checkout, `[M]` tasks remain, or another change archives first): when `git -C <main-checkout> status --porcelain` lists `speclink/changes/<change-name>/.meta.yaml`, commit that landed metadata file explicitly now so the main checkout returns clean before handing off.
+
+     ```bash
+     git -C <main-checkout> add "speclink/changes/<change-name>/.meta.yaml"
+     git -C <main-checkout> commit -m "<conventional commit recording the landing of <change-name>>"
+     ```
+
+     Match the repository's commit convention (for example commitizen / conventional-commit format) and never pass `--no-verify`. Verify `git -C <main-checkout> status --porcelain` is empty.
 
    After removal the main checkout's `speclink list` no longer shows the `[worktree]` marker for this change, and its task counts read from the main copy again.
 
 6. **Confirm and hand off**
 
-   Tell the user the wrap-up is done: the branch is merged, the landing is reported (or its refusal message), the quality baseline is carried over, the worktree is removed, and the branch is deleted. Then hand off by the change's state. Read the manual tasks from `speclink instructions apply --change "<change-name>" --json` (`remaining` above `codeRemaining` means unchecked `[M]` tasks); ask the user when you cannot tell whether the quality stations already ran.
+   Tell the user the wrap-up is done: the branch is merged (with submodule-first resolution if applicable), the landing is reported (or its refusal message), the quality baseline is carried over, the worktree and branch are removed, and the main checkout is clean. Then hand off by the change's state. Read the manual tasks from `speclink instructions apply --change "<change-name>" --json` (`remaining` above `codeRemaining` means unchecked `[M]` tasks); ask the user when you cannot tell whether the quality stations already ran.
 
-   - **The quality stations already ran in the worktree** (their stamps came along with the merge):
+   - **Already archived in step 5** — report the archive summary and the `next` recommendation from `speclink plan --json`.
+   - **The quality stations already ran in the worktree** (their stamps came along with the merge and remain fresh):
 
      > This change has been merged back into the main branch, and the quality stations already ran in the worktree. Next step: run `/speclink-archive` in the main checkout.
 
-   - **The quality stations have not run, and no `[M]` task is open**:
+   - **The quality stations have not run (or stamps went stale after a submodule/main merge), and no `[M]` task is open**:
 
      > This change has been merged back into the main branch, and the quality stations' starting point has been carried over to the main checkout. If you want to run them, run `/speclink-review` (craft quality) ∥ `/speclink-verify` (spec compliance), or `/speclink-quality` (both stations together) right here — whether to run them is your call; then run `/speclink-archive`.
 
@@ -5361,13 +5454,15 @@ This is the wrap-up half of `/speclink-apply-with-worktree`. That skill stops ri
 
 **Change:** <change-name>
 **Branch:** speclink/<change-name> → <main-branch> ✓
-**Landed as:** fast-forward (straight line) — or "merge node (rebase fell back)" when step 3 took the fallback
+**Landed as:** fast-forward (straight line) — or "merge node (rebase fell back)" / "merge node (submodule-first)"
+**Submodules:** none — or "<submodule> merged first → <sha> ✓"
 **Landing reported:** ✓ — or the verb's refusal message
 **Quality baseline:** carried over to the main checkout ✓
 **Worktree:** <path> (removed)
 **Branch deleted:** ✓
+**Main tree:** clean ✓ (or archived ✓)
 
-Next: <step 6 hand-off — quality stations done → /speclink-archive in the main checkout; not run → run the quality stations directly in the main checkout, then archive; unchecked manual tasks remain → run the quality stations in the main checkout, finish manual tasks, then archive>
+Next: <step 6 hand-off — already archived → report next from plan; quality stations done → /speclink-archive in the main checkout; not run / invalidated → run the quality stations directly in the main checkout, then archive; unchecked manual tasks remain → run the quality stations in the main checkout, finish manual tasks, then archive>
 ```
 
 **Output On Stop**
@@ -5378,28 +5473,31 @@ Next: <step 6 hand-off — quality stations done → /speclink-archive in the ma
 **Change:** <change-name>
 **Reason:** <preflight failure, conflict, or baseline carry failed after the merge landed>
 
-<dirty file list, conflicting file list, or the prepare error verbatim>
+<dirty file list, conflicting file list (including submodule files if applicable), or the prepare error verbatim>
 
 **What you need to do:**
-<the specific action — commit/stash in the main tree, commit in the worktree, resolve the conflict, or clear the prepare error and rerun that one prepare line with the recorded pre-merge HEAD <sha>, then the cleanup>
+<the specific action — commit/stash in the main tree or submodule, commit in the worktree or submodule, resolve the conflict, or clear the prepare error and rerun that one prepare line with the recorded pre-merge HEAD <sha>, then the cleanup>
 ```
 
 **Guardrails**
 
 Check these before you report:
 
-- [ ] Never stash or commit on the user's behalf — in the main checkout or in the worktree (step 2)
-- [ ] Never resolve merge conflicts yourself; abort the merge and report (step 4)
+- [ ] Never stash or commit unrelated user work on the user's behalf — in the main checkout, submodules, or worktree (step 2)
+- [ ] Never resolve merge conflicts yourself; abort the merge (and any failed submodule merge) and report (step 4)
+- [ ] Never abort purely on a solvable `160000` submodule gitlink divergence when the submodule repo merges cleanly (step 3)
 - [ ] Never resolve rebase conflicts yourself; `rebase --abort` and fall back to the plain merge (step 3)
-- [ ] Never leave a half-finished merge state behind (step 4)
+- [ ] Never leave a half-finished merge state behind in the superproject or any submodule (step 4)
 - [ ] Never force-remove a worktree that still has uncommitted work (step 5)
 - [ ] The pre-merge HEAD was recorded before the rebase, and the worktree was removed only after `speclink review prepare --base --from` succeeded (steps 3 and 5)
-- [ ] Never merge a change whose worktree you did not verify is fully committed (step 2)
+- [ ] Never merge a change whose worktree or submodule you did not verify is fully committed (step 2)
+- [ ] Never leave the landed `.meta.yaml` uncommitted in the main checkout after wrap-up (step 5)
 
 ## Next steps
 
 Suggestions only. This skill NEVER invokes any of them — report where things stand and stop; the user decides what runs next.
 
+- Already archived in step 5 → report the `next` suggestion from `speclink plan --json`
 - The quality stations already ran in the worktree → `/speclink-archive <change-name>` **from the main checkout** — archiving inside a linked worktree is refused by the engine
-- The quality stations have not run → run them in the main checkout, where step 5 carried their baseline over: `/speclink-review` ∥ `/speclink-verify`, or `/speclink-quality` for both; then `/speclink-archive <change-name>`
+- The quality stations have not run (or went stale after merge) → run them in the main checkout, where step 5 carried their baseline over: `/speclink-review` ∥ `/speclink-verify`, or `/speclink-quality` for both; then `/speclink-archive <change-name>`
 - Unchecked `[M]` manual tasks remain → the quality stations in the main checkout, then the manual tasks, then `/speclink-archive <change-name>`

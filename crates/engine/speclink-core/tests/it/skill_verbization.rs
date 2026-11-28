@@ -943,7 +943,11 @@ fn worktree_merge_skill_reports_the_landing_after_a_successful_merge() {
             assert_has(&rendering, &rendering.content, &["**Landing reported:** ✓"]);
         }
     }
-    let data_file_note = ["the main checkout has that one modified file from here on", "Leave it uncommitted and name it in the hand-off"];
+    let data_file_note = [
+        "do not leave it uncommitted to block the next parallel worktree merge",
+        "commit that landed metadata file",
+        "so the main checkout returns clean",
+    ];
     for rendering in rendered("worktree-merge", SpecLocation::InCheckout) {
         assert_has(&rendering, &rendering.content, &data_file_note);
     }

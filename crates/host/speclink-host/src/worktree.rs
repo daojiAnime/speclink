@@ -410,12 +410,18 @@ impl Store for WorktreeOverlay<'_> {
     }
 }
 
+pub use crate::worktree_inspect::{
+    preflight, status, LandedMetaDirty, MainCheckoutState, MergeReadiness, SubmoduleChange,
+    SubmoduleState, Wave1Overlap, WorktreeOverlap, WorktreePreflightReport, WorktreeStationSummary,
+    WorktreeStatusItem, WorktreeStatusReport,
+};
+
 /// One `git worktree list --porcelain` record before the conditions apply.
-struct Record {
-    path: PathBuf,
-    branch: Option<String>,
+pub(crate) struct Record {
+    pub(crate) path: PathBuf,
+    pub(crate) branch: Option<String>,
     /// detached / bare / prunable — never eligible for a mapping.
-    ineligible: bool,
+    pub(crate) ineligible: bool,
 }
 
 /// Linked worktrees with a branch, in registry order. git lists the MAIN
@@ -433,7 +439,7 @@ fn linked_worktrees(text: &str) -> Vec<WorktreeEntry> {
 /// Split porcelain output into records. Records are delimited by their
 /// `worktree <path>` header line rather than by blank lines, so CRLF and
 /// trailing-whitespace variations cannot merge two entries into one.
-fn parse_records(text: &str) -> Vec<Record> {
+pub(crate) fn parse_records(text: &str) -> Vec<Record> {
     let mut out: Vec<Record> = Vec::new();
     for raw in text.lines() {
         let line = raw.trim_end();
