@@ -29,10 +29,11 @@ export function sourceAssetVersion(initRs) {
   return version;
 }
 
-/// 從 `speclink --version` 的輸出取引擎版號。舊 binary 不含 engine 段——那本身
-/// 就是「這顆 CLI 比守門還舊」的證據，明確失敗而非當成通過。
+/// 從 `speclink --version` 的輸出取引擎版號。相容舊格式（`engine vX.Y.Z)`）與帶
+/// 編譯期 Git 修訂的新格式（`engine vX.Y.Z, <sha8>[-dirty])`）；舊 binary 不含
+/// engine 段——那本身就是「這顆 CLI 比守門還舊」的證據，明確失敗而非當成通過。
 export function engineVersionOf(versionOutput) {
-  const version = versionOutput.match(/engine (\S+?)\)?\s*$/m)?.[1];
+  const version = versionOutput.match(/\bengine ([^\s,)]+)/)?.[1];
   if (!version) {
     throw new Error(`--version 輸出不含 engine 版號（過期的 binary？）：${versionOutput.trim()}`);
   }

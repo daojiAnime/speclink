@@ -131,6 +131,150 @@ export const stampedPaths = (stations) => [
   ...new Set(Object.keys(STATIONS).flatMap((station) => stations[station].stamp?.scope.map((f) => f.path) ?? [])),
 ];
 
+// 讀取單個變更的 .meta.yaml 與開放工單；依序嘗試 .speclink.yaml 自訂的 spec_dir、speclink 與 openspec。
+export const READ_STATIONS_SCRIPT = `custom=$(sed -n 's/^spec_dir:[[:space:]]*//p' .speclink.yaml 2>/dev/null | head -n 1 | sed "s/^[\\"']//;s/[\\"']$//")
+for d in "$custom" speclink openspec; do
+  [ -n "$d" ] || continue
+  c="$d/changes/$1"
+  [ -d "$c" ] || continue
+  cat "$c/.meta.yaml" 2>/dev/null; echo
+  for s in review verify; do [ -e "$c/$s.md" ] && echo "open_ticket: $s"; done
+  exit 0
+done`;
+
+// 檔案／160000 gitlink 子模組的指紋腳本（須配合 perl -MDigest::SHA=sha256_hex -0777 -e ... -- <paths>）。
+// 規則與引擎 read_scope_bytes + content_fingerprint_bytes 位元組級同構：
+//   - 一般檔案：UTF-8 先把 CRLF 換成 LF 再算 SHA-256，非 UTF-8 看原始位元組。
+//   - 160000 gitlink 目錄：未初始化取索引 SHA、乾淨取 HEAD SHA（Subproject commit <sha>\n），
+//     髒工作區加上 status/diff/untracked 的 dirty-worktree 摘要；一般目錄或損壞 .git 略過不輸出（視為缺失／stale）。
+export const FINGERPRINT_SCRIPT = String.raw`
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+
+sub norm_rel {
+  my ($p) = @_;
+  return undef if !defined($p) || $p =~ /\0/;
+  $p =~ s{\\}{/}g;
+  return undef if $p =~ m{^/};
+  my @parts;
+  for my $seg (split m{/}, $p, -1) {
+    next if $seg eq "" || $seg eq ".";
+    return undef if $seg eq ".." || $seg =~ /:/;
+    push @parts, $seg;
+  }
+  return @parts ? join("/", @parts) : undef;
+}
+
+sub run_git {
+  my ($dir, $ceiling, @args) = @_;
+  local $ENV{GIT_CEILING_DIRECTORIES} = $ceiling if defined $ceiling;
+  my $pid = open(my $fh, "-|");
+  return undef unless defined $pid;
+  if ($pid == 0) {
+    open(STDERR, ">", "/dev/null");
+    exec("git", (defined($dir) ? ("-C", $dir) : ()), @args) or exit 127;
+  }
+  local $/;
+  my $out = <$fh>;
+  close($fh);
+  return $? == 0 ? ($out // "") : undef;
+}
+
+sub u64be {
+  my ($n) = @_;
+  return pack("NN", int($n / 4294967296), $n % 4294967296);
+}
+
+sub gitlink_bytes {
+  my ($f) = @_;
+  my $norm = norm_rel($f);
+  return undef unless defined $norm;
+  my $ls = run_git(undef, undef, "-c", "core.quotepath=false", "ls-files", "--stage", "-z", "--", $norm);
+  return undef unless defined $ls;
+  my ($idx_sha, $fallback);
+  for my $entry (split /\0/, $ls) {
+    next unless length($entry);
+    my ($meta, $path) = split /\t/, $entry, 2;
+    next unless defined($path) && $path eq $norm;
+    my ($mode, $sha, $stage) = split /\s+/, $meta;
+    next unless defined($mode) && $mode eq "160000" && defined($sha) && $sha =~ /^[0-9a-fA-F]{40,}$/;
+    if (defined($stage) && $stage eq "0") { $idx_sha = $sha; last; }
+    $fallback //= $sha;
+  }
+  $idx_sha //= $fallback;
+  return undef unless defined $idx_sha;
+  return "Subproject commit $idx_sha\n" unless (-e "$f/.git" || -l "$f/.git");
+  my $root_abs = abs_path(".");
+  my $sub_abs = abs_path($f);
+  return undef unless defined($root_abs) && defined($sub_abs);
+  my $ceiling = dirname("$root_abs/$norm");
+  my $top = run_git($f, $ceiling, "rev-parse", "--show-toplevel");
+  return undef unless defined $top;
+  $top =~ s/[\r\n]+$//;
+  my $top_abs = abs_path($top);
+  return undef unless defined($top_abs) && $top_abs eq $sub_abs;
+  my $head = run_git($f, undef, "rev-parse", "--verify", "HEAD");
+  my $has_head = defined($head);
+  my $head_sha = $idx_sha;
+  if ($has_head) {
+    $head =~ s/[\r\n]+$//;
+    $head_sha = $head if length($head);
+  }
+  my $status = run_git($f, undef, "-c", "core.quotepath=false", "status", "--porcelain", "-uall", "-z");
+  return undef unless defined $status;
+  return "Subproject commit $head_sha\n" unless length($status);
+  my $sha = Digest::SHA->new(256);
+  $sha->add("status\0", u64be(length($status)), "\0", $status);
+  $sha->add("diff\0");
+  if ($has_head) {
+    my $diff = run_git($f, undef, "-c", "core.quotepath=false", "diff", "--no-color", "--no-ext-diff", "--full-index", "HEAD", "--");
+    return undef unless defined $diff;
+    $sha->add(u64be(length($diff)), "\0", $diff);
+  } else {
+    my $cached = run_git($f, undef, "-c", "core.quotepath=false", "diff", "--no-color", "--no-ext-diff", "--full-index", "--cached");
+    my $unstaged = run_git($f, undef, "-c", "core.quotepath=false", "diff", "--no-color", "--no-ext-diff", "--full-index");
+    return undef unless defined($cached) && defined($unstaged);
+    $sha->add(u64be(length($cached)), "\0", $cached, u64be(length($unstaged)), "\0", $unstaged);
+  }
+  my @parts = split /\0/, $status, -1;
+  my %seen;
+  my @untracked;
+  for (my $i = 0; $i < @parts; $i++) {
+    my $e = $parts[$i];
+    next if length($e) < 4;
+    if (substr($e, 0, 3) eq "?? ") {
+      my $p = substr($e, 3);
+      $p =~ s{\\}{/}g;
+      push @untracked, $p if length($p) && !$seen{$p}++;
+    } elsif (substr($e, 0, 1) =~ /[RC]/ || substr($e, 1, 1) =~ /[RC]/) {
+      $i++;
+    }
+  }
+  $sha->add("untracked\0");
+  for my $rel (sort @untracked) {
+    if (open(my $uh, "<:raw", "$f/$rel")) {
+      my $ub = do { local $/; <$uh> } // "";
+      $sha->add($rel, "\0", u64be(length($ub)), "\0", $ub, "\0");
+    }
+  }
+  return "Subproject commit $head_sha-dirty\ndirty-worktree: sha256:" . $sha->hexdigest . "\n";
+}
+
+for my $f (@ARGV) {
+  my $b;
+  if (-d $f) {
+    $b = gitlink_bytes($f);
+    next unless defined $b;
+  } else {
+    open(my $h, "<:raw", $f) or next;
+    $b = <$h> // "";
+    my $u = $b;
+    $b =~ s/\r\n/\n/g if utf8::decode($u);
+  }
+  print sha256_hex($b), "  $f\n";
+}
+`;
+
 // 每一站的狀態：none、open（工單開著）、stamped（章有效）或 stale（章過期）。判斷和引擎的封存守門相同：
 // 工單開著的站不看章；章要任務數沒變、程式任務都做完、範圍內的檔案內容沒變。hashes 查不到時只看任務。
 export function stationStates(facts, row) {

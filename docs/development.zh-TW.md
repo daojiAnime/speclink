@@ -73,10 +73,10 @@
   > speclink-workspace@0.1.3 cli
   > node scripts/dev/cli.mjs --version
 
-  speclink 0.8.0 (arm64, engine v1.41.0)
+  speclink 0.8.0 (arm64, engine v1.41.0, a1b2c3d4)
   ```
 
-  版號與架構依你的 checkout 與機器而定。第一次執行（或刪掉 binary 之後）會先在 stderr 看到 cargo 的建置過程。
+  版號、架構與建置 commit 依你的 checkout 與機器而定（有未提交的追蹤檔改動時會附加 `-dirty`）。第一次執行（或刪掉 binary 之後）會先在 stderr 看到 cargo 的建置過程。
 
 需要乾淨的 stdout（例如讓程式讀 JSON）時加 `--silent`，npm 自己的訊息就不會混進來：
 
@@ -94,14 +94,14 @@ CLI 會在你下指令的資料夾執行。exit code、stdin、stdout、stderr �
 
 ### 核對遠端環境
 
-在 checkout 裡核對遠端環境時（例如 `auth status`、`list --json`），一律用 `npm run cli -- <args>`，不要用 PATH 上的 `speclink`。PATH 上那顆可能來自另一個 checkout，或是沒跟上的舊安裝版。用這兩行比對引擎版號：
+在 checkout 裡核對遠端環境時（例如 `auth status`、`list --json`），一律用 `npm run cli -- <args>`，不要用 PATH 上的 `speclink`。PATH 上那顆可能來自另一個 checkout，或是沒跟上的舊安裝版。用這兩行比對版本輸出：
 
 ```bash
 speclink --version
 npm run --silent cli -- --version
 ```
 
-兩行的 `engine v…` 不一樣，就表示 PATH 上的 `speclink` 不是這份原始碼建出來的。
+兩行的 `engine v…` 或建置 commit（含 `-dirty`）不一樣，就表示 PATH 上的 `speclink` 不是這份原始碼建出來的。
 
 ## <a id="tests"></a>測試
 

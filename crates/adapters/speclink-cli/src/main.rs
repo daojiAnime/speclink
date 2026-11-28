@@ -4,6 +4,8 @@ use speclink_core as core;
 
 mod color;
 mod common;
+#[cfg(test)]
+mod git_rev;
 mod remote_base;
 mod skill_notice;
 mod terminal_report;
@@ -50,17 +52,34 @@ const ARCH: Option<&str> = {
     }
 };
 
-/// Version string with the architecture suffix and the engine (artifact layer)
-/// version, e.g. "2.3.1 (arm64, engine v1.14.0)". Built at runtime because
-/// `ASSET_VERSION` lives in another crate and cannot be `concat!`ed here — it
-/// is what makes "which engine is this binary" a one-command question.
-static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-    let pkg = env!("CARGO_PKG_VERSION");
-    let engine = core::init::ASSET_VERSION;
-    match ARCH {
-        Some(arch) => format!("{pkg} ({arch}, engine {engine})"),
-        None => format!("{pkg} (engine {engine})"),
+/// Format the CLI version string with optional architecture, engine (artifact
+/// layer) version, and compile-time Git revision metadata.
+fn format_version(pkg: &str, arch: Option<&str>, engine: &str, git_rev: Option<&str>) -> String {
+    let rev = git_rev.map(str::trim).filter(|s| !s.is_empty());
+    let mut parts: Vec<String> = Vec::with_capacity(3);
+    if let Some(arch) = arch {
+        parts.push(arch.to_string());
     }
+    parts.push(format!("engine {engine}"));
+    if let Some(rev) = rev {
+        parts.push(rev.to_string());
+    }
+    format!("{pkg} ({})", parts.join(", "))
+}
+
+/// Version string with the architecture suffix, the engine (artifact layer)
+/// version, and the compile-time Git revision (when built from this workspace's
+/// Git tree), e.g. "0.20.0 (arm64, engine v1.66.0, f63e7113)". Built at runtime
+/// because `ASSET_VERSION` lives in another crate and cannot be `concat!`ed
+/// here — it is what makes "which engine and build is this binary" a
+/// one-command question.
+static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    format_version(
+        env!("CARGO_PKG_VERSION"),
+        ARCH,
+        core::init::ASSET_VERSION,
+        option_env!("SPECLINK_GIT_REV"),
+    )
 });
 
 /// Speclink — spec management CLI
@@ -296,5 +315,57 @@ mod tests {
             .expect_err("an unknown flag");
         let text = error.render().to_string();
         assert!(text.contains("Usage: speclink list [OPTIONS]"), "{text}");
+    }
+
+    // Example「版號輸出格式」：有/無架構 × 乾淨修訂/髒修訂/無修訂（含顯式 None 與空白）回退。
+    #[test]
+    fn format_version_covers_arch_and_git_rev_matrix() {
+        let cases = [
+            (
+                Some("arm64"),
+                Some("f63e7113"),
+                "0.20.0 (arm64, engine v1.66.0, f63e7113)",
+            ),
+            (
+                Some("x64"),
+                Some("f63e7113-dirty"),
+                "0.20.0 (x64, engine v1.66.0, f63e7113-dirty)",
+            ),
+            (
+                None,
+                Some("f63e7113"),
+                "0.20.0 (engine v1.66.0, f63e7113)",
+            ),
+            (
+                None,
+                Some("f63e7113-dirty"),
+                "0.20.0 (engine v1.66.0, f63e7113-dirty)",
+            ),
+            (Some("arm64"), None, "0.20.0 (arm64, engine v1.66.0)"),
+            (None, None, "0.20.0 (engine v1.66.0)"),
+            (None, Some("   "), "0.20.0 (engine v1.66.0)"),
+        ];
+
+        for (arch, git_rev, expected) in cases {
+            assert_eq!(
+                super::format_version("0.20.0", arch, "v1.66.0", git_rev),
+                expected,
+                "arch={arch:?} git_rev={git_rev:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn clap_version_flag_matches_static_version_contract() {
+        let err = super::cli_command()
+            .try_get_matches_from(["speclink", "--version"])
+            .expect_err("--version triggers DisplayVersion");
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+        let rendered = err.to_string();
+        assert_eq!(rendered.lines().count(), 1, "{rendered}");
+        assert_eq!(
+            rendered.trim_end(),
+            format!("speclink {}", super::VERSION.as_str())
+        );
     }
 }

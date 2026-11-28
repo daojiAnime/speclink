@@ -2,16 +2,21 @@
 // 面板的列、每一列有哪些技能鈕、技能要送給誰。畫面與 Herdr API 不在這裡測。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
   ALL_SKILLS,
   APP_ID,
+  FINGERPRINT_SCRIPT,
   PICKER_ROWS,
   PICKER_SKILLS,
   PICKER_VARIANTS,
+  READ_STATIONS_SCRIPT,
   SKILL_GROUPS,
   agyPluginFolders,
   customPlacePlan,
@@ -2331,4 +2336,92 @@ test('skillRows：大量技能時單次線性分組分系列不退化為 O(N²)�
   const elapsed = performance.now() - t0;
   assert.ok(elapsed < 50, `skillRows 應在 50ms 內完成，實測 ${elapsed.toFixed(2)}ms`);
   assert.ok(rows.some((r) => r.kind === 'family' && r.name === 'plugin' && r.count === 60));
+});
+
+test('READ_STATIONS_SCRIPT：支援預設 speclink、舊版 openspec 與 .speclink.yaml 自訂 spec_dir', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'herdr-stations-'));
+  try {
+    mkdirSync(path.join(dir, 'custom/specs/changes/demo'), { recursive: true });
+    writeFileSync(dir + '/.speclink.yaml', 'spec_dir: "custom/specs"\n');
+    writeFileSync(
+      path.join(dir, 'custom/specs/changes/demo/.meta.yaml'),
+      'reviewed_at: 2026-11-28T10:00:00+08:00\nreviewed_tasks_total: 1\nreviewed_scope:\n  - path: a.txt\n    hash: aaa\n',
+    );
+    writeFileSync(path.join(dir, 'custom/specs/changes/demo/verify.md'), '# Verify\n');
+    const out = execFileSync('sh', ['-c', READ_STATIONS_SCRIPT, 'sh', 'demo'], { cwd: dir, encoding: 'utf8' });
+    const stations = parseStations(out);
+    assert.equal(stations.review.ticket, false);
+    assert.equal(stations.review.stamp?.total, 1);
+    assert.equal(stations.verify.ticket, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('FINGERPRINT_SCRIPT：一般檔案與 160000 gitlink 子模組（未初始化／乾淨／髒工作區／一般目錄）皆與引擎同構', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'herdr-gitlink-'));
+  const git = (cwd, ...args) =>
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], {
+      cwd,
+      encoding: 'utf8',
+    }).trim();
+  const sha = (buf) => createHash('sha256').update(buf).digest('hex');
+  try {
+    // 1. 建子模組與父倉（含 CRLF 文字檔、二進位檔、一般目錄與 160000 gitlink）
+    const subSrc = path.join(dir, 'sub-src');
+    mkdirSync(subSrc);
+    git(subSrc, 'init', '-b', 'main');
+    writeFileSync(path.join(subSrc, 'a.txt'), 'hello\n');
+    git(subSrc, 'add', 'a.txt');
+    git(subSrc, 'commit', '-m', 'sub init');
+    const subHead = git(subSrc, 'rev-parse', 'HEAD');
+
+    const parent = path.join(dir, 'parent');
+    mkdirSync(parent);
+    git(parent, 'init', '-b', 'main');
+    writeFileSync(path.join(parent, 'crlf.txt'), 'line1\r\nline2\r\n');
+    writeFileSync(path.join(parent, 'bin.dat'), Buffer.from([0xff, 0x00, 0x0d, 0x0a]));
+    mkdirSync(path.join(parent, 'plain_dir'));
+    writeFileSync(path.join(parent, 'plain_dir/x.txt'), 'x\n');
+    execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', subSrc, 'frontend'], { cwd: parent, stdio: 'pipe' });
+    git(parent, 'add', 'crlf.txt', 'bin.dat', 'plain_dir/x.txt');
+    git(parent, 'commit', '-m', 'parent init');
+
+    const runInParent = (...paths) => {
+      const out = execFileSync('perl', ['-MDigest::SHA=sha256_hex', '-0777', '-e', FINGERPRINT_SCRIPT, '--', ...paths], {
+        cwd: parent,
+        encoding: 'utf8',
+      });
+      return Object.fromEntries(out.split('\n').filter(Boolean).map((line) => [line.slice(66), line.slice(0, 64)]));
+    };
+
+    // 乾淨子模組 + CRLF + binary + 一般目錄
+    const cleanHashes = runInParent('crlf.txt', 'bin.dat', 'frontend', 'plain_dir');
+    assert.equal(cleanHashes['crlf.txt'], sha('line1\nline2\n'));
+    assert.equal(cleanHashes['bin.dat'], sha(Buffer.from([0xff, 0x00, 0x0d, 0x0a])));
+    assert.equal(cleanHashes.frontend, sha(`Subproject commit ${subHead}\n`));
+    assert.equal('plain_dir' in cleanHashes, false, '一般目錄不得輸出指紋');
+
+    // 驗證 stationStates 判為 stamped
+    const metaClean = `reviewed_at: 2026-11-28T10:00:00+08:00\nreviewed_tasks_total: 1\nreviewed_scope:\n  - path: frontend\n    hash: ${cleanHashes.frontend}\n`;
+    assert.equal(stationStates({ ...parseStations(metaClean), hashes: cleanHashes }, { total: 1, codeRemaining: 0 }).review, 'stamped');
+
+    // 髒子模組（修改追蹤檔 + 未追蹤檔）須與未更改前不同；復原後恢復
+    writeFileSync(path.join(parent, 'frontend/a.txt'), 'changed\n');
+    writeFileSync(path.join(parent, 'frontend/new.txt'), 'untracked\n');
+    const dirtyHashes = runInParent('frontend');
+    assert.ok(dirtyHashes.frontend);
+    assert.notEqual(dirtyHashes.frontend, cleanHashes.frontend);
+
+    // 損壞 .git 必須 fail closed（不輸出 hash）
+    rmSync(path.join(parent, 'frontend'), { recursive: true, force: true });
+    mkdirSync(path.join(parent, 'frontend/.git'), { recursive: true });
+    assert.equal('frontend' in runInParent('frontend'), false);
+
+    // 未初始化子模組（目錄內無 .git）回退父倉索引 SHA
+    rmSync(path.join(parent, 'frontend/.git'), { recursive: true, force: true });
+    assert.equal(runInParent('frontend').frontend, sha(`Subproject commit ${subHead}\n`));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

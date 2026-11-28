@@ -49,7 +49,7 @@ Check the install:
 speclink --version
 ```
 
-**Expected output**: one version line, for example `speclink 0.8.0 (arm64, engine v1.48.0)`.
+**Expected output**: one version line, for example `speclink 0.8.0 (arm64, engine v1.48.0, a1b2c3d4)` (or without the trailing commit hash when built outside Git).
 
 ### <a id="install-script"></a>Install script options
 

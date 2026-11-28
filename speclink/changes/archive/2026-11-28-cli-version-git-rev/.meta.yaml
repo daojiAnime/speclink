@@ -1,0 +1,68 @@
+schema: spec-driven
+created: 2026-11-28T15:08:41+08:00
+created_by: daoji <daoji.chang@gmail.com>
+created_with: agy
+started_at: 2026-11-28T15:49:30+08:00
+started_by: daoji <daoji.chang@gmail.com>
+branch: main
+ready_at: 2026-11-28T16:00:05+08:00
+reviewed_at: 2026-11-28T17:15:58+08:00
+reviewed_by: daoji <daoji.chang@gmail.com>
+reviewed_with: claude
+reviewed_tasks_total: 6
+reviewed_rounds: 1
+reviewed_commit: f63e7113b8f860848f865fb19e2f5cca4c406a2e
+reviewed_scope:
+  - path: apps/desktop/src/__tests__/cliInstall.test.ts
+    hash: 1c73d790876655b6ae2bd6d46e140be0314fd807a7ac07d547f360acbe259e7b
+  - path: crates/adapters/speclink-cli/build.rs
+    hash: 141872b428feac16d5ffa0a93a94cf987454fd27208f83061020badb4d90986e
+  - path: crates/adapters/speclink-cli/src/git_rev.rs
+    hash: daf767acfa6544224672062b8e44c41818fb9400ec17bc09423ae64e925f269f
+  - path: crates/adapters/speclink-cli/src/main.rs
+    hash: 58e90a05fce1097013f0be76dfadc58c3b9aa36ef5d8949ae8f99e5361e6f217
+  - path: crates/adapters/speclink-cli/tests/it/engine_version.rs
+    hash: d2ab851eb5be438e829f2de92acaff3396dffb45d44a7bd363efd662d4dfb313
+  - path: docs/development.md
+    hash: 60f00faaa5f752a6d0ad83a37aafafb6796b4b230d5c755357d516c2f182d185
+  - path: docs/development.zh-TW.md
+    hash: 9771a3c3d18136dddbd6cdb092f652dc38319c93d38ac6716efa35efe430c13e
+  - path: docs/getting-started.md
+    hash: 0662db740a3e26fdc4303059d4d79d631c2cd42be6f587a1af4fa730cdaba585
+  - path: docs/getting-started.zh-TW.md
+    hash: 3854233d7afa9c3be6b86efb7b723ae607f4ab9f3c9df50b3fec648ff2ee24d0
+  - path: scripts/desktop/desktop-install.mjs
+    hash: 50175b2b3d6c6f6139d0d4c3b56f5cd4f72743dd64b122d945228f75f15738cc
+  - path: scripts/desktop/desktop-install.test.mjs
+    hash: 4c6acb88377978bb0acb7a33fc0166a34c7e308843757dcf8b55ca6a6897f44c
+verified_at: 2026-11-28T17:15:58+08:00
+verified_by: daoji <daoji.chang@gmail.com>
+verified_with: claude
+verified_tasks_total: 6
+verified_rounds: 1
+verified_commit: f63e7113b8f860848f865fb19e2f5cca4c406a2e
+verified_scope:
+  - path: apps/desktop/src/__tests__/cliInstall.test.ts
+    hash: 1c73d790876655b6ae2bd6d46e140be0314fd807a7ac07d547f360acbe259e7b
+  - path: crates/adapters/speclink-cli/build.rs
+    hash: 141872b428feac16d5ffa0a93a94cf987454fd27208f83061020badb4d90986e
+  - path: crates/adapters/speclink-cli/src/git_rev.rs
+    hash: daf767acfa6544224672062b8e44c41818fb9400ec17bc09423ae64e925f269f
+  - path: crates/adapters/speclink-cli/src/main.rs
+    hash: 58e90a05fce1097013f0be76dfadc58c3b9aa36ef5d8949ae8f99e5361e6f217
+  - path: crates/adapters/speclink-cli/tests/it/engine_version.rs
+    hash: d2ab851eb5be438e829f2de92acaff3396dffb45d44a7bd363efd662d4dfb313
+  - path: docs/development.md
+    hash: 60f00faaa5f752a6d0ad83a37aafafb6796b4b230d5c755357d516c2f182d185
+  - path: docs/development.zh-TW.md
+    hash: 9771a3c3d18136dddbd6cdb092f652dc38319c93d38ac6716efa35efe430c13e
+  - path: docs/getting-started.md
+    hash: 0662db740a3e26fdc4303059d4d79d631c2cd42be6f587a1af4fa730cdaba585
+  - path: docs/getting-started.zh-TW.md
+    hash: 3854233d7afa9c3be6b86efb7b723ae607f4ab9f3c9df50b3fec648ff2ee24d0
+  - path: scripts/desktop/desktop-install.mjs
+    hash: 50175b2b3d6c6f6139d0d4c3b56f5cd4f72743dd64b122d945228f75f15738cc
+  - path: scripts/desktop/desktop-install.test.mjs
+    hash: 4c6acb88377978bb0acb7a33fc0166a34c7e308843757dcf8b55ca6a6897f44c
+archived_at: 2026-11-28T17:24:46+08:00
+archived_by: daoji <daoji.chang@gmail.com>

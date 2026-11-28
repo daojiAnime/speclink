@@ -73,10 +73,10 @@ The CLI build comes first on purpose. When you then check things with [`npm run 
   > speclink-workspace@0.1.3 cli
   > node scripts/dev/cli.mjs --version
 
-  speclink 0.8.0 (arm64, engine v1.41.0)
+  speclink 0.8.0 (arm64, engine v1.41.0, a1b2c3d4)
   ```
 
-  The version and the architecture depend on your checkout and machine. On the first run (or after you delete the binary), stderr shows the cargo build first.
+  The version, architecture, and build commit depend on your checkout and machine (uncommitted tracked edits add `-dirty`). On the first run (or after you delete the binary), stderr shows the cargo build first.
 
 Add `--silent` when you need a clean stdout (for example, JSON for another program). npm then adds no lines of its own:
 
@@ -94,14 +94,14 @@ The CLI runs in the folder where you type the command. The wrapper passes on the
 
 ### Check a remote environment
 
-When you check a remote environment from a checkout (for example, `auth status` or `list --json`), always use `npm run cli -- <args>`. Do not use the `speclink` on your PATH. That binary can come from another checkout or from an old installed version. Compare the engine versions with these two lines:
+When you check a remote environment from a checkout (for example, `auth status` or `list --json`), always use `npm run cli -- <args>`. Do not use the `speclink` on your PATH. That binary can come from another checkout or from an old installed version. Compare the version output with these two lines:
 
 ```bash
 speclink --version
 npm run --silent cli -- --version
 ```
 
-If the two `engine v…` values differ, the `speclink` on your PATH does not come from this source.
+If the `engine v…` value or the build commit (including `-dirty`) differs, the `speclink` on your PATH does not come from this source.
 
 ## <a id="tests"></a>Tests
 

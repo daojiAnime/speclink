@@ -1,0 +1,14 @@
+## 1. CLI 版本格式化与编译期 Git 修订采集（D1、D2）
+
+- [x] 1.1 补齐版本格式与修订输出失败测试（红灯）：在 `crates/adapters/speclink-cli/src/main.rs` 的单元测试模块与 `crates/adapters/speclink-cli/tests/it/engine_version.rs` 编写覆盖「引擎版號查詢面」（D1、D2）的失败测试，覆盖有/无已知架构 × 干净修订/脏修订/无修订回退共 6 种 `format_version` 组合，以及真实执行 `speclink --version` 与 `speclink --version --no-color` 输出单行无 ANSI、含与当前 `HEAD` 一致的 8 位短哈希及与已追踪工作区状态一致的 `-dirty` 标记。验证：运行 `cargo test -p speclink-cli --bin speclink` 与 `cargo test -p speclink-cli --test it engine_version::` 确认新增用例因尚未实现而失败 <!-- speclink-task:tsk_01M8GFVY8HWAPS3DTQAEH8GQ71 -->
+- [x] 1.2 实现编译期 Git 修订采集与 `--version` 格式化（绿灯）：新增 `crates/adapters/speclink-cli/build.rs` 校验 `git rev-parse --show-toplevel` 与 workspace 根目录一致后采集 8 位短提交哈希与已追踪文件脏状态（`git status --porcelain --untracked-files=no`），通过 `SPECLINK_GIT_REV` 注入编译期环境并针对 Git 元数据（`HEAD`、当前符号引用、`packed-refs`、`index`）与 `crates/`、`Cargo.toml`、`Cargo.lock` 发出 `cargo:rerun-if-changed`（非 Git 环境静默回退为空）；在 `crates/adapters/speclink-cli/src/main.rs` 实现 `format_version` 并接入静态 `VERSION`（D1、D2）。验证：运行 `cargo test -p speclink-cli --bin speclink` 与 `cargo test -p speclink-cli --test it engine_version::` 全部通过 <!-- speclink-task:tsk_01M8GFVY8HMNG5MY9JAB6W8XYF -->
+
+## 2. 下游解析器兼容与双端回归测试（D3）
+
+- [x] 2.1 补齐桌面安装脚本与桌面前端解析测试（红灯）：在 `scripts/desktop/desktop-install.test.mjs` 新增带 8 位短哈希、带 `-dirty` 后缀及无架构新格式 `--version` 字符串的 `engineVersionOf` 用例（D3），并在 `apps/desktop/src/__tests__/cliInstall.test.ts` 新增 `parseCliVersion` 解析含修订段输出仍返回纯包版本号的回归断言。验证：运行 `node --test scripts/desktop/desktop-install.test.mjs` 确认新格式用例在修复前失败 <!-- speclink-task:tsk_01M8GFVY8HNRDMBQ185S8B69VP -->
+- [x] 2.2 更新 `engineVersionOf` 解析正则（绿灯）：在 `scripts/desktop/desktop-install.mjs` 放宽 `engineVersionOf` 对 `engine <產物層版號>` 右侧边界的匹配，使其同时兼容既有 `)` 结尾与新增 `, <8位SHA>[-dirty])` 结尾，且在缺少 `engine` 段时维持抛出明确错误（D3）。验证：运行 `node --test scripts/desktop/desktop-install.test.mjs` 与 `npm test -w apps/desktop` 全部通过 <!-- speclink-task:tsk_01M8GFVY8H61MEWRHAPKGRB15C -->
+
+## 3. 开发文档同步与全受影响面验证（D3）
+
+- [x] 3.1 同步双语开发文档版本示例与核对指引：更新 `docs/development.md` 与 `docs/development.zh-TW.md` 的 `speclink --version` 示例输出及「比对 PATH 与本 checkout 的 CLI」说明（D3），说明括号内同时展示 `engine v…` 与编译期 Git 修订（及 `-dirty`），保持英繁双语逐段对等且符合仓库词汇守卫规范。验证：对照两份文档内容确认示例与说明双语一致，且不引入失效链接或禁用词汇 <!-- speclink-task:tsk_01M8GFVY8H6TJS9REZDX7P1H0H -->
+- [x] 3.2 全受影响面回归与仓库脚本守卫验证：确认 `ASSET_VERSION`、技能模板 golden 快照与 `assets.lock` 零漂移，以及 CLI 集成测试、桌面前端测试与仓库脚本/文档双语守卫全绿。验证：依次运行 `cargo test -p speclink-core --test it render_golden::`、`cargo test -p speclink-cli --test it`、`npm test -w apps/desktop` 与 `node --test scripts/*.test.mjs scripts/*/*.test.mjs` 全部通过 <!-- speclink-task:tsk_01M8GFVY8H2ZM6KSHJ8TW9B3MZ -->

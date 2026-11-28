@@ -41,6 +41,14 @@ describe("CLI --version 輸出解析", () => {
     expect(parseCliVersion("speclink 0.1.0 (arm64, engine v1.14.0)\n")).toBe("0.1.0");
   });
 
+  it("帶編譯期 Git 修訂與 -dirty 標記的新格式仍解析出純套件版號", () => {
+    expect(parseCliVersion("speclink 0.20.0 (arm64, engine v1.66.0, f63e7113)\n")).toBe("0.20.0");
+    expect(parseCliVersion("speclink 0.20.0 (arm64, engine v1.66.0, f63e7113-dirty)\n")).toBe(
+      "0.20.0",
+    );
+    expect(parseCliVersion("speclink 0.20.0 (engine v1.66.0, f63e7113)\n")).toBe("0.20.0");
+  });
+
   it("無法解析時回 null", () => {
     expect(parseCliVersion("garbage")).toBeNull();
   });

@@ -49,7 +49,7 @@ brew install MomoChenisMe/tap/speclink
 speclink --version
 ```
 
-**預期輸出**：一行版本字串，例如 `speclink 0.8.0 (arm64, engine v1.48.0)`。
+**預期輸出**：一行版本字串，例如 `speclink 0.8.0 (arm64, engine v1.48.0, a1b2c3d4)`（非 Git 建置時省略尾端 commit 雜湊）。
 
 ### <a id="install-script"></a>安裝腳本的選項
 

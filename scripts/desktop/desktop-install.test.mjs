@@ -39,10 +39,15 @@ test('讀不到 ASSET_VERSION 常數時明確失敗，不回空字串', () => {
 
 test('--version 輸出的引擎版號可解析', () => {
   assert.equal(engineVersionOf('speclink 0.1.0 (arm64, engine v1.14.0)\n'), 'v1.14.0');
+  assert.equal(engineVersionOf('speclink 0.1.0 (engine v1.14.0)\n'), 'v1.14.0');
+  assert.equal(engineVersionOf('speclink 0.20.0 (arm64, engine v1.66.0, f63e7113)\n'), 'v1.66.0');
+  assert.equal(engineVersionOf('speclink 0.20.0 (arm64, engine v1.66.0, f63e7113-dirty)\n'), 'v1.66.0');
+  assert.equal(engineVersionOf('speclink 0.20.0 (engine v1.66.0, f63e7113)\n'), 'v1.66.0');
 });
 
 test('--version 不含引擎版號時明確失敗（舊 binary 的形狀）', () => {
   assert.throws(() => engineVersionOf('speclink 0.1.0 (arm64)\n'), /engine/);
+  assert.throws(() => engineVersionOf('speclink 0.20.0 (arm64, f63e7113)\n'), /engine/);
 });
 
 test('版號不符的斷言印出兩邊版號', () => {
