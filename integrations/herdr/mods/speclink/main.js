@@ -1,7 +1,7 @@
 // Speclink 面板：目前 space 的專案有哪些變更與討論、各自做到哪裡，以及按一下把技能交給對的
 // agent。資料只來自 speclink CLI 的 --json；判斷邏輯都在 model.js。
 import { View, div, image, svg } from "gpui-kit";
-import { InputState, h_flex, v_flex } from "gpui-base";
+import { InputState, TextView, h_flex, v_flex } from "gpui-base";
 import {
   agents,
   checking,
@@ -42,6 +42,7 @@ import {
   newTabPlan,
   newTabRun,
   parseArtifactPreview,
+  prepareMarkdownPreview,
   rowChoices,
   speclinkUrl,
   startChoices,
@@ -1215,7 +1216,10 @@ export default class SpeclinkPanel extends View {
     ];
     const cacheKey = `${row.name}:${this.detailTab}`;
     const entry = this.artifactCache.get(cacheKey);
-    const lines = entry?.ok ? parseArtifactPreview(entry.text) : [];
+    const isTaskTab = this.detailTab === "tasks";
+    const lines = isTaskTab && entry?.ok ? parseArtifactPreview(entry.text) : [];
+    const markdownText = !isTaskTab && entry?.ok ? prepareMarkdownPreview(entry.text) : "";
+    const isEmpty = Boolean(entry?.ok && (isTaskTab ? lines.length === 0 : markdownText.length === 0));
     const dateTag = formatShortDate(row.created || row.modifiedAt);
     return [
       v_flex()
@@ -1337,10 +1341,26 @@ export default class SpeclinkPanel extends View {
             .when(Boolean(entry && !entry.loading && !entry.ok), (el) =>
               el.child(div().text_size(11.5).text_color(t.muted).child(entry?.error || tr("此文档尚未创建"))),
             )
-            .when(Boolean(entry?.ok && lines.length === 0), (el) =>
+            .when(isEmpty, (el) =>
               el.child(div().text_size(11.5).text_color(t.muted).child(tr("文档内容为空"))),
             )
-            .when(lines.length > 0, (el) => el.children(lines.map((item, idx) => this.previewBlock(item, idx, t)))),
+            .when(isTaskTab && lines.length > 0, (el) =>
+              el.children(lines.map((item, idx) => this.previewBlock(item, idx, t))),
+            )
+            .when(!isTaskTab && markdownText.length > 0, (el) =>
+              el.child(
+                div()
+                  .w_full()
+                  .min_w(0)
+                  .text_size(12)
+                  .text_color(t.foreground)
+                  .child(
+                    TextView.markdown(`detail-md-${row.name}-${this.detailTab}`, markdownText)
+                      .raw_html(false)
+                      .selectable(true),
+                  ),
+              ),
+            ),
         ),
     ];
   }

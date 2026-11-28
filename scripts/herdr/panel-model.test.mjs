@@ -63,6 +63,7 @@ import {
   placePlan,
   planDelivery,
   parseArtifactPreview,
+  prepareMarkdownPreview,
   parseConfigTools,
   pickPreferredAgent,
   formatShortDate,
@@ -1277,6 +1278,42 @@ test('formatShortDate 与 parseArtifactPreview：正确裁剪日期与解析提�
     { kind: 'bullet', text: '普通条目' },
     { kind: 'code', text: 'speclink list' },
   ]);
+});
+
+test('prepareMarkdownPreview：剥离正文 HTML 注释并保留代码块与行内代码中的注释示例', () => {
+  const md = [
+    '<!-- top secret -->',
+    '',
+    '## Why',
+    '',
+    '<!-- multi',
+    'line comment -->',
+    '',
+    '正文保留 `<Tabs>` 与 `<!-- inline -->` 标记。',
+    '',
+    '```html',
+    '<!-- code block comment -->',
+    '<div role="status">ok</div>',
+    '```',
+    '',
+    '<!-- trailing -->',
+  ].join('\n');
+
+  assert.equal(
+    prepareMarkdownPreview(md),
+    [
+      '## Why',
+      '',
+      '正文保留 `<Tabs>` 与 `<!-- inline -->` 标记。',
+      '',
+      '```html',
+      '<!-- code block comment -->',
+      '<div role="status">ok</div>',
+      '```',
+    ].join('\n'),
+  );
+  assert.equal(prepareMarkdownPreview('<!-- only comment -->\n'), '');
+  assert.equal(prepareMarkdownPreview(''), '');
 });
 
 test('lastOpenError：後一次沒有錯誤訊息時，保留前一次的訊息', async () => {

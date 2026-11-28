@@ -851,6 +851,88 @@ export function parseArtifactPreview(text) {
   return out;
 }
 
+// 剥离围栏代码块与行内反引号之外的 HTML 注释，供原生 TextView.markdown 渲染，同时保留代码样例里的注释原样。
+export function prepareMarkdownPreview(text) {
+  if (!text) return "";
+  const out = [];
+  let fenceChar = "";
+  let fenceLen = 0;
+  let inComment = false;
+
+  const stripLineOutsideInlineCode = (line) => {
+    let res = "";
+    let i = 0;
+    while (i < line.length) {
+      if (inComment) {
+        const end = line.indexOf("-->", i);
+        if (end < 0) return res;
+        inComment = false;
+        i = end + 3;
+        continue;
+      }
+      if (line[i] === "`") {
+        let ticks = 1;
+        while (line[i + ticks] === "`") ticks += 1;
+        const marker = line.slice(i, i + ticks);
+        const close = line.indexOf(marker, i + ticks);
+        if (close >= 0) {
+          res += line.slice(i, close + ticks);
+          i = close + ticks;
+          continue;
+        }
+        res += marker;
+        i += ticks;
+        continue;
+      }
+      if (line.startsWith("<!--", i)) {
+        const end = line.indexOf("-->", i + 4);
+        if (end >= 0) {
+          i = end + 3;
+        } else {
+          inComment = true;
+          return res;
+        }
+        continue;
+      }
+      res += line[i];
+      i += 1;
+    }
+    return res;
+  };
+
+  for (const raw of String(text).split(/\r?\n/)) {
+    if (!fenceChar) {
+      const open = /^\s{0,3}(`{3,}|~{3,})/.exec(raw);
+      if (open && (open[1][0] === "~" || !raw.slice(open[0].length).includes("`"))) {
+        fenceChar = open[1][0];
+        fenceLen = open[1].length;
+        inComment = false;
+        out.push(raw);
+        continue;
+      }
+      const hadComment = inComment || raw.includes("<!--");
+      const cleaned = stripLineOutsideInlineCode(raw);
+      if (hadComment && !cleaned.trim()) continue;
+      if (!cleaned.trim()) {
+        if (out.length > 0 && out.at(-1) !== "") out.push("");
+        continue;
+      }
+      out.push(cleaned);
+    } else {
+      out.push(raw);
+      const close = new RegExp(`^\\s{0,3}${fenceChar}{${fenceLen},}\\s*$`);
+      if (close.test(raw)) {
+        fenceChar = "";
+        fenceLen = 0;
+      }
+    }
+  }
+
+  while (out.length > 0 && out[0] === "") out.shift();
+  while (out.length > 0 && out.at(-1) === "") out.pop();
+  return out.join("\n");
+}
+
 // 开工：开一个专门做这个变更的新 agent，开在当前工作区。没被挡、任务还没做完、没有 agent 在做才有这个按钮；
 // 讨论重新定案的变更要先 ingest，不直接开工。返回可以选的方式，没有按钮时是 null。
 // 已有 worktree 就接续，没开 worktree 流程就只能直接 apply，这两种不用问；其他情况要问用 worktree 还是直接 apply。
